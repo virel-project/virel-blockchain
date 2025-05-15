@@ -120,7 +120,7 @@ func initialPrompt() *wallet.Wallet {
 					os.Exit(0)
 				}
 
-				w, err := wallet.CreateWalletFileFromMnemonic("http://127.0.0.1:6311", cmds[1]+".keys",
+				w, err := wallet.CreateWalletFileFromMnemonic(default_rpc, cmds[1]+".keys",
 					mnemonic, []byte(password))
 				if err != nil {
 					Log.Err(err)

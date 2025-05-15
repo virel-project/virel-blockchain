@@ -169,6 +169,14 @@ func prompts(w *wallet.Wallet) {
 
 			Log.Infof("page %d/%d", page+1, maxPage+1)
 		},
+	}, {
+		Names: []string{"seedphrase", "seed", "mnemonic"},
+		Args:  "",
+		Action: func(args []string) {
+			Log.Infof("Your mnemonic seed phrase:")
+			Log.Infof(w.GetMnemonic())
+			Log.Infof("Write down this mnemonic seed phrase on a secure offline medium (e.g. paper) to recover your wallet.")
+		},
 	}}...)
 
 	l, err := readline.NewEx(&readline.Config{
