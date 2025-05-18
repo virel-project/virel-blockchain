@@ -39,7 +39,7 @@ func (o Output) Serialize() []byte {
 
 	return b.Output()
 }
-func (o Output) Deserialize(d *binary.Des) error {
+func (o *Output) Deserialize(d *binary.Des) error {
 	o.Recipient = address.Address(d.ReadFixedByteArray(address.SIZE))
 	o.Subaddr = d.ReadUvarint()
 	o.Amount = d.ReadUvarint()
