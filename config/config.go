@@ -22,7 +22,7 @@ const MAX_HEIGHT = 5_000_000_000
 const MIN_DIFFICULTY = 1000
 const TARGET_BLOCK_TIME = 15
 const FUTURE_TIME_LIMIT = 10
-const DIFFICULTY_N = 60 * 60 / TARGET_BLOCK_TIME // DAA half-life (1 hour).
+const DIFFICULTY_N = 30 * 60 / TARGET_BLOCK_TIME // DAA half-life (30 minutes).
 
 const MEMPOOL_EXPIRATION = 2 * time.Hour
 

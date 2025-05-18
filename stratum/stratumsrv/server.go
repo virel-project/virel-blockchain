@@ -72,7 +72,9 @@ func (s *Server) StartStratum(ip string, port uint16) error {
 	}
 	defer listener.Close()
 
+	s.Lock()
 	s.conns = make(map[string]*Conn)
+	s.Unlock()
 
 	Log.Infof("Stratum server listening: %s:%d", ip, port)
 
@@ -92,7 +94,6 @@ func (s *Server) StartStratum(ip string, port uint16) error {
 		s.Lock()
 		s.conns[conn.RemoteAddr().String()] = c
 		s.Unlock()
-
 		s.NewConnections <- c
 	}
 }

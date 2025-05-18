@@ -320,10 +320,9 @@ func (p *P2P) handleConnection(conn *Connection) {
 
 	go func() {
 		p.RLock()
-		conns := p.Connections
-		p.RUnlock()
+		defer p.RUnlock()
 
-		for addr, vconn := range conns {
+		for addr, vconn := range p.Connections {
 			if addr == ipPort {
 				continue
 			}
