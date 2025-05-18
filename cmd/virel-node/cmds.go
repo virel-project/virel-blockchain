@@ -129,8 +129,8 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"connections", "conns", "print_cn", "peers"},
 		Args:  "",
 		Action: func(args []string) {
-			bc.P2P.Lock()
-			defer bc.P2P.Unlock()
+			bc.P2P.RLock()
+			defer bc.P2P.RUnlock()
 
 			Log.Infof("%s %s %s", util.PadC("Peer ID", 19), util.PadC("IP", 11), "direction")
 			for _, conn := range bc.P2P.Connections {

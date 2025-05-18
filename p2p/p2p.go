@@ -40,6 +40,7 @@ type P2P struct {
 	util.RWMutex
 }
 
+// Returns the local peer ID (your public key)
 func (p *P2P) PeerId() [32]byte {
 	return [32]byte(p.Privkey.Public().(*ecdh.PublicKey).Bytes())
 }
@@ -218,41 +219,79 @@ scanning:
 
 // p2p must NOT be locked before calling this
 func (p *P2P) Kick(c *Connection) {
+	var ip string
 	c.Update(func(c *ConnData) error {
 		c.Close()
-		ip := c.Conn.RemoteAddr().String()
+		ip = c.Conn.RemoteAddr().String()
 		Log.Debug("p2p kick", ip)
 		c.Close()
-		p.Lock()
-		delete(p.Connections, ip)
-		p.Unlock()
 		return nil
+	})
+	p.Lock()
+	delete(p.Connections, ip)
+	p.Unlock()
+}
+
+func (p *P2P) sendPeerList(conn *Connection) error {
+	ip := ""
+	conn.View(func(c *ConnData) error {
+		ip = c.IP()
+		return nil
+	})
+
+	s := binary.Ser{}
+	p.RLock()
+	for i, v := range p.KnownPeers {
+		if v.IP == ip {
+			v.Type = PEER_WHITE
+			p.KnownPeers[i] = v
+		} else if v.Type == PEER_WHITE {
+			s.AddUint16(v.Port)
+			s.AddString(v.IP)
+		}
+	}
+	p.RUnlock()
+	return conn.Update(func(c *ConnData) error {
+		return c.sendPacket(pack{
+			Type: 2,
+			Data: s.Output(),
+		})
 	})
 }
 
 func (p *P2P) handleConnection(conn *Connection) {
 	var ipPort string
-	shouldReturn := false
-	err := conn.Update(func(c *ConnData) error {
+	conn.View(func(c *ConnData) error {
 		ipPort = c.Conn.RemoteAddr().String()
-		var peerid [32]byte
-		err := func() error {
-			p.Lock()
-			defer p.Unlock()
+		return nil
+	})
 
-			peerid = p.PeerId()
-
-			if p.Connections[ipPort] != nil {
-				return fmt.Errorf("peer %s is already connected", ipPort)
-			}
-			p.Connections[ipPort] = conn
-			return nil
-		}()
-		if err != nil {
-			c.Close()
-			shouldReturn = true
-			return nil
+	err := func() error {
+		p.Lock()
+		defer p.Unlock()
+		if p.Connections[ipPort] != nil {
+			return fmt.Errorf("peer %s is already connected", ipPort)
 		}
+		p.Connections[ipPort] = conn
+		return nil
+	}()
+	if err != nil {
+		Log.Debug(err)
+		conn.Update(func(c *ConnData) error {
+			c.Close()
+			return nil
+		})
+		return
+	}
+
+	p.RLock()
+	// Peer ID of this node
+	var peerid = p.PeerId()
+	p.RUnlock()
+
+	shouldReturn := false
+	err = conn.Update(func(c *ConnData) error {
+		ipPort = c.Conn.RemoteAddr().String()
 
 		// send peer ID
 		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -277,37 +316,42 @@ func (p *P2P) handleConnection(conn *Connection) {
 		p.Kick(conn)
 		return
 	}
-	err = conn.Update(func(c *ConnData) error {
-		c.PeerId = bitcrypto.Pubkey(peerIdBin)
+	peerId := bitcrypto.Pubkey(peerIdBin)
 
+	go func() {
+		p.RLock()
+		conns := p.Connections
+		p.RUnlock()
+
+		for addr, vconn := range conns {
+			if addr == ipPort {
+				continue
+			}
+			err := vconn.View(func(v *ConnData) error {
+				if v.PeerId == peerId && v.Conn.RemoteAddr().String() != ipPort {
+					err := fmt.Errorf("disconnecting from peer: duplicate ID %x", peerId)
+					go conn.Update(func(c *ConnData) error {
+						c.Close()
+						return nil
+					})
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				Log.Debug(err)
+			}
+		}
+	}()
+
+	err = conn.Update(func(c *ConnData) error {
+		c.PeerId = peerId
 		Log.Debugf("New connection with ID %x", c.PeerId)
 
 		if c.PeerId == p.PeerId() {
 			err := fmt.Errorf("disconnecting from peer: connection to self detected")
 			return err
 		}
-
-		func() {
-			p.RLock()
-			conns := p.Connections
-			p.RUnlock()
-
-			for addr, vconn := range conns {
-				if addr == ipPort {
-					continue
-				}
-				err := vconn.View(func(v *ConnData) error {
-					if v.PeerId == c.PeerId && v.Conn.RemoteAddr().String() != c.Conn.RemoteAddr().String() {
-						err := fmt.Errorf("disconnecting from peer: duplicate ID %x", c.PeerId)
-						return err
-					}
-					return nil
-				})
-				if err != nil {
-					Log.Warn(err)
-				}
-			}
-		}()
 
 		peerpub, err := curve.NewPublicKey(c.PeerId[:])
 		if err != nil {
@@ -330,59 +374,49 @@ func (p *P2P) handleConnection(conn *Connection) {
 
 		p.NewConnections <- conn
 
-		// check if this peer is already connected
-		err = func() error {
-			p.RLock()
-			defer p.RUnlock()
-
-			n := 0
-			for i, vconn := range p.Connections {
-				if i == ipPort {
-					continue
-				}
-				err := vconn.Update(func(v *ConnData) error {
-					if v.PeerId == c.PeerId {
-						n++
-						if n >= 2 {
-							err := fmt.Errorf("peer with id: %x is already connected - disconnecting it", c.PeerId)
-							return err
-						}
-					}
-					return nil
-				})
-				if err != nil {
-					return err
-				}
-			}
-			return err
-		}()
-		if err != nil {
-			return err
-		}
-
 		// update and broadcast peerlist
-		s := binary.Ser{}
-		p.Lock()
-		for i, v := range p.KnownPeers {
-			if v.IP == c.IP() {
-				v.Type = PEER_WHITE
-				p.KnownPeers[i] = v
-			} else if v.Type == PEER_WHITE {
-				s.AddUint16(v.Port)
-				s.AddString(v.IP)
+		go func() {
+			err := p.sendPeerList(conn)
+			if err != nil {
+				Log.Debug(err)
 			}
-		}
-		p.Unlock()
-		c.sendPacket(pack{
-			Type: 2,
-			Data: s.Output(),
-		})
+		}()
 
 		return nil
 	})
 	if err != nil {
 		Log.Warn(err)
 		p.Kick(conn)
+		return
+	}
+
+	// check if this peer is already connected
+	err = func() error {
+		p.RLock()
+		defer p.RUnlock()
+		n := 0
+		for i, vconn := range p.Connections {
+			if i == ipPort {
+				continue
+			}
+			err := vconn.Update(func(v *ConnData) error {
+				if v.PeerId == peerId {
+					n++
+					if n >= 2 {
+						err := fmt.Errorf("peer with id: %x is already connected - disconnecting it", peerId)
+						return err
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return err
+	}()
+	if err != nil {
+		Log.Debug(err)
 		return
 	}
 
