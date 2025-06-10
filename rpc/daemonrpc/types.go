@@ -21,6 +21,7 @@ type GetTransactionResponse struct {
 	Signature   enc.Hex              `json:"signature"`
 	Height      uint64               `json:"height"`
 	Coinbase    bool                 `json:"coinbase"`
+	VirtualSize uint64               `json:"virtual_size"`
 }
 
 type GetInfoRequest struct {

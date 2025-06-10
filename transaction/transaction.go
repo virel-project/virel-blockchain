@@ -53,6 +53,10 @@ func (o Output) String() string {
 
 type TXID [32]byte
 
+func (t TXID) String() string {
+	return hex.EncodeToString(t[:])
+}
+
 func (t Transaction) Serialize() []byte {
 	s := binary.NewSer(make([]byte, 120))
 

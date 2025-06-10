@@ -166,6 +166,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				Signature:   txn.Signature[:],
 				Height:      height,
 				Coinbase:    false,
+				VirtualSize: txn.GetVirtualSize(),
 			},
 			Id: c.Body.Id,
 		})
