@@ -10,8 +10,8 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/virel-project/go-randomvirel v1.0.0
 	github.com/zeebo/blake3 v0.2.4
-	go.etcd.io/bbolt v1.4.0
-	golang.org/x/crypto v0.38.0
+	go.etcd.io/bbolt v1.4.1
+	golang.org/x/crypto v0.39.0
 )
 
 require (
@@ -19,5 +19,5 @@ require (
 	github.com/petermattis/goid v0.0.0-20250508124226-395b08cebbdb // indirect
 	github.com/zeebo/assert v1.3.1 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 )
