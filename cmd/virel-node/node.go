@@ -49,6 +49,12 @@ func main() {
 
 	Log.SetLogLevel(uint8(*log_level))
 
+	Log.Info("Starting", config.NETWORK_NAME, "node")
+	if config.NETWORK_NAME != "mainnet" {
+		Log.Warn("This is a", strings.ToUpper(config.NETWORK_NAME), "node, only for testing the blockchain.")
+		Log.Warn("Be aware that any amount transacted in", config.NETWORK_NAME, "is worthless.")
+	}
+
 	bc := blockchain.New()
 
 	if config.IS_MASTERCHAIN {
