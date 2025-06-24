@@ -14,4 +14,4 @@ const GENESIS_ADDRESS = "so3yexhnu89af4aai83uou17dupb79c3gxng1q"
 const GENESIS_TIMESTAMP = 0
 const BLOCK_REWARD_FEE_PERCENT = 10
 
-var SEED_NODES = []string{"82.153.138.24:6313"}
+var SEED_NODES = []string{"82.153.138.24", "127.0.0.1"}

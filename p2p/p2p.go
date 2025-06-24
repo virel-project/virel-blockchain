@@ -172,7 +172,10 @@ func (p *P2P) ListenServer(port uint16) {
 		}
 
 		Log.Infof("New connection with IP %s", c.RemoteAddr().String())
-		p.handleConnection(conn)
+		err = p.handleConnection(conn)
+		if err != nil {
+			Log.Debug("P2P server connection error:", err)
+		}
 	}
 }
 func (p *P2P) StartClients() {
@@ -259,7 +262,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 	})
 }
 
-func (p *P2P) handleConnection(conn *Connection) {
+func (p *P2P) handleConnection(conn *Connection) error {
 	var ipPort string
 	conn.View(func(c *ConnData) error {
 		ipPort = c.Conn.RemoteAddr().String()
@@ -276,12 +279,11 @@ func (p *P2P) handleConnection(conn *Connection) {
 		return nil
 	}()
 	if err != nil {
-		Log.Debug(err)
 		conn.Update(func(c *ConnData) error {
 			c.Close()
 			return nil
 		})
-		return
+		return err
 	}
 
 	p.RLock()
@@ -289,7 +291,6 @@ func (p *P2P) handleConnection(conn *Connection) {
 	var peerid = p.PeerId()
 	p.RUnlock()
 
-	shouldReturn := false
 	err = conn.Update(func(c *ConnData) error {
 		ipPort = c.Conn.RemoteAddr().String()
 
@@ -298,12 +299,9 @@ func (p *P2P) handleConnection(conn *Connection) {
 		_, err = c.Conn.Write(peerid[:])
 		return err
 	})
-	if shouldReturn {
-		return
-	}
 	if err != nil {
 		p.Kick(conn)
-		return
+		return err
 	}
 
 	// read peer ID
@@ -312,9 +310,8 @@ func (p *P2P) handleConnection(conn *Connection) {
 	_, err = conn.data.Conn.Read(peerIdBin)
 	if err != nil {
 		err := fmt.Errorf("error occurred while reading peer id: %s", err)
-		Log.Warn(err)
 		p.Kick(conn)
-		return
+		return err
 	}
 	peerId := bitcrypto.Pubkey(peerIdBin)
 
@@ -384,9 +381,8 @@ func (p *P2P) handleConnection(conn *Connection) {
 		return nil
 	})
 	if err != nil {
-		Log.Warn(err)
 		p.Kick(conn)
-		return
+		return err
 	}
 
 	// check if this peer is already connected
@@ -415,8 +411,7 @@ func (p *P2P) handleConnection(conn *Connection) {
 		return err
 	}()
 	if err != nil {
-		Log.Debug(err)
-		return
+		return err
 	}
 
 	for {
@@ -424,7 +419,7 @@ func (p *P2P) handleConnection(conn *Connection) {
 		var packetType uint16
 		var data []byte
 
-		func() error {
+		err = func() error {
 			// packet length is unencrypted
 			conn.data.Conn.SetReadDeadline(time.Now().Add(config.P2P_TIMEOUT * time.Second))
 			packLenBuf := make([]byte, 4)
@@ -456,11 +451,13 @@ func (p *P2P) handleConnection(conn *Connection) {
 		}()
 		if err != nil {
 			p.Kick(conn)
-			return
+			if err == io.EOF {
+				return nil
+			}
+			return err
 		}
 
 		err = conn.View(func(c *ConnData) error {
-
 			des := binary.NewDes(data)
 
 			packetType = des.ReadUint16()
@@ -477,7 +474,7 @@ func (p *P2P) handleConnection(conn *Connection) {
 		})
 		if err != nil {
 			p.Kick(conn)
-			return
+			return err
 		}
 
 		p.onPacketReceived(pack{Type: packetType, Data: data}, conn)

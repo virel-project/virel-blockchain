@@ -69,8 +69,6 @@ func (c *ConnData) Close() {
 func (c *ConnData) sendPacket(p pack) error {
 	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 
-	Log.Debug("sendPacket:", p.String())
-
 	c.LastOutPacket = time.Now().Unix()
 
 	ser := binary.Ser{}
@@ -99,12 +97,11 @@ func (c *ConnData) sendPacket(p pack) error {
 	if err != nil {
 		return err
 	}
-	Log.Debugf("packet sent (%0.3f KB)", float64(len(ser.Output()))/1000)
 
 	return nil
 }
 func (c *ConnData) SendPacket(p *Packet) error {
-	Log.Devf("Sending packet of type %s to peer %x", p.Type.String(), c.PeerId)
+	Log.NetDevf("Sending packet of type %s to peer %x data %x", p.Type.String(), c.PeerId, p.Data)
 	return c.sendPacket(pack{Data: p.Data, Type: uint16(p.Type) + 2})
 }
 
