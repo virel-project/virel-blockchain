@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	mrand "math/rand/v2"
 	"sync"
 	"time"
 	"virel-blockchain/address"
@@ -153,9 +154,19 @@ func (bc *Blockchain) Synchronize() {
 			}
 
 			go func() {
-				// TODO: shuffle P2P.Connections order
 				for _, reqbl := range reqbls {
-					for _, conn := range bc.P2P.Connections {
+					// take a random connection as the first peer to try
+					peernum := mrand.IntN(len(bc.P2P.ListConns))
+					for i := 0; i < len(bc.P2P.ListConns); i++ {
+						n := (i + peernum) % len(bc.P2P.ListConns)
+						ipPort := bc.P2P.ListConns[n]
+
+						if len(ipPort) == 0 {
+							Log.Fatal("connection with index", n, "is not in P2P.ListConns")
+						}
+
+						conn := bc.P2P.Connections[ipPort]
+
 						sent := false
 						conn.PeerData(func(d *p2p.PeerData) {
 							if reqbl.Height == 0 || d.Stats.Height >= reqbl.Height {

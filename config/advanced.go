@@ -29,6 +29,8 @@ const IS_MASTERCHAIN = NETWORK_ID == 0x4af15cf1542ba49a // do not change this
 
 const PARALLEL_BLOCKS_DOWNLOAD = 50
 
+const VERSION = VERSION_MAJOR<<32 + VERSION_MINOR<<16 + VERSION_PATCH
+
 var BinaryNetworkID = make([]byte, 8)
 
 func init() {

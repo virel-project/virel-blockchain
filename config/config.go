@@ -2,6 +2,10 @@ package config
 
 import "time"
 
+const VERSION_MAJOR = 0
+const VERSION_MINOR = 1
+const VERSION_PATCH = 0
+
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // ~0.06 coins per tx
 const BLOCK_REWARD = 184 * COIN                // initial block reward
@@ -15,6 +19,8 @@ const MAX_SUPPLY = REDUCTION_INTERVAL*BLOCK_REWARD*10 +
 const P2P_CONNECTIONS = 1
 const P2P_PING_INTERVAL = 5
 const P2P_TIMEOUT = 40
+
+const P2P_VERSION = 1
 
 const MAX_TX_PER_BLOCK = 1_000
 const MAX_HEIGHT = 5_000_000_000

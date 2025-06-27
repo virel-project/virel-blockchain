@@ -30,7 +30,13 @@ type P2P struct {
 	Privkey *ecdh.PrivateKey
 
 	// IP:PORT -> Connection
-	Connections    map[string]*Connection
+	Connections map[string]*Connection
+
+	// int -> IP:PORT
+	ListConns []string
+
+	BindPort uint16
+
 	PacketsIn      chan Packet
 	NewConnections chan *Connection
 	KnownPeers     []KnownPeer
@@ -98,12 +104,20 @@ func Start(peers []string) *P2P {
 
 	Log.Infof("P2P public key: %x", pk.PublicKey().Bytes())
 
-	p := P2P{
+	p := &P2P{
 		Privkey:        pk,
 		PacketsIn:      make(chan Packet),
 		NewConnections: make(chan *Connection),
 		Connections:    make(map[string]*Connection),
+		ListConns:      make([]string, 0),
 	}
+
+	err = p.loadPeerlist()
+	if err != nil {
+		Log.Info("Peerlist loading failed:", err)
+		err = nil
+	}
+
 	for _, v := range peers {
 		splv := strings.Split(v, ":")
 		if len(splv) < 1 {
@@ -127,7 +141,7 @@ func Start(peers []string) *P2P {
 			Type: PEER_WHITE,
 		})
 	}
-	return &p
+	return p
 }
 
 func (p *P2P) Close() {
@@ -138,12 +152,20 @@ func (p *P2P) Close() {
 			return nil
 		})
 	}
+
+	err := p.savePeerlist()
+	if err != nil {
+		Log.Warn(err)
+	}
+
 	Log.Info("P2P closed")
 }
 
 var curve = ecdh.X25519()
 
 func (p *P2P) ListenServer(port uint16) {
+	p.BindPort = port
+
 	listen, err := net.Listen("tcp", "0.0.0.0:"+strconv.FormatUint(uint64(port), 10))
 	if err != nil {
 		Log.Fatal(err)
@@ -232,6 +254,13 @@ func (p *P2P) Kick(c *Connection) {
 	})
 	p.Lock()
 	delete(p.Connections, ip)
+	for i, v := range p.ListConns {
+		if v == ip {
+			// Remove the element at index i while preserving order
+			p.ListConns = append(p.ListConns[:i], p.ListConns[i+1:]...)
+			break
+		}
+	}
 	p.Unlock()
 }
 
@@ -241,6 +270,8 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 		ip = c.IP()
 		return nil
 	})
+
+	Log.Debug("sending peer list to", ip)
 
 	s := binary.Ser{}
 	p.RLock()
@@ -276,6 +307,7 @@ func (p *P2P) handleConnection(conn *Connection) error {
 			return fmt.Errorf("peer %s is already connected", ipPort)
 		}
 		p.Connections[ipPort] = conn
+		p.ListConns = append(p.ListConns, ipPort)
 		return nil
 	}()
 	if err != nil {
@@ -294,9 +326,17 @@ func (p *P2P) handleConnection(conn *Connection) error {
 	err = conn.Update(func(c *ConnData) error {
 		ipPort = c.Conn.RemoteAddr().String()
 
-		// send peer ID
+		// send handshake
 		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		_, err = c.Conn.Write(peerid[:])
+		hnds := &Handshake{
+			Version:    config.VERSION,
+			P2PVersion: config.P2P_VERSION,
+
+			PeerID:  peerid,
+			P2PPort: p.BindPort,
+		}
+
+		_, err = hnds.WriteTo(c.Conn)
 		return err
 	})
 	if err != nil {
@@ -304,16 +344,32 @@ func (p *P2P) handleConnection(conn *Connection) error {
 		return err
 	}
 
-	// read peer ID
+	// read handshake
 	conn.data.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	peerIdBin := make([]byte, 32)
-	_, err = conn.data.Conn.Read(peerIdBin)
+
+	hnds := &Handshake{}
+	_, err = hnds.ReadFrom(conn.data.Conn)
 	if err != nil {
-		err := fmt.Errorf("error occurred while reading peer id: %s", err)
+		err := fmt.Errorf("error occurred while reading handshake: %s", err)
 		p.Kick(conn)
 		return err
 	}
-	peerId := bitcrypto.Pubkey(peerIdBin)
+
+	err = conn.View(func(c *ConnData) error {
+		// add incoming connections, if possible, to peer list
+		if !c.Outgoing && hnds.P2PPort != 0 {
+			go func() {
+				p.Lock()
+				p.AddPeerToList(c.IP(), hnds.P2PPort)
+				p.Unlock()
+			}()
+		}
+		return nil
+	})
+	if err != nil {
+		err := fmt.Errorf("error occurred while adding peer to list: %s", err)
+		Log.Warn(err)
+	}
 
 	go func() {
 		p.RLock()
@@ -324,8 +380,8 @@ func (p *P2P) handleConnection(conn *Connection) error {
 				continue
 			}
 			err := vconn.View(func(v *ConnData) error {
-				if v.PeerId == peerId && v.Conn.RemoteAddr().String() != ipPort {
-					err := fmt.Errorf("disconnecting from peer: duplicate ID %x", peerId)
+				if v.PeerId == hnds.PeerID && v.Conn.RemoteAddr().String() != ipPort {
+					err := fmt.Errorf("disconnecting from peer: duplicate ID %x", hnds.PeerID)
 					go conn.Update(func(c *ConnData) error {
 						c.Close()
 						return nil
@@ -341,7 +397,7 @@ func (p *P2P) handleConnection(conn *Connection) error {
 	}()
 
 	err = conn.Update(func(c *ConnData) error {
-		c.PeerId = peerId
+		c.PeerId = hnds.PeerID
 		Log.Debugf("New connection with ID %x", c.PeerId)
 
 		if c.PeerId == p.PeerId() {
@@ -368,8 +424,6 @@ func (p *P2P) handleConnection(conn *Connection) error {
 			return err
 		}
 
-		p.NewConnections <- conn
-
 		// update and broadcast peerlist
 		go func() {
 			err := p.sendPeerList(conn)
@@ -377,6 +431,8 @@ func (p *P2P) handleConnection(conn *Connection) error {
 				Log.Debug(err)
 			}
 		}()
+
+		p.NewConnections <- conn
 
 		return nil
 	})
@@ -395,10 +451,10 @@ func (p *P2P) handleConnection(conn *Connection) error {
 				continue
 			}
 			err := vconn.Update(func(v *ConnData) error {
-				if v.PeerId == peerId {
+				if v.PeerId == hnds.PeerID {
 					n++
 					if n >= 2 {
-						err := fmt.Errorf("peer with id: %x is already connected - disconnecting it", peerId)
+						err := fmt.Errorf("peer with id: %x is already connected - disconnecting it", hnds.PeerID)
 						return err
 					}
 				}
@@ -487,11 +543,13 @@ func (p *P2P) onPacketReceived(pk pack, c *Connection) {
 		return nil
 	})
 
-	if pk.Type == 0 { // unused
+	switch pk.Type {
+	case 0: // reserved for future
 		return
-	} else if pk.Type == 1 { // addPeer
+	case 1: // addPeer
+		Log.Debug("AddPeer Packet")
 		p.OnAddPeerPacket(pk.Data)
-	} else {
+	default:
 		p.PacketsIn <- Packet{Data: pk.Data, Type: packet.Type(pk.Type - 2), Conn: c}
 	}
 }
@@ -520,25 +578,39 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 		}
 
 		p2.Lock()
-		shouldAdd := true
-		for _, v := range p2.KnownPeers {
-			if v.IP == address.String() {
-				shouldAdd = false
-				break
-			}
-		}
-		Log.Debug("Add Peer Packet", address, port, "shouldAdd:", shouldAdd)
-		if shouldAdd {
-			p2.KnownPeers = append(p2.KnownPeers, KnownPeer{
-				IP:   address.String(),
-				Port: port,
-				Type: PEER_GRAY,
-			})
-		}
+		p2.AddPeerToList(address.String(), port)
 		p2.Unlock()
 	}
 
-	go p2.savePeerlist()
+	go func() {
+		err := p2.savePeerlist()
+		if err != nil {
+			Log.Warn(err)
+		}
+	}()
 
 	return nil
+}
+
+// P2P must be locked before calling this
+func (p *P2P) AddPeerToList(ip string, port uint16) {
+	if port == 0 {
+		return
+	}
+
+	shouldAdd := true
+	for _, v := range p.KnownPeers {
+		if v.IP == ip {
+			shouldAdd = false
+			break
+		}
+	}
+	Log.Debug("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
+	if shouldAdd {
+		p.KnownPeers = append(p.KnownPeers, KnownPeer{
+			IP:   ip,
+			Port: port,
+			Type: PEER_GRAY,
+		})
+	}
 }
