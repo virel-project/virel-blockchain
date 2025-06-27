@@ -123,23 +123,22 @@ func Start(peers []string) *P2P {
 		if len(splv) < 1 {
 			continue
 		}
-		port := uint64(config.P2P_BIND_PORT)
+		port := uint16(config.P2P_BIND_PORT)
 		if len(splv) > 1 {
-			port, err = strconv.ParseUint(splv[1], 10, 16)
+			var prt uint64
+			prt, err = strconv.ParseUint(splv[1], 10, 16)
 			if err != nil {
 				Log.Warn(err.Error())
 				continue
 			}
+			port = uint16(prt)
 		}
 		if port == 0 {
 			port = config.P2P_BIND_PORT
 		}
 
-		p.KnownPeers = append(p.KnownPeers, KnownPeer{
-			IP:   splv[0],
-			Port: uint16(port),
-			Type: PEER_WHITE,
-		})
+		p.AddPeerToList(splv[0], port)
+
 	}
 	return p
 }
