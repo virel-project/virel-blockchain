@@ -25,6 +25,7 @@ func main() {
 	stratum_bind_ip := flag.String("stratum-bind-ip", "127.0.0.1", "use 0.0.0.0 to expose Stratum server")
 	stratum_bind_port := flag.Uint("stratum-bind-port", config.STRATUM_BIND_PORT, "")
 	log_level := flag.Uint("log-level", 1, "sets the log level")
+	private := flag.Bool("private", false, "if set, your ip is not advertised to the network")
 
 	var slavechains_stratums *string
 	var stratum_wallet *string
@@ -76,7 +77,7 @@ func main() {
 
 	go startRpc(bc, bind_ip, uint16(*rpc_bind_port), *public_rpc)
 	go bc.StartStratum(*stratum_bind_ip, uint16(*stratum_bind_port))
-	go bc.StartP2P(config.SEED_NODES, uint16(*p2p_bind_port))
+	go bc.StartP2P(config.SEED_NODES, uint16(*p2p_bind_port), *private)
 	go bc.NewStratumJob(true)
 
 	prompts(bc)

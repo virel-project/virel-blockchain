@@ -155,6 +155,10 @@ func (bc *Blockchain) Synchronize() {
 
 			go func() {
 				for _, reqbl := range reqbls {
+					// fix a rare crash
+					if len(bc.P2P.ListConns) == 0 {
+						return
+					}
 					// take a random connection as the first peer to try
 					peernum := mrand.IntN(len(bc.P2P.ListConns))
 					for i := 0; i < len(bc.P2P.ListConns); i++ {
@@ -1407,17 +1411,17 @@ func (bc *Blockchain) GetBlockByHeight(tx *bolt.Tx, height uint64) (*block.Block
 	return bc.GetBlock(tx, hash)
 }
 
-func (bc *Blockchain) StartP2P(peers []string, port uint16) {
+func (bc *Blockchain) StartP2P(peers []string, port uint16, private bool) {
 	p2p.Log = Log
 	bc.P2P = p2p.Start(peers)
-	bc.P2P.StartClients()
+	bc.P2P.StartClients(private)
 
 	go bc.pinger()
 	go bc.incomingP2P()
 	go bc.newConnections()
 	go bc.Synchronize()
 
-	bc.P2P.ListenServer(port)
+	bc.P2P.ListenServer(port, private)
 }
 
 func (bc *Blockchain) GetSupply(tx *bolt.Tx) uint64 {

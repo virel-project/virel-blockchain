@@ -5,14 +5,14 @@ import (
 )
 
 // P2P must NOT be locked before calling this
-func (p2 *P2P) startClient(addr string) {
+func (p2 *P2P) startClient(addr string, private bool) {
 	conn, err := p2.connectClient(addr)
 	if err != nil {
 		Log.Net("error connecting to", addr+":", err)
 		return
 	}
 
-	err = p2.handleConnection(conn)
+	err = p2.handleConnection(conn, private)
 	if err != nil {
 		Log.Debug("P2P client connection error:", err)
 	} else {

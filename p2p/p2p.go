@@ -163,7 +163,7 @@ func (p *P2P) Close() {
 
 var curve = ecdh.X25519()
 
-func (p *P2P) ListenServer(port uint16) {
+func (p *P2P) ListenServer(port uint16, private bool) {
 	p.BindPort = port
 
 	listen, err := net.Listen("tcp", "0.0.0.0:"+strconv.FormatUint(uint64(port), 10))
@@ -194,18 +194,18 @@ func (p *P2P) ListenServer(port uint16) {
 		}
 
 		Log.Infof("New connection with IP %s", c.RemoteAddr().String())
-		err = p.handleConnection(conn)
+		err = p.handleConnection(conn, private)
 		if err != nil {
 			Log.Debug("P2P server connection error:", err)
 		}
 	}
 }
-func (p *P2P) StartClients() {
+func (p *P2P) StartClients(private bool) {
 	go func() {
 		for {
 			p.Lock()
 			if len(p.Connections) < config.P2P_CONNECTIONS {
-				p.connectToRandomPeer()
+				p.connectToRandomPeer(private)
 			}
 			p.Unlock()
 			time.Sleep(15 * time.Second)
@@ -214,7 +214,7 @@ func (p *P2P) StartClients() {
 }
 
 // P2P MUST be locked before calling this
-func (p *P2P) connectToRandomPeer() {
+func (p *P2P) connectToRandomPeer(private bool) {
 scanning:
 	for i := 0; i < 5; i++ {
 		if len(p.KnownPeers) == 0 {
@@ -238,7 +238,7 @@ scanning:
 			}
 		}
 
-		go p.startClient(randPeer.IP + ":" + strconv.FormatUint(uint64(randPeer.Port), 10))
+		go p.startClient(randPeer.IP+":"+strconv.FormatUint(uint64(randPeer.Port), 10), private)
 	}
 }
 
@@ -293,7 +293,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 	})
 }
 
-func (p *P2P) handleConnection(conn *Connection) error {
+func (p *P2P) handleConnection(conn *Connection, private bool) error {
 	var ipPort string
 	conn.View(func(c *ConnData) error {
 		ipPort = c.Conn.RemoteAddr().String()
@@ -328,12 +328,17 @@ func (p *P2P) handleConnection(conn *Connection) error {
 
 		// send handshake
 		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		port := p.BindPort
+		if private {
+			port = 0
+		}
+
 		hnds := &Handshake{
 			Version:    config.VERSION,
 			P2PVersion: config.P2P_VERSION,
 
 			PeerID:  peerid,
-			P2PPort: p.BindPort,
+			P2PPort: port,
 		}
 
 		_, err = hnds.WriteTo(c.Conn)
