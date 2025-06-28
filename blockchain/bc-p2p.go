@@ -2,13 +2,12 @@ package blockchain
 
 import (
 	"time"
+	"virel-blockchain/adb"
 	"virel-blockchain/block"
 	"virel-blockchain/config"
 	"virel-blockchain/p2p"
 	"virel-blockchain/p2p/packet"
 	"virel-blockchain/transaction"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 func (bc *Blockchain) pinger() {
@@ -34,7 +33,7 @@ func (bc *Blockchain) newConnections() {
 		conn := <-bc.P2P.NewConnections
 
 		var stats *Stats
-		bc.DB.View(func(tx *bolt.Tx) error {
+		bc.DB.View(func(tx adb.Txn) error {
 			stats = bc.GetStats(tx)
 			return nil
 		})
@@ -82,7 +81,7 @@ func (bc *Blockchain) packetTx(pack p2p.Packet) {
 		return
 	}
 
-	err = bc.DB.Update(func(txn *bolt.Tx) error {
+	err = bc.DB.Update(func(txn adb.Txn) error {
 		return bc.AddTransaction(txn, tx, tx.Hash(), true)
 	})
 	if err != nil {
@@ -107,7 +106,7 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 	}
 
 	var hash [32]byte
-	err = bc.DB.Update(func(tx *bolt.Tx) error {
+	err = bc.DB.Update(func(tx adb.Txn) error {
 		for _, v := range txs {
 			err := bc.AddTransaction(tx, v, v.Hash(), false)
 			if err != nil {
@@ -125,7 +124,7 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 		return
 	} else {
 		// TODO: remove this, it's only for debug purposes
-		err := bc.DB.View(func(tx *bolt.Tx) error {
+		err := bc.DB.View(func(tx adb.Txn) error {
 			bc.CheckSupply(tx)
 			return nil
 		})
@@ -170,7 +169,7 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 	Log.Devf("received block request with height %d hash %x", st.Height, st.Hash)
 
 	var bl *block.Block
-	err = bc.DB.View(func(tx *bolt.Tx) (err error) {
+	err = bc.DB.View(func(tx adb.Txn) (err error) {
 		if st.Height == 0 {
 			bl, err = bc.GetBlock(tx, st.Hash)
 		} else {
@@ -183,7 +182,11 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 		return
 	}
 
-	d, err := bc.SerializeFullBlock(bl)
+	var d []byte
+	err = bc.DB.View(func(txn adb.Txn) (err error) {
+		d, err = bc.SerializeFullBlock(txn, bl)
+		return
+	})
 	if err != nil {
 		Log.Err(err)
 		return
@@ -211,7 +214,11 @@ func (bc *Blockchain) SendStats(stats *Stats) {
 func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 	Log.Debug("broadcasting block")
 
-	ser, err := bc.SerializeFullBlock(bl)
+	var ser []byte
+	err := bc.DB.View(func(txn adb.Txn) (err error) {
+		ser, err = bc.SerializeFullBlock(txn, bl)
+		return
+	})
 	if err != nil {
 		Log.Err(err)
 		return

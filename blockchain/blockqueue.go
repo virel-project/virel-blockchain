@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+	"virel-blockchain/adb"
 	"virel-blockchain/config"
 	"virel-blockchain/util"
-	"virel-blockchain/util/buck"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
@@ -158,8 +156,8 @@ func (bq *BlockQueue) save() error {
 	if err != nil {
 		Log.Fatal(err)
 	}
-	return bq.bc.DB.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket([]byte{buck.INFO}).Put([]byte("blocksqueue"), data)
+	return bq.bc.DB.Update(func(txn adb.Txn) error {
+		return txn.Put(bq.bc.Index.Info, []byte("blocksqueue"), data)
 	})
 }
 func (qt *QueueTx) Length() int {
@@ -170,9 +168,8 @@ func (qt *QueueTx) GetBlocks() []*QueuedBlock {
 }
 
 func (bq *BlockQueue) load() error {
-	return bq.bc.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte{buck.INFO})
-		data := b.Get([]byte("blocksqueue"))
+	return bq.bc.DB.View(func(tx adb.Txn) error {
+		data := tx.Get(bq.bc.Index.Info, []byte("blocksqueue"))
 		if data == nil {
 			return errors.New("blocksqueue not saved")
 		}

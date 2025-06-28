@@ -6,6 +6,8 @@ import (
 	mrand "math/rand/v2"
 	"sync"
 	"time"
+	"virel-blockchain/adb"
+	"virel-blockchain/adb/lmdb"
 	"virel-blockchain/address"
 	"virel-blockchain/binary"
 	"virel-blockchain/block"
@@ -16,10 +18,7 @@ import (
 	"virel-blockchain/stratum/stratumsrv"
 	"virel-blockchain/transaction"
 	"virel-blockchain/util"
-	"virel-blockchain/util/buck"
 	"virel-blockchain/util/uint128"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 var Log = logger.New()
@@ -28,7 +27,9 @@ type Uint128 = uint128.Uint128
 
 // Blockchain represents a Blockchain structure, for storing transactions
 type Blockchain struct {
-	DB      *bolt.DB
+	DB    adb.DB
+	Index Index
+
 	P2P     *p2p.P2P
 	Stratum *stratumsrv.Server
 
@@ -47,6 +48,15 @@ type Blockchain struct {
 	SyncDiff   Uint128 // top cumulative diff seen from remote nodes
 	SyncMut    util.RWMutex
 }
+type Index struct {
+	Info  adb.Index
+	Block adb.Index
+	Topo  adb.Index
+	State adb.Index
+	Tx    adb.Index
+	InTx  adb.Index
+	OutTx adb.Index
+}
 
 func (bc *Blockchain) IsShuttingDown() bool {
 	bc.shutdownInfo.RLock()
@@ -54,8 +64,6 @@ func (bc *Blockchain) IsShuttingDown() bool {
 
 	return bc.shutdownInfo.ShuttingDown
 }
-
-const FAST_SYNC = true
 
 func New() *Blockchain {
 	bc := &Blockchain{
@@ -65,29 +73,28 @@ func New() *Blockchain {
 	}
 
 	var err error
-	bc.DB, err = bolt.Open("./"+config.NETWORK_NAME+".db", 0666, &bolt.Options{
-		Timeout:        4 * time.Second,
-		NoFreelistSync: true,
-		NoSync:         FAST_SYNC,
-	})
+	bc.DB, err = lmdb.New("./"+config.NETWORK_NAME+"-lmdb/", 0755, Log)
+	// bc.DB, err = boltdb.New("./"+config.NETWORK_NAME+".db", 0755)
 	if err != nil {
 		panic(err)
 	}
 
-	bc.createBuck(buck.INFO)
-	bc.createBuck(buck.BLOCK)
-	bc.createBuck(buck.TOPO)
-	bc.createBuck(buck.STATE)
-	bc.createBuck(buck.TX)
-	bc.createBuck(buck.INTX)
-	bc.createBuck(buck.OUTTX)
+	bc.Index = Index{
+		Info:  bc.DB.Index("info"),
+		Block: bc.DB.Index("block"),
+		Topo:  bc.DB.Index("topo"),
+		State: bc.DB.Index("state"),
+		Tx:    bc.DB.Index("tx"),
+		InTx:  bc.DB.Index("intx"),
+		OutTx: bc.DB.Index("outtx"),
+	}
 
 	// add genesis block if it doesn't exist
 	bc.addGenesis()
 
 	var stats *Stats
 	var mempool *Mempool
-	bc.DB.View(func(tx *bolt.Tx) error {
+	bc.DB.View(func(tx adb.Txn) error {
 		stats = bc.GetStats(tx)
 		mempool = bc.GetMempool(tx)
 		return nil
@@ -106,19 +113,6 @@ func New() *Blockchain {
 
 	bc.BlockQueue = NewBlockQueue(bc)
 
-	if FAST_SYNC {
-		go func() {
-			// in case fast sync mode is enabled, we flush database to disk every minute
-			for {
-				time.Sleep(60 * time.Second)
-				err = bc.DB.Sync()
-				if err != nil {
-					Log.Err("failed to sync database to disk:", err)
-				}
-			}
-		}()
-	}
-
 	return bc
 }
 
@@ -131,7 +125,7 @@ func (bc *Blockchain) Synchronize() {
 		}
 
 		var stats *Stats
-		bc.DB.View(func(tx *bolt.Tx) error {
+		bc.DB.View(func(tx adb.Txn) error {
 			stats = bc.GetStats(tx)
 			return nil
 		})
@@ -237,10 +231,6 @@ func (bc *Blockchain) Close() {
 	bc.BlockQueue.Lock()
 	bc.BlockQueue.Save()
 	bc.BlockQueue.Unlock()
-	if FAST_SYNC {
-		Log.Info("Flushing database to disk")
-		bc.DB.Sync()
-	}
 	Log.Info("Closing database")
 	bc.DB.Close()
 	Log.Info("Virel daemon shutdown complete. Bye!")
@@ -270,22 +260,28 @@ func (bc *Blockchain) addGenesis() {
 
 	Log.Debugf("genesis block hash is %x", hash)
 
-	err := bc.DB.Update(func(tx *bolt.Tx) error {
+	err := bc.DB.Update(func(tx adb.Txn) error {
 		bl, err := bc.GetBlock(tx, hash)
 		if err != nil {
 			Log.Debug("genesis block is not in chain:", err)
 			err := bc.insertBlockMain(tx, genesis)
 			if err != nil {
-				Log.Fatal(fmt.Errorf("failed adding genesis to chain: %v", err))
+				return err
 			}
-			bc.SetStats(tx, &Stats{
+			err = bc.SetStats(tx, &Stats{
 				TopHash:        hash,
 				TopHeight:      0,
 				CumulativeDiff: genesis.Difficulty,
 			})
-			bc.SetMempool(tx, &Mempool{
+			if err != nil {
+				return err
+			}
+			err = bc.SetMempool(tx, &Mempool{
 				Entries: make([]*MempoolEntry, 0),
 			})
+			if err != nil {
+				return err
+			}
 			err = bc.ApplyBlockToState(tx, genesis, hash)
 			if err != nil {
 				return err
@@ -305,7 +301,7 @@ func (bc *Blockchain) addGenesis() {
 
 // checkBlock validates things like height, diff, etc. for a block. It doesn't validate PoW (that's done by
 // bl.Prevalidate()) or transactions.
-func (bc *Blockchain) checkBlock(tx *bolt.Tx, bl, prevBl *block.Block) error {
+func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 	// validate difficulty
 	expectDiff, err := bc.GetNextDifficulty(tx, prevBl)
 	if err != nil {
@@ -402,7 +398,7 @@ func (bc *Blockchain) checkBlock(tx *bolt.Tx, bl, prevBl *block.Block) error {
 // Block should be already prevalidated.
 // If the block doesn't fit in the mainchain, it is either added to an altchain or orphaned.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) AddBlock(tx *bolt.Tx, bl *block.Block) (util.Hash, error) {
+func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block) (util.Hash, error) {
 	hash := bl.Hash()
 
 	// check if block is duplicate
@@ -485,7 +481,7 @@ func (bc *Blockchain) queuedBlockDownloaded(hash [32]byte, height uint64) {
 // addOrphanBlock should only be called by the addBlock method
 // use parentKnown = true if this block has a known parent which is orphaned
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) addOrphanBlock(txn *bolt.Tx, bl *block.Block, hash [32]byte, parentKnown bool) error {
+func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte, parentKnown bool) error {
 	Log.Infof("Adding orphan block %d %x diff: %s sides: %d parent known: %v", bl.Height, hash,
 		bl.Difficulty, len(bl.SideBlocks), parentKnown)
 	stats := bc.GetStats(txn)
@@ -518,7 +514,7 @@ func (bc *Blockchain) addOrphanBlock(txn *bolt.Tx, bl *block.Block, hash [32]byt
 
 // addAltchainBlock should only be called by the addBlock method
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) addAltchainBlock(txn *bolt.Tx, bl *block.Block, hash [32]byte) error {
+func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]byte) error {
 	Log.Infof("Adding block as alternative on height: %d hash: %x diff: %s", bl.Height, hash, bl.Difficulty)
 	stats := bc.GetStats(txn)
 
@@ -561,7 +557,7 @@ func (bc *Blockchain) addAltchainBlock(txn *bolt.Tx, bl *block.Block, hash [32]b
 }
 
 // returns true if a reorg has happened
-func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
+func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 	type hashInfo struct {
 		Hash  [32]byte
 		Block *block.Block
@@ -590,12 +586,11 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 	err := func() error {
 		// step 1: iterate the altchain blocks in reverse order to find out the common block with mainchain
 		commonBlockHash := altHash
-		commonBlock, err := bc.GetBlock(tx, commonBlockHash)
+		commonBlock, err := bc.GetBlock(txn, commonBlockHash)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-		buckTopo := tx.Bucket([]byte{buck.TOPO})
 
 		hashes := []hashInfo{
 			{
@@ -607,7 +602,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 		// TODO: we can optimize this loop by scanning all of the block's known ancestors
 		for {
 			commonBlockHash = commonBlock.PrevHash()
-			commonBlock, err = bc.GetBlock(tx, commonBlockHash)
+			commonBlock, err = bc.GetBlock(txn, commonBlockHash)
 			if err != nil {
 				err := fmt.Errorf("reorg step 1: failed to get common block %x: %v", commonBlockHash, err)
 				return err
@@ -620,7 +615,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 				return err
 			}
 
-			topohash, err := bc.buckGetTopo(buckTopo, commonBlock.Height)
+			topohash, err := bc.GetTopo(txn, commonBlock.Height)
 			// a block doesn't exist in mainchain at this height, just print the error and go on
 			if err != nil {
 				Log.Debug("a block doesn't exist in mainchain at this height (probably fine), err:", err)
@@ -642,7 +637,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 		// which can happen after a deorphanage)
 		if stats.TopHash != commonBlockHash {
 			nHash := stats.TopHash
-			n, err := bc.GetBlock(tx, nHash)
+			n, err := bc.GetBlock(txn, nHash)
 			if err != nil {
 				Log.Err(err)
 				return err
@@ -663,7 +658,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 						return err
 					}
 
-					n, err = bc.GetBlock(tx, nHash)
+					n, err = bc.GetBlock(txn, nHash)
 					if err != nil {
 						err := fmt.Errorf("failed to get block %x: %v", nHash, err)
 						Log.Err(err)
@@ -675,14 +670,14 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 					// delete this block's topo
 					heightBin := make([]byte, 8)
 					binary.LittleEndian.PutUint64(heightBin, n.Height)
-					err := buckTopo.Delete(heightBin)
+					err := txn.Del(bc.Index.Topo, heightBin)
 					if err != nil {
 						Log.Err(err)
 						return err
 					}
 
 					// remove block from state
-					err = bc.RemoveBlockFromState(tx, n, nHash)
+					err = bc.RemoveBlockFromState(txn, n, nHash)
 					if err != nil {
 						Log.Err(err)
 						return err
@@ -705,7 +700,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 			// set this block's topo
 			heightBin := make([]byte, 8)
 			binary.LittleEndian.PutUint64(heightBin, hashes[i].Block.Height)
-			err := buckTopo.Put(heightBin, hashes[i].Hash[:])
+			err := txn.Put(bc.Index.Topo, heightBin, hashes[i].Hash[:])
 			if err != nil {
 				Log.Err(err)
 				return err
@@ -714,19 +709,19 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 			bl := hashes[i].Block
 
 			// set the block's cumulative difficulty
-			prevBl, err := bc.GetBlock(tx, bl.PrevHash())
+			prevBl, err := bc.GetBlock(txn, bl.PrevHash())
 			if err != nil {
 				Log.Err(err)
 				return err
 			}
 
-			err = bc.checkBlock(tx, bl, prevBl)
+			err = bc.checkBlock(txn, bl, prevBl)
 			if err != nil {
 				Log.Warn("reorg invalid block:", err)
 				return err
 			}
 
-			err = bc.ApplyBlockToState(tx, bl, hashes[i].Hash)
+			err = bc.ApplyBlockToState(txn, bl, hashes[i].Hash)
 			if err != nil {
 				Log.Err(err)
 				return err
@@ -740,8 +735,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 		// step 4: update the stats
 		Log.Devf("starting reorg step 4")
 
-		infoBuck := tx.Bucket([]byte{buck.INFO})
-		stats = bc.GetStats(tx)
+		stats = bc.GetStats(txn)
 
 		// add the old mainchain as an altchain tip
 		delete(stats.Tips, altHash)
@@ -756,7 +750,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 		stats.CumulativeDiff = altDiff
 		stats.TopHeight = altHeight
 
-		infoBuck.Put([]byte("stats"), stats.Serialize())
+		txn.Put(bc.Index.Info, []byte("stats"), stats.Serialize())
 
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
@@ -772,7 +766,7 @@ func (bc *Blockchain) CheckReorgs(tx *bolt.Tx, stats *Stats) (bool, error) {
 
 // addMainchainBlock should only be called by the addBlock method
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) addMainchainBlock(tx *bolt.Tx, bl *block.Block, hash [32]byte) error {
+func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]byte) error {
 	err := bc.ApplyBlockToState(tx, bl, hash)
 	if err != nil {
 		Log.Warn("block is invalid, not adding to mainchain:", err)
@@ -785,7 +779,10 @@ func (bc *Blockchain) addMainchainBlock(tx *bolt.Tx, bl *block.Block, hash [32]b
 	stats.TopHash = hash
 	stats.TopHeight = bl.Height
 	stats.CumulativeDiff = bl.CumulativeDiff
-	bc.SetStats(tx, stats)
+	err = bc.SetStats(tx, stats)
+	if err != nil {
+		return err
+	}
 
 	// add block to mainchain and update stats
 	err = bc.insertBlockMain(tx, bl)
@@ -800,23 +797,22 @@ func (bc *Blockchain) addMainchainBlock(tx *bolt.Tx, bl *block.Block, hash [32]b
 }
 
 // Validates a block, and then adds it to the state
-func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byte) error {
-	bstate := txn.Bucket([]byte{buck.STATE})
-
+func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte) error {
 	// remove transactions from mempool
-	bst := txn.Bucket([]byte{buck.INFO})
-	pool := bc.buckGetMempool(bst)
+	pool := bc.GetMempool(txn)
 	for _, t := range bl.Transactions {
 		pool.DeleteEntry(t)
 	}
-	bc.buckSetMempool(bst, pool)
+	err := bc.SetMempool(txn, pool)
+	if err != nil {
+		return err
+	}
 
 	var totalFee uint64 = 0
 
 	// validate and apply transactions
-	btx := txn.Bucket([]byte{buck.TX})
 	for _, v := range bl.Transactions {
-		tx, _, err := bc.buckGetTx(btx, v)
+		tx, _, err := bc.GetTx(txn, v)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -826,7 +822,7 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 		Log.Debugf("Applying transaction %x to mainchain", v)
 
 		// check sender state
-		senderState, err := bc.buckGetState(bstate, senderAddr)
+		senderState, err := bc.GetState(txn, senderAddr)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -851,7 +847,7 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 		// apply sender state
 		senderState.Balance -= totalAmount
 		senderState.LastNonce++
-		err = bc.buckSetState(bstate, senderAddr, senderState)
+		err = bc.SetState(txn, senderAddr, senderState)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -861,7 +857,7 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 
 		// add the funds to recipient
 		for _, out := range tx.Outputs {
-			recState, err := bc.buckGetState(bstate, out.Recipient)
+			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Debug("recipient state not previously known:", err)
 				recState = &State{
@@ -881,7 +877,7 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 				Log.Err(err)
 				return err
 			}
-			err = bc.buckSetState(bstate, out.Recipient, recState)
+			err = bc.SetState(txn, out.Recipient, recState)
 			if err != nil {
 				Log.Err(err)
 				return err
@@ -914,13 +910,13 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 		Log.Debug("adding block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
 
 		// apply miner reward
-		minerState, err := bc.buckGetState(bstate, bl.Recipient)
+		minerState, err := bc.GetState(txn, bl.Recipient)
 		if err != nil {
 			Log.Debugf("coinbase reward account not previously known: %s", err)
 		}
 		minerState.Balance += minerReward
 		minerState.LastIncoming++
-		err = bc.buckSetState(bstate, bl.Recipient, minerState)
+		err = bc.SetState(txn, bl.Recipient, minerState)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -933,12 +929,12 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 		}
 
 		// apply governance reward
-		governanceState, err := bc.buckGetState(bstate, address.GenesisAddress)
+		governanceState, err := bc.GetState(txn, address.GenesisAddress)
 		if err != nil {
 			Log.Debugf("governance reward account not previously known: %s", err)
 		}
 		governanceState.Balance += governanceReward
-		err = bc.buckSetState(bstate, address.GenesisAddress, governanceState)
+		err = bc.SetState(txn, address.GenesisAddress, governanceState)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -958,10 +954,7 @@ func (bc *Blockchain) ApplyBlockToState(txn *bolt.Tx, bl *block.Block, _ [32]byt
 }
 
 // Reverses the transaction of a block from the blockchain state
-func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash [32]byte) error {
-	bstate := txn.Bucket([]byte{buck.STATE})
-	btx := txn.Bucket([]byte{buck.TX})
-
+func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
 	// TODO: add removed transactions to mempool
 
 	type txCache struct {
@@ -973,7 +966,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 	// iterate transactions to find tx fee sum for coinbase transaction
 	var totalFee uint64
 	for _, v := range bl.Transactions {
-		tx, _, err := bc.buckGetTx(btx, v)
+		tx, _, err := bc.GetTx(txn, v)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -994,7 +987,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 		Log.Debug("removing block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
 
 		// undo miner transaction
-		minerState, err := bc.buckGetState(bstate, bl.Recipient)
+		minerState, err := bc.GetState(txn, bl.Recipient)
 		if err != nil {
 			err := fmt.Errorf("coinbase reward account unknown: %s", err)
 			Log.Err(err)
@@ -1013,7 +1006,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 		}
 		minerState.Balance -= minerReward
 		minerState.LastIncoming--
-		err = bc.buckSetState(bstate, bl.Recipient, minerState)
+		err = bc.SetState(txn, bl.Recipient, minerState)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -1022,7 +1015,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 		// later overwritten
 
 		// undo governance reward
-		governanceState, err := bc.buckGetState(bstate, address.GenesisAddress)
+		governanceState, err := bc.GetState(txn, address.GenesisAddress)
 		if err != nil {
 			err := fmt.Errorf("coinbase reward account unknown: %s", err)
 			Log.Err(err)
@@ -1035,7 +1028,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 			return err
 		}
 		governanceState.Balance -= governanceReward
-		err = bc.buckSetState(bstate, address.GenesisAddress, governanceState)
+		err = bc.SetState(txn, address.GenesisAddress, governanceState)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -1114,28 +1107,20 @@ func (bc *Blockchain) RemoveBlockFromState(txn *bolt.Tx, bl *block.Block, blhash
 	return nil
 }
 
-func (bc *Blockchain) GetState(tx *bolt.Tx, addr address.Address) (s *State, err error) {
-	b := tx.Bucket([]byte{buck.STATE})
-	return bc.buckGetState(b, addr)
-}
-func (bc *Blockchain) buckGetState(b *bolt.Bucket, addr address.Address) (*State, error) {
-	var s = &State{}
-	bin := b.Get(addr[:])
+func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*State, error) {
+	s := &State{}
+	bin := tx.Get(bc.Index.State, addr[:])
 	if bin == nil {
 		return s, fmt.Errorf("address %s not in state", addr)
 	}
 	err := s.Deserialize(bin)
 	return s, err
 }
-func (bc *Blockchain) SetState(tx *bolt.Tx, addr address.Address, state *State) (err error) {
-	b := tx.Bucket([]byte{buck.STATE})
-	return bc.buckSetState(b, addr, state)
-}
-func (bc *Blockchain) buckSetState(b *bolt.Bucket, addr address.Address, state *State) error {
-	return b.Put(addr[:], state.Serialize())
+func (bc *Blockchain) SetState(tx adb.Txn, addr address.Address, state *State) (err error) {
+	return tx.Put(bc.Index.State, addr[:], state.Serialize())
 }
 
-func (bc *Blockchain) CreateCheckpoints(tx *bolt.Tx, maxHeight, interval uint64) ([]byte, error) {
+func (bc *Blockchain) CreateCheckpoints(tx adb.Txn, maxHeight, interval uint64) ([]byte, error) {
 	s := binary.NewSer(make([]byte, maxHeight/interval*32))
 	s.AddUint32(uint32(interval))
 	for height := interval; height <= maxHeight; height += interval {
@@ -1151,7 +1136,7 @@ func (bc *Blockchain) CreateCheckpoints(tx *bolt.Tx, maxHeight, interval uint64)
 }
 
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) checkDeorphanage(tx *bolt.Tx, bl *block.Block, hash [32]byte) error {
+func (bc *Blockchain) checkDeorphanage(tx adb.Txn, bl *block.Block, hash [32]byte) error {
 	Log.Debugf("checkDeorphanage %x", hash)
 	stats := bc.GetStats(tx)
 
@@ -1165,7 +1150,10 @@ func (bc *Blockchain) checkDeorphanage(tx *bolt.Tx, bl *block.Block, hash [32]by
 	}
 
 	// finally, save stats
-	bc.SetStats(tx, stats)
+	err = bc.SetStats(tx, stats)
+	if err != nil {
+		return err
+	}
 
 	// now that blocks were deorphaned, there might be a reorg
 	reorg, err := bc.CheckReorgs(tx, stats)
@@ -1176,14 +1164,17 @@ func (bc *Blockchain) checkDeorphanage(tx *bolt.Tx, bl *block.Block, hash [32]by
 	if reorg {
 		stats = bc.GetStats(tx)
 		bc.cleanupTips(tx, stats)
-		bc.SetStats(tx, stats)
+		err = bc.SetStats(tx, stats)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) cleanupTips(tx *bolt.Tx, stats *Stats) {
+func (bc *Blockchain) cleanupTips(tx adb.Txn, stats *Stats) {
 	Log.Debug("cleaning up tips")
 	for i, tip := range stats.Tips {
 		topo, err := bc.GetTopo(tx, tip.Height)
@@ -1200,7 +1191,7 @@ func (bc *Blockchain) cleanupTips(tx *bolt.Tx, stats *Stats) {
 
 // recursive function which finds all the orphans that are children of the given hash, and creates altchain
 // don't forget to save stats later, as this function doesn't do that
-func (bc *Blockchain) deorphanBlock(tx *bolt.Tx, prev *block.Block, prevHash [32]byte, stats *Stats) error {
+func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]byte, stats *Stats) error {
 	Log.Debugf("deorphanBlock hash %x", prevHash)
 
 	for i, v := range stats.Orphans {
@@ -1247,10 +1238,8 @@ func (bc *Blockchain) deorphanBlock(tx *bolt.Tx, prev *block.Block, prevHash [32
 }
 
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetStats(tx *bolt.Tx) *Stats {
-	b := tx.Bucket([]byte{buck.INFO})
-
-	d := b.Get([]byte("stats"))
+func (bc *Blockchain) GetStats(tx adb.Txn) *Stats {
+	d := tx.Get(bc.Index.Info, []byte("stats"))
 
 	if len(d) == 0 {
 		Log.Fatal("stats are empty")
@@ -1265,35 +1254,22 @@ func (bc *Blockchain) GetStats(tx *bolt.Tx) *Stats {
 }
 
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) SetStats(tx *bolt.Tx, s *Stats) {
+func (bc *Blockchain) SetStats(tx adb.Txn, s *Stats) error {
 	if s.TopHeight != 0 {
 		go bc.SendStats(s)
 	}
-	bc.setStatsNoBroadcast(tx, s)
+	return bc.setStatsNoBroadcast(tx, s)
 }
 
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) setStatsNoBroadcast(tx *bolt.Tx, s *Stats) {
-	b := tx.Bucket([]byte{buck.INFO})
-	err := b.Put([]byte("stats"), s.Serialize())
-	if err != nil {
-		Log.Fatal(err)
-	}
+func (bc *Blockchain) setStatsNoBroadcast(tx adb.Txn, s *Stats) error {
+	err := tx.Put(bc.Index.Info, []byte("stats"), s.Serialize())
+	return err
 }
 
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetMempool(tx *bolt.Tx) *Mempool {
-	b := tx.Bucket([]byte{buck.INFO})
-	s, err := DeserializeMempool(b.Get([]byte("mempool")))
-	if err != nil {
-		Log.Fatal(err)
-	}
-	return s
-}
-
-// Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) buckGetMempool(b *bolt.Bucket) *Mempool {
-	s, err := DeserializeMempool(b.Get([]byte("mempool")))
+func (bc *Blockchain) GetMempool(tx adb.Txn) *Mempool {
+	s, err := DeserializeMempool(tx.Get(bc.Index.Info, []byte("mempool")))
 	if err != nil {
 		Log.Fatal(err)
 	}
@@ -1301,27 +1277,15 @@ func (bc *Blockchain) buckGetMempool(b *bolt.Bucket) *Mempool {
 }
 
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) SetMempool(tx *bolt.Tx, s *Mempool) {
-	b := tx.Bucket([]byte{buck.INFO})
-	err := b.Put([]byte("mempool"), s.Serialize())
-	if err != nil {
-		Log.Fatal(err)
-	}
-}
-
-// Blockchain MUST be locked before calling this
-func (bc *Blockchain) buckSetMempool(b *bolt.Bucket, s *Mempool) {
-	err := b.Put([]byte("mempool"), s.Serialize())
-	if err != nil {
-		Log.Fatal(err)
-	}
+func (bc *Blockchain) SetMempool(tx adb.Txn, s *Mempool) error {
+	return tx.Put(bc.Index.Info, []byte("mempool"), s.Serialize())
 }
 
 // insertBlockMain inserts a block to the blockchain, updating topoheight and removing its transactions from
 // mempool (if applicable).
 // This should be only called if you are sure that the block extends mainchain.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) insertBlockMain(tx *bolt.Tx, bl *block.Block) error {
+func (bc *Blockchain) insertBlockMain(tx adb.Txn, bl *block.Block) error {
 	hash := bl.Hash()
 
 	defer func() {
@@ -1329,45 +1293,35 @@ func (bc *Blockchain) insertBlockMain(tx *bolt.Tx, bl *block.Block) error {
 	}()
 
 	// add block data
-	b := tx.Bucket([]byte{buck.BLOCK})
-	err := b.Put(hash[:], bl.Serialize())
+	err := tx.Put(bc.Index.Block, hash[:], bl.Serialize())
 	if err != nil {
 		return err
 	}
 
 	// add block topo
-	b = tx.Bucket([]byte{buck.TOPO})
 	heightBin := make([]byte, 8)
 	binary.LittleEndian.PutUint64(heightBin, bl.Height)
-	return b.Put(heightBin, hash[:])
+	return tx.Put(bc.Index.Topo, heightBin, hash[:])
 }
 
 // insertBlock inserts a block to the blockchain, without updating topoheight.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) insertBlock(tx *bolt.Tx, bl *block.Block, hash [32]byte) error {
+func (bc *Blockchain) insertBlock(tx adb.Txn, bl *block.Block, hash [32]byte) error {
 	// add block data
-	b := tx.Bucket([]byte{buck.BLOCK})
-
-	err := b.Put(hash[:], bl.Serialize())
+	err := tx.Put(bc.Index.Block, hash[:], bl.Serialize())
 	if err != nil {
 		Log.Err(err)
 		return err
-	}
-
-	blData := b.Get(hash[:])
-	if len(blData) < 1 {
-		return errors.New("blData is empty")
 	}
 	return nil
 }
 
 // GetBlock returns the block given its hash
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetBlock(tx *bolt.Tx, hash [32]byte) (*block.Block, error) {
+func (bc *Blockchain) GetBlock(tx adb.Txn, hash [32]byte) (*block.Block, error) {
 	bl := &block.Block{}
 	// read block data
-	b := tx.Bucket([]byte{buck.BLOCK})
-	blbin := b.Get(hash[:])
+	blbin := tx.Get(bc.Index.Block, hash[:])
 	if len(blbin) == 0 {
 		return bl, fmt.Errorf("block %x not found", hash)
 	}
@@ -1375,35 +1329,19 @@ func (bc *Blockchain) GetBlock(tx *bolt.Tx, hash [32]byte) (*block.Block, error)
 	return bl, err
 }
 
-func (bc *Blockchain) GetTopo(tx *bolt.Tx, height uint64) ([32]byte, error) {
+func (bc *Blockchain) GetTopo(tx adb.Txn, height uint64) ([32]byte, error) {
 	var blHash [32]byte
-	b := tx.Bucket([]byte{buck.TOPO})
 	heightBin := make([]byte, 8)
 	binary.LittleEndian.PutUint64(heightBin, height)
-	topoHash := b.Get(heightBin)
+	topoHash := tx.Get(bc.Index.Topo, heightBin)
 	if len(topoHash) != 32 {
 		return blHash, errors.New("unknown block")
 	}
 	blHash = [32]byte(topoHash)
 	return blHash, nil
 }
-func (bc *Blockchain) buckGetTopo(buck *bolt.Bucket, height uint64) ([32]byte, error) {
-	var blHash [32]byte
 
-	heightBin := make([]byte, 8)
-	binary.LittleEndian.PutUint64(heightBin, height)
-
-	topoHash := buck.Get(heightBin)
-
-	if len(topoHash) != 32 {
-		return [32]byte{}, errors.New("unknown block")
-	}
-
-	blHash = [32]byte(topoHash)
-
-	return blHash, nil
-}
-func (bc *Blockchain) GetBlockByHeight(tx *bolt.Tx, height uint64) (*block.Block, error) {
+func (bc *Blockchain) GetBlockByHeight(tx adb.Txn, height uint64) (*block.Block, error) {
 	hash, err := bc.GetTopo(tx, height)
 	if err != nil {
 		return nil, err
@@ -1424,11 +1362,9 @@ func (bc *Blockchain) StartP2P(peers []string, port uint16, private bool) {
 	bc.P2P.ListenServer(port, private)
 }
 
-func (bc *Blockchain) GetSupply(tx *bolt.Tx) uint64 {
+func (bc *Blockchain) GetSupply(tx adb.Txn) uint64 {
 	var sum uint64 = 0
-	b := tx.Bucket([]byte{buck.STATE})
-
-	err := b.ForEach(func(k, v []byte) error {
+	err := tx.ForEach(bc.Index.State, func(k, v []byte) error {
 		state := &State{}
 		err := state.Deserialize(v)
 		if err != nil {
@@ -1442,7 +1378,7 @@ func (bc *Blockchain) GetSupply(tx *bolt.Tx) uint64 {
 	}
 	return sum
 }
-func (bc *Blockchain) CheckSupply(tx *bolt.Tx) {
+func (bc *Blockchain) CheckSupply(tx adb.Txn) {
 	sum := bc.GetSupply(tx)
 	supply := block.GetSupplyAtHeight(bc.GetStats(tx).TopHeight)
 	if sum != supply {
@@ -1452,46 +1388,32 @@ func (bc *Blockchain) CheckSupply(tx *bolt.Tx) {
 	Log.Debug("CheckSupply: supply is correct:", sum)
 }
 
-func (bc *Blockchain) SetTxTopoInc(tx *bolt.Tx, txid [32]byte, addr address.Address, incid uint64) error {
+func (bc *Blockchain) SetTxTopoInc(tx adb.Txn, txid [32]byte, addr address.Address, incid uint64) error {
 	incbin := addr[:]
 	incbin = binary.AppendUvarint(incbin, incid)
-	b := tx.Bucket([]byte{buck.INTX})
-	return b.Put(incbin, txid[:])
+	return tx.Put(bc.Index.InTx, incbin, txid[:])
 }
-func (bc *Blockchain) SetTxTopoOut(tx *bolt.Tx, txid [32]byte, addr address.Address, outid uint64) error {
+func (bc *Blockchain) SetTxTopoOut(tx adb.Txn, txid [32]byte, addr address.Address, outid uint64) error {
 	outbin := addr[:]
 	outbin = binary.AppendUvarint(outbin, outid)
-	b := tx.Bucket([]byte{buck.OUTTX})
-	return b.Put(outbin, txid[:])
+	return tx.Put(bc.Index.OutTx, outbin, txid[:])
 }
 
-func (bc *Blockchain) GetTxTopoInc(tx *bolt.Tx, addr address.Address, incid uint64) ([32]byte, error) {
+func (bc *Blockchain) GetTxTopoInc(tx adb.Txn, addr address.Address, incid uint64) ([32]byte, error) {
 	incbin := addr[:]
 	incbin = binary.AppendUvarint(incbin, incid)
-	b := tx.Bucket([]byte{buck.INTX})
-	bin := b.Get(incbin)
+	bin := tx.Get(bc.Index.InTx, incbin)
 	if len(bin) != 32 {
 		return [32]byte{}, errors.New("unknown tx topo inc")
 	}
 	return [32]byte(bin), nil
 }
-func (bc *Blockchain) GetTxTopoOut(tx *bolt.Tx, addr address.Address, outid uint64) ([32]byte, error) {
+func (bc *Blockchain) GetTxTopoOut(tx adb.Txn, addr address.Address, outid uint64) ([32]byte, error) {
 	outbin := addr[:]
 	outbin = binary.AppendUvarint(outbin, outid)
-	b := tx.Bucket([]byte{buck.OUTTX})
-	bin := b.Get(outbin)
+	bin := tx.Get(bc.Index.OutTx, outbin)
 	if len(bin) != 32 {
 		return [32]byte{}, errors.New("unknown tx topo out")
 	}
 	return [32]byte(bin), nil
-}
-
-func (bc *Blockchain) createBuck(name byte) {
-	bc.DB.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucket([]byte{name})
-		if err != nil {
-			return fmt.Errorf("createBuck: %s", err)
-		}
-		return nil
-	})
 }

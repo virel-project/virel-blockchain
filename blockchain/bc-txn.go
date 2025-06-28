@@ -5,25 +5,21 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"virel-blockchain/adb"
 	"virel-blockchain/address"
 	"virel-blockchain/binary"
 	"virel-blockchain/config"
 	"virel-blockchain/p2p"
 	"virel-blockchain/p2p/packet"
 	"virel-blockchain/transaction"
-	"virel-blockchain/util/buck"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 // Adds a transaction to mempool.
 // Transaction must be already prevalidated.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) AddTransaction(txn *bolt.Tx, tx *transaction.Transaction, hash [32]byte, mempool bool) error {
-	b := txn.Bucket([]byte{buck.TX})
-
+func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, mempool bool) error {
 	// check that transaction is not duplicate
-	if b.Get(hash[:]) != nil {
+	if txn.Get(bc.Index.Tx, hash[:]) != nil {
 		Log.Debug("transaction is already in database")
 		return nil
 	}
@@ -47,10 +43,8 @@ func (bc *Blockchain) AddTransaction(txn *bolt.Tx, tx *transaction.Transaction, 
 		return err
 	}
 
-	b = txn.Bucket([]byte{buck.INFO})
-
 	if mempool {
-		mem := bc.buckGetMempool(b)
+		mem := bc.GetMempool(txn)
 		if mem.GetEntry(hash) != nil {
 			err := fmt.Errorf("transaction %x already in mempool", hash)
 			Log.Warn(err)
@@ -64,7 +58,10 @@ func (bc *Blockchain) AddTransaction(txn *bolt.Tx, tx *transaction.Transaction, 
 			Sender:  address.FromPubKey(tx.Sender),
 			Outputs: tx.Outputs,
 		})
-		bc.buckSetMempool(b, mem)
+		err = bc.SetMempool(txn, mem)
+		if err != nil {
+			return err
+		}
 		Log.Debugf("Added transaction %x to mempool", hash)
 	} else {
 		Log.Debugf("Added transaction %x", hash)
@@ -75,46 +72,29 @@ func (bc *Blockchain) AddTransaction(txn *bolt.Tx, tx *transaction.Transaction, 
 
 // GetTx returns the transaction given its hash, and the transaction height if available
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetTx(hash [32]byte) (*transaction.Transaction, uint64, error) {
+func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transaction, uint64, error) {
 	tx := &transaction.Transaction{}
-	var includedIn uint64
-	err := bc.DB.View(func(txn *bolt.Tx) (err error) {
-		// read TX data
-		b := txn.Bucket([]byte{buck.TX})
-		tx, includedIn, err = bc.buckGetTx(b, hash)
-		return
-	})
-	return tx, includedIn, err
-}
-
-// buckGetBlock returns the block given its hash, using the database bucket
-func (bc *Blockchain) buckGetTx(buck *bolt.Bucket, hash transaction.TXID) (*transaction.Transaction, uint64, error) {
-	tx := &transaction.Transaction{}
-	txbin := buck.Get(hash[:])
+	// read TX data
+	txbin := txn.Get(bc.Index.Tx, hash[:])
 	if len(txbin) == 0 {
 		return nil, 0, fmt.Errorf("transaction %x not found", hash)
 	}
-
 	des := binary.NewDes(txbin)
-
-	height := des.ReadUint64()
+	includedIn := des.ReadUint64()
 	if des.Error() != nil {
 		return nil, 0, des.Error()
 	}
-
-	return tx, height, tx.Deserialize(des.RemainingData())
+	return tx, includedIn, tx.Deserialize(des.RemainingData())
 }
 
-func (bc *Blockchain) SetTx(txn *bolt.Tx, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
-	b := txn.Bucket([]byte{buck.TX})
-
+func (bc *Blockchain) SetTx(txn adb.Txn, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
 	serTx := tx.Serialize()
 
 	ser := binary.NewSer(make([]byte, 0, 8+len(serTx)))
 	ser.AddUint64(height)
 	ser.AddFixedByteArray(serTx)
 
-	err := b.Put(hash[:], ser.Output())
+	err := txn.Put(bc.Index.Tx, hash[:], ser.Output())
 	if err != nil {
 		Log.Err(err)
 		return err
@@ -122,30 +102,25 @@ func (bc *Blockchain) SetTx(txn *bolt.Tx, tx *transaction.Transaction, hash tran
 	return nil
 }
 
-func (bc *Blockchain) SetTxHeight(txn *bolt.Tx, hash transaction.TXID, height uint64) error {
-	b := txn.Bucket([]byte{buck.TX})
-
-	txbin := b.Get(hash[:])
+func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uint64) error {
+	txbin := txn.Get(bc.Index.Tx, hash[:])
 	if len(txbin) < 8 {
 		return errors.New("cannot SetTxHeight: transaction not in database")
 	}
 
 	binary.LittleEndian.PutUint64(txbin[:8], height)
 
-	b.Put(hash[:], txbin)
+	txn.Put(bc.Index.Tx, hash[:], txbin)
 
 	return nil
 }
 
 // use this method to validate that a transaction in mempool is valid
-func (bc *Blockchain) validateMempoolTx(txn *bolt.Tx, tx *transaction.Transaction, hash [32]byte) error {
-	bstate := txn.Bucket([]byte{buck.STATE})
-	btx := txn.Bucket([]byte{buck.TX})
-
+func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte) error {
 	senderAddr := address.FromPubKey(tx.Sender)
 
 	// get sender state
-	senderState, err := bc.buckGetState(bstate, senderAddr)
+	senderState, err := bc.GetState(txn, senderAddr)
 	if err != nil {
 		Log.Err(err)
 		return err
@@ -162,7 +137,7 @@ func (bc *Blockchain) validateMempoolTx(txn *bolt.Tx, tx *transaction.Transactio
 
 		// apply this transaction if it modifies sender state
 		if v.Sender == senderAddr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
-			vt, _, err := bc.buckGetTx(btx, v.TXID)
+			vt, _, err := bc.GetTx(txn, v.TXID)
 			if err != nil {
 				Log.Err(err)
 				return err

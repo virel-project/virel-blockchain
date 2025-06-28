@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+	"virel-blockchain/adb"
 	"virel-blockchain/address"
 	"virel-blockchain/binary"
 	"virel-blockchain/block"
@@ -20,7 +21,6 @@ import (
 	"virel-blockchain/util/uint128"
 
 	randomvirel "github.com/virel-project/go-randomvirel"
-	bolt "go.etcd.io/bbolt"
 )
 
 func init() {
@@ -63,7 +63,7 @@ func (bc *Blockchain) NewStratumJob(force bool) {
 
 	var bl *block.Block
 	var mindiff uint64
-	err := bc.DB.Update(func(tx *bolt.Tx) (err error) {
+	err := bc.DB.Update(func(tx adb.Txn) (err error) {
 		bl, mindiff, err = bc.GetBlockTemplate(tx, address.INVALID_ADDRESS)
 		return err
 	})

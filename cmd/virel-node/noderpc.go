@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"virel-blockchain/adb"
 	"virel-blockchain/address"
 	"virel-blockchain/block"
 	"virel-blockchain/blockchain"
@@ -17,7 +18,6 @@ import (
 	"virel-blockchain/util"
 
 	"github.com/virel-project/go-randomvirel"
-	bolt "go.etcd.io/bbolt"
 )
 
 type RpcServer struct {
@@ -63,7 +63,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		var bl *block.Block
 		var hash [32]byte
-		err = bc.DB.View(func(txn *bolt.Tx) error {
+		err = bc.DB.View(func(txn adb.Txn) error {
 			bl, err = bc.GetBlock(txn, params.Hash)
 			if err != nil {
 				return err
@@ -110,13 +110,19 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		txn, height, err := bc.GetTx(params.Txid)
+		var tx *transaction.Transaction
+		var height uint64
+
+		err = bc.DB.View(func(txn adb.Txn) (err error) {
+			tx, height, err = bc.GetTx(txn, params.Txid)
+			return
+		})
 		if err != nil {
 			Log.Debug(err)
 
 			var bl *block.Block
-			err = bc.DB.View(func(tx *bolt.Tx) error {
-				bl, err = bc.GetBlock(tx, params.Txid)
+			err = bc.DB.View(func(txn adb.Txn) error {
+				bl, err = bc.GetBlock(txn, params.Txid)
 				return err
 			})
 			if err != nil {
@@ -153,20 +159,20 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		integr := address.FromPubKey(txn.Sender).Integrated()
+		integr := address.FromPubKey(tx.Sender).Integrated()
 
 		c.Response(rpc.ResponseOut{
 			JsonRpc: "2.0",
 			Result: daemonrpc.GetTransactionResponse{
 				Sender:      &integr,
-				TotalAmount: txn.TotalAmount(),
-				Outputs:     txn.Outputs,
-				Fee:         txn.Fee,
-				Nonce:       txn.Nonce,
-				Signature:   txn.Signature[:],
+				TotalAmount: tx.TotalAmount(),
+				Outputs:     tx.Outputs,
+				Fee:         tx.Fee,
+				Nonce:       tx.Nonce,
+				Signature:   tx.Signature[:],
 				Height:      height,
 				Coinbase:    false,
-				VirtualSize: txn.GetVirtualSize(),
+				VirtualSize: tx.GetVirtualSize(),
 			},
 			Id: c.Body.Id,
 		})
@@ -176,7 +182,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 	rs.Handle("get_info", func(c *rpcserver.Context) {
 		var stats *blockchain.Stats
 		var topBl *block.Block
-		err := bc.DB.View(func(tx *bolt.Tx) (err error) {
+		err := bc.DB.View(func(tx adb.Txn) (err error) {
 			stats = bc.GetStats(tx)
 			topBl, err = bc.GetBlock(tx, stats.TopHash)
 			return
@@ -243,7 +249,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		err = bc.DB.Update(func(txn *bolt.Tx) error {
+		err = bc.DB.Update(func(txn adb.Txn) error {
 			return bc.AddTransaction(txn, tx, tx.Hash(), true)
 		})
 		if err != nil {
@@ -290,7 +296,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		result := daemonrpc.GetAddressResponse{}
 
-		err = bc.DB.View(func(tx *bolt.Tx) error {
+		err = bc.DB.View(func(tx adb.Txn) error {
 			state, err := bc.GetState(tx, params.Address.Addr)
 			if err != nil {
 				Log.Debug(err)
@@ -314,30 +320,46 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		result.MempoolNonce = result.LastNonce
 
 		var mem *blockchain.Mempool
-		bc.DB.View(func(tx *bolt.Tx) error {
+		bc.DB.View(func(tx adb.Txn) error {
 			mem = bc.GetMempool(tx)
 			return nil
 		})
-		for _, v := range mem.Entries {
-			if v.Sender == params.Address.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == params.Address.Addr }) {
-				Log.Devf("adding txn %x", v.TXID)
-				txn, _, err := bc.GetTx(v.TXID)
-				if err != nil {
-					Log.Err(err)
-					return
-				}
-				if v.Sender == params.Address.Addr {
-					result.MempoolBalance -= txn.TotalAmount()
-					result.MempoolNonce++
-				}
 
-				for _, out := range v.Outputs {
-					if out.Recipient == params.Address.Addr {
-						result.MempoolBalance += out.Amount
+		err = bc.DB.View(func(txn adb.Txn) (err error) {
+			for _, v := range mem.Entries {
+				if v.Sender == params.Address.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == params.Address.Addr }) {
+					Log.Devf("adding txn %x", v.TXID)
+					txn, _, err := bc.GetTx(txn, v.TXID)
+					if err != nil {
+						Log.Err(err)
+						return err
 					}
-				}
+					if v.Sender == params.Address.Addr {
+						result.MempoolBalance -= txn.TotalAmount()
+						result.MempoolNonce++
+					}
 
+					for _, out := range v.Outputs {
+						if out.Recipient == params.Address.Addr {
+							result.MempoolBalance += out.Amount
+						}
+					}
+
+				}
 			}
+			return
+		})
+		if err != nil {
+			Log.Warn(err)
+			c.Response(rpc.ResponseOut{
+				JsonRpc: "2.0",
+				Error: &rpc.Error{
+					Code:    internalReadFailed,
+					Message: "could not get transactions",
+				},
+				Id: c.Body.Id,
+			})
+			return
 		}
 
 		c.Response(rpc.ResponseOut{
@@ -354,7 +376,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		err = bc.DB.View(func(tx *bolt.Tx) error {
+		err = bc.DB.View(func(tx adb.Txn) error {
 			// TODO: test if pagination works correctly
 			txType := params.TransferType
 			var startNum uint64
@@ -462,7 +484,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		var bl *block.Block
-		err = bc.DB.View(func(tx *bolt.Tx) (err error) {
+		err = bc.DB.View(func(tx adb.Txn) (err error) {
 			bl, err = bc.GetBlockByHeight(tx, params.Height)
 			return
 		})

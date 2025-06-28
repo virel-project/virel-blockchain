@@ -1,18 +1,17 @@
 package blockchain
 
 import (
+	"virel-blockchain/adb"
 	"virel-blockchain/block"
 	"virel-blockchain/config"
 	"virel-blockchain/util/uint128"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 // LTTC: maximum deviation in block timestamp before the algorithm starts adjusting the difficulty
 const maxDeviation = config.TARGET_BLOCK_TIME * 1000 * 2 * config.DIFFICULTY_N
 
 // returns the difficulty of the block after the provided block
-func (bc *Blockchain) GetNextDifficulty(tx *bolt.Tx, bl *block.Block) (uint128.Uint128, error) {
+func (bc *Blockchain) GetNextDifficulty(tx adb.Txn, bl *block.Block) (uint128.Uint128, error) {
 	if bl.Height < 2 {
 		return uint128.From64(config.MIN_DIFFICULTY), nil
 	}

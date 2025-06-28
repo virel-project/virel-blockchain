@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"time"
+	"virel-blockchain/adb"
 	"virel-blockchain/address"
 	"virel-blockchain/block"
 	"virel-blockchain/config"
@@ -12,8 +13,6 @@ import (
 	"virel-blockchain/transaction"
 	"virel-blockchain/util"
 	"virel-blockchain/util/uint128"
-
-	bolt "go.etcd.io/bbolt"
 )
 
 func (bc *Blockchain) StartMining(addr address.Address) {
@@ -37,9 +36,9 @@ func (bc *Blockchain) StartMining(addr address.Address) {
 	}
 }
 
-func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*block.Block, uint64, error) {
-	stats := bc.GetStats(tx)
-	prevBl, err := bc.GetBlock(tx, stats.TopHash)
+func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*block.Block, uint64, error) {
+	stats := bc.GetStats(txn)
+	prevBl, err := bc.GetBlock(txn, stats.TopHash)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -62,7 +61,7 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 		return nil, 0, err
 	}
 
-	bl.Difficulty, err = bc.GetNextDifficulty(tx, prevBl)
+	bl.Difficulty, err = bc.GetNextDifficulty(txn, prevBl)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -78,7 +77,7 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 			continue
 		}
 		// check if the tip can actually be used as side block, and it if does, use it!
-		err := bc.DB.View(func(txn *bolt.Tx) error {
+		err := bc.DB.View(func(txn adb.Txn) error {
 			tip, err := bc.GetBlock(txn, v.Hash)
 			if err != nil {
 				return err
@@ -114,7 +113,7 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 			}
 			if prevBl.Height > 0 {
 				for _, anc := range bl.Ancestors[1:] { // then check in previous ancestors
-					ancBl, err := bc.GetBlock(tx, anc)
+					ancBl, err := bc.GetBlock(txn, anc)
 					if err != nil {
 						Log.Err(err)
 						return err
@@ -150,7 +149,7 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 
 	// TODO: sort mempool transactions by Fee Per Kilobyte, to prioritize the transactions with higher fee
 	// possibly also take in account transaction age in the sorting algorithm
-	mem := bc.GetMempool(tx)
+	mem := bc.GetMempool(txn)
 	var totsize uint64 = 0
 	for _, v := range mem.Entries {
 		totsize += v.Size
@@ -160,12 +159,12 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 		}
 
 		// check that no invalid transactions are added here, as blocks received may invalidate transactions
-		memtx, _, err := bc.GetTx(v.TXID)
+		memtx, _, err := bc.GetTx(txn, v.TXID)
 		if err != nil {
 			Log.Err(err)
 			continue
 		}
-		err = bc.validateMempoolTx(tx, memtx, v.TXID)
+		err = bc.validateMempoolTx(txn, memtx, v.TXID)
 		if err != nil {
 			Log.Warn("GetBlockTemplate: mempool tx is not valid:", err)
 			continue
@@ -202,7 +201,7 @@ func (bc *Blockchain) GetBlockTemplate(tx *bolt.Tx, addr address.Address) (*bloc
 func (bc *Blockchain) MineBlock(addr address.Address) {
 	var bl *block.Block
 	var min_diff uint64
-	err := bc.DB.View(func(tx *bolt.Tx) (err error) {
+	err := bc.DB.View(func(tx adb.Txn) (err error) {
 		bl, min_diff, err = bc.GetBlockTemplate(tx, addr)
 		return
 	})
@@ -287,7 +286,7 @@ func (bc *Blockchain) blockFound(bl *block.Block, powHash [16]byte) ([]stratum.F
 			return nil, err
 		}
 		go bc.BroadcastBlock(bl)
-		err = bc.DB.Update(func(tx *bolt.Tx) error {
+		err = bc.DB.Update(func(tx adb.Txn) error {
 			_, err := bc.AddBlock(tx, bl)
 			return err
 		})

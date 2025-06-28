@@ -8,18 +8,18 @@ import (
 	"runtime/pprof"
 	"strconv"
 	"strings"
+	"virel-blockchain/adb"
 	"virel-blockchain/address"
 	"virel-blockchain/block"
 	"virel-blockchain/blockchain"
 	"virel-blockchain/config"
 	"virel-blockchain/p2p"
+	"virel-blockchain/transaction"
 	"virel-blockchain/util"
-	"virel-blockchain/util/buck"
 	"virel-blockchain/util/uint128"
 
 	"github.com/ergochat/readline"
 	"github.com/zeebo/blake3"
-	bolt "go.etcd.io/bbolt"
 )
 
 type Cmd struct {
@@ -75,7 +75,7 @@ func prompts(bc *blockchain.Blockchain) {
 			var stats *blockchain.Stats
 			var mem *blockchain.Mempool
 			var diff uint128.Uint128
-			bc.DB.View(func(tx *bolt.Tx) error {
+			bc.DB.View(func(tx adb.Txn) error {
 				stats = bc.GetStats(tx)
 				mem = bc.GetMempool(tx)
 				topBlock, err := bc.GetBlock(tx, stats.TopHash)
@@ -98,7 +98,7 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Infof("%d. %x: fee %d, size %d", i, v.TXID, v.Fee, v.Size)
 			}
 
-			err := bc.DB.Update(func(tx *bolt.Tx) error {
+			err := bc.DB.Update(func(tx adb.Txn) error {
 				reorged, err := bc.CheckReorgs(tx, bc.GetStats(tx))
 				if reorged {
 					Log.Debug("reorganize done")
@@ -171,7 +171,7 @@ func prompts(bc *blockchain.Blockchain) {
 				return
 			}
 
-			err := bc.DB.View(func(tx *bolt.Tx) error {
+			err := bc.DB.View(func(tx adb.Txn) error {
 				var bl *block.Block
 				var inMainchain bool
 				if len(args[0]) == 64 {
@@ -233,7 +233,12 @@ func prompts(bc *blockchain.Blockchain) {
 				return
 			}
 
-			tx, height, err := bc.GetTx([32]byte(txid))
+			var tx *transaction.Transaction
+			var height uint64
+			err = bc.DB.View(func(txn adb.Txn) (err error) {
+				tx, height, err = bc.GetTx(txn, [32]byte(txid))
+				return
+			})
 			if err != nil {
 				Log.Err(err)
 				return
@@ -253,12 +258,10 @@ func prompts(bc *blockchain.Blockchain) {
 		Action: func(args []string) {
 			Log.Info("Printing blockchain state")
 			var sum uint64 = 0
-			err := bc.DB.View(func(tx *bolt.Tx) error {
-				stats := bc.GetStats(tx)
+			err := bc.DB.View(func(txn adb.Txn) error {
+				stats := bc.GetStats(txn)
 
-				b := tx.Bucket([]byte{buck.STATE})
-
-				err := b.ForEach(func(k, v []byte) error {
+				err := txn.ForEach(bc.Index.State, func(k, v []byte) error {
 					addr := address.Address(k)
 					state := &blockchain.State{}
 
@@ -297,7 +300,7 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"create_checkpoints"},
 		Args:  "[<max height>]",
 		Action: func(args []string) {
-			err := bc.DB.View(func(tx *bolt.Tx) error {
+			err := bc.DB.View(func(tx adb.Txn) error {
 				var maxHeight = bc.GetStats(tx).TopHeight
 				if len(args) > 0 {
 					var err error
@@ -329,7 +332,7 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"print_template", "template", "block_template", "mining_template"},
 		Args:  "",
 		Action: func(args []string) {
-			err := bc.DB.View(func(tx *bolt.Tx) error {
+			err := bc.DB.View(func(tx adb.Txn) error {
 				bl, min_diff, err := bc.GetBlockTemplate(tx, address.INVALID_ADDRESS)
 				if err != nil {
 					return err
@@ -346,7 +349,7 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"print_tips", "tips"},
 		Args:  "",
 		Action: func(args []string) {
-			bc.DB.View(func(tx *bolt.Tx) error {
+			bc.DB.View(func(tx adb.Txn) error {
 				stats := bc.GetStats(tx)
 				for _, v := range stats.Tips {
 					Log.Infof("- %x: Cumulative diff %s; height: %d", v.Hash, v.CumulativeDiff, v.Height)
@@ -358,7 +361,7 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"block_times"},
 		Args:  "",
 		Action: func(args []string) {
-			err := bc.DB.View(func(tx *bolt.Tx) error {
+			err := bc.DB.View(func(tx adb.Txn) error {
 				stats := bc.GetStats(tx)
 				hash := stats.TopHash
 				var last float64 = -1
@@ -400,18 +403,18 @@ func prompts(bc *blockchain.Blockchain) {
 		Names: []string{"dag_info"},
 		Args:  "",
 		Action: func(args []string) {
-			err := bc.DB.View(func(tx *bolt.Tx) error {
-				numBlocks := uint64(tx.Bucket([]byte{buck.BLOCK}).Stats().KeyN - 1)
-				st := bc.GetStats(tx)
+			err := bc.DB.View(func(txn adb.Txn) error {
+				// TODO: count blocks
+				numBlocks := uint64(0)
+				st := bc.GetStats(txn)
 
 				var numSides uint64 = 0
 				sideDiff := uint128.Zero
-				buckTopo := tx.Bucket([]byte{buck.TOPO})
-				buckTopo.ForEach(func(k, v []byte) error {
+				txn.ForEach(bc.Index.Topo, func(k, v []byte) error {
 					if len(v) != 32 {
 						return fmt.Errorf("invalid value length %d %x", len(v), v)
 					}
-					bl, err := bc.GetBlock(tx, [32]byte(v))
+					bl, err := bc.GetBlock(txn, [32]byte(v))
 					if err != nil {
 						return err
 					}

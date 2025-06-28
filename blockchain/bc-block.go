@@ -1,11 +1,12 @@
 package blockchain
 
 import (
+	"virel-blockchain/adb"
 	"virel-blockchain/binary"
 	"virel-blockchain/block"
 )
 
-func (bc *Blockchain) SerializeFullBlock(b *block.Block) ([]byte, error) {
+func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, error) {
 	s := binary.NewSer(make([]byte, 0, 80))
 
 	s.AddFixedByteArray(b.BlockHeader.Serialize())
@@ -28,7 +29,7 @@ func (bc *Blockchain) SerializeFullBlock(b *block.Block) ([]byte, error) {
 	s.AddUvarint(uint64(len(b.Transactions)))
 
 	for _, v := range b.Transactions {
-		txn, _, err := bc.GetTx(v)
+		txn, _, err := bc.GetTx(txn, v)
 		if err != nil {
 			return nil, err
 		}

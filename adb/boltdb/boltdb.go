@@ -1,0 +1,93 @@
+package boltdb
+
+import (
+	"os"
+	"path/filepath"
+	"virel-blockchain/adb"
+
+	bolt "go.etcd.io/bbolt"
+)
+
+var _ adb.DB = &DB{}
+
+type DB struct {
+	db *bolt.DB
+}
+
+func New(dbpath string, filemode os.FileMode) (*DB, error) {
+	var err error
+
+	d := &DB{}
+
+	dbpath, err = filepath.Abs(dbpath)
+	if err != nil {
+		return nil, err
+	}
+
+	d.db, err = bolt.Open(dbpath, filemode, &bolt.Options{
+		NoFreelistSync: true,
+	})
+
+	return d, err
+}
+
+func (d *DB) Index(name string) adb.Index {
+	err := d.db.Update(func(txn *bolt.Tx) error {
+		var err error
+		_, err = txn.CreateBucketIfNotExists([]byte(name))
+		return err
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return []byte(name)
+}
+
+func (d *DB) View(f func(txn adb.Txn) error) error {
+	return d.db.View(func(t *bolt.Tx) error {
+		txn := &Txn{
+			txn: t,
+		}
+
+		return f(txn)
+	})
+}
+
+func (d *DB) Update(f func(txn adb.Txn) error) error {
+	return d.db.Update(func(t *bolt.Tx) error {
+		txn := &Txn{
+			txn: t,
+		}
+
+		return f(txn)
+	})
+}
+
+func (d *DB) Close() error {
+	return d.db.Close()
+}
+
+type Txn struct {
+	txn *bolt.Tx
+}
+
+func (t *Txn) Get(d adb.Index, key []byte) []byte {
+	dbi := d.([]byte)
+	r := t.txn.Bucket(dbi).Get(key)
+	return r
+}
+
+func (t *Txn) Put(d adb.Index, key []byte, value []byte) error {
+	dbi := d.([]byte)
+	return t.txn.Bucket(dbi).Put(key, value)
+}
+
+func (t *Txn) Del(d adb.Index, key []byte) error {
+	dbi := d.([]byte)
+	return t.txn.Bucket(dbi).Delete(key)
+}
+
+func (t *Txn) ForEach(d adb.Index, f func(k, v []byte) error) error {
+	return t.txn.Bucket(d.([]byte)).ForEach(f)
+}
