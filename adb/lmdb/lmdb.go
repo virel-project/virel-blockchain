@@ -35,7 +35,8 @@ func New(dbpath string, filemode os.FileMode, log *logger.Log) (*DB, error) {
 	}
 
 	d.env.SetMaxDBs(16)
-	d.env.SetMapSize(512 * 1024)
+	// 128 MiB initial map size
+	d.env.SetMapSize(128 * 1024 * 1024)
 	d.env.SetFlags(lmdb.WriteMap)
 
 	dbpath, err = filepath.Abs(dbpath)

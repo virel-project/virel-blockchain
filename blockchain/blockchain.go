@@ -1349,9 +1349,10 @@ func (bc *Blockchain) GetBlockByHeight(tx adb.Txn, height uint64) (*block.Block,
 	return bc.GetBlock(tx, hash)
 }
 
-func (bc *Blockchain) StartP2P(peers []string, port uint16, private bool) {
+func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive bool) {
 	p2p.Log = Log
 	bc.P2P = p2p.Start(peers)
+	bc.P2P.Exclusive = exclusive
 	bc.P2P.StartClients(private)
 
 	go bc.pinger()

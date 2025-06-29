@@ -43,6 +43,8 @@ type P2P struct {
 
 	listener net.Listener
 
+	Exclusive bool
+
 	util.RWMutex
 }
 
@@ -192,7 +194,7 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 			}
 		}
 
-		Log.Infof("New connection with IP %s", c.RemoteAddr().String())
+		Log.Debugf("New connection with IP %s", c.RemoteAddr().String())
 		err = p.handleConnection(conn, private)
 		if err != nil {
 			Log.Debug("P2P server connection error:", err)
@@ -599,6 +601,9 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 // P2P must be locked before calling this
 func (p *P2P) AddPeerToList(ip string, port uint16) {
 	if port == 0 {
+		return
+	}
+	if p.Exclusive {
 		return
 	}
 
