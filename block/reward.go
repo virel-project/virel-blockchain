@@ -1,7 +1,7 @@
 package block
 
 import (
-	"virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/config"
 )
 
 func reduce(n, count uint64) uint64 {

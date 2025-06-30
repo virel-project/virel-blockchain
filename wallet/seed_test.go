@@ -3,7 +3,8 @@ package wallet
 import (
 	"fmt"
 	"testing"
-	"virel-blockchain/bitcrypto"
+
+	"github.com/virel-project/virel-blockchain/bitcrypto"
 
 	bip39 "github.com/tyler-smith/go-bip39"
 )

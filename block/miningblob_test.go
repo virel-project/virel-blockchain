@@ -4,7 +4,8 @@ import (
 	"crypto/rand"
 	"testing"
 	"time"
-	"virel-blockchain/config"
+
+	"github.com/virel-project/virel-blockchain/config"
 
 	"github.com/zeebo/blake3"
 )

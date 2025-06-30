@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-	"virel-blockchain/adb"
-	"virel-blockchain/config"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/adb"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util"
 )
 
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {

@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"virel-blockchain/adb"
-	"virel-blockchain/logger"
+
+	"github.com/virel-project/virel-blockchain/adb"
+	"github.com/virel-project/virel-blockchain/logger"
 
 	lmdb "github.com/PowerDNS/lmdb-go/lmdb"
 )

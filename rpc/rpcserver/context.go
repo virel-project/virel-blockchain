@@ -3,7 +3,8 @@ package rpcserver
 import (
 	"encoding/json"
 	"net/http"
-	"virel-blockchain/rpc"
+
+	"github.com/virel-project/virel-blockchain/rpc"
 )
 
 type Context struct {

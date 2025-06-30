@@ -3,13 +3,14 @@ package main
 import (
 	"fmt"
 	"net/http"
-	"virel-blockchain/rpc"
-	"virel-blockchain/rpc/rpcserver"
-	"virel-blockchain/rpc/walletrpc"
-	"virel-blockchain/transaction"
-	"virel-blockchain/util"
-	"virel-blockchain/util/ratelimit"
-	"virel-blockchain/wallet"
+
+	"github.com/virel-project/virel-blockchain/rpc"
+	"github.com/virel-project/virel-blockchain/rpc/rpcserver"
+	"github.com/virel-project/virel-blockchain/rpc/walletrpc"
+	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/util/ratelimit"
+	"github.com/virel-project/virel-blockchain/wallet"
 )
 
 type RpcServer struct {

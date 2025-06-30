@@ -5,10 +5,11 @@ import (
 	"encoding/hex"
 	"slices"
 	"testing"
-	"virel-blockchain/address"
-	"virel-blockchain/bitcrypto"
-	"virel-blockchain/config"
-	"virel-blockchain/transaction"
+
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/transaction"
 
 	"github.com/zeebo/blake3"
 )

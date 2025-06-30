@@ -3,9 +3,10 @@ package block
 import (
 	"fmt"
 	"slices"
-	"virel-blockchain/binary"
-	"virel-blockchain/config"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util"
 
 	"github.com/zeebo/blake3"
 )

@@ -2,7 +2,8 @@ package address_test
 
 import (
 	"testing"
-	"virel-blockchain/address"
+
+	"github.com/virel-project/virel-blockchain/address"
 
 	"github.com/zeebo/blake3"
 )

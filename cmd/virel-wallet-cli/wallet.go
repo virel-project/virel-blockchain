@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"virel-blockchain/address"
-	"virel-blockchain/config"
-	"virel-blockchain/logger"
-	"virel-blockchain/util"
-	"virel-blockchain/wallet"
+
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/logger"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/wallet"
 
 	"github.com/ergochat/readline"
 )

@@ -3,7 +3,8 @@ package p2p
 import (
 	"encoding/json"
 	"os"
-	"virel-blockchain/config"
+
+	"github.com/virel-project/virel-blockchain/config"
 )
 
 func (p *P2P) savePeerlist() error {

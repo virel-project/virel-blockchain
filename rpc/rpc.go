@@ -3,7 +3,8 @@ package rpc
 import (
 	"bufio"
 	"encoding/json"
-	"virel-blockchain/logger"
+
+	"github.com/virel-project/virel-blockchain/logger"
 )
 
 var Log *logger.Log = logger.DiscardLog

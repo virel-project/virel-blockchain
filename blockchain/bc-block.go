@@ -1,9 +1,9 @@
 package blockchain
 
 import (
-	"virel-blockchain/adb"
-	"virel-blockchain/binary"
-	"virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/adb"
+	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/block"
 )
 
 func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, error) {

@@ -7,8 +7,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"virel-blockchain/logger"
-	"virel-blockchain/rpc"
+
+	"github.com/virel-project/virel-blockchain/logger"
+	"github.com/virel-project/virel-blockchain/rpc"
 )
 
 var log *logger.Log = rpc.Log

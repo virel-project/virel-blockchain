@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"sync"
 	"time"
-	"virel-blockchain/block"
-	"virel-blockchain/stratum"
-	"virel-blockchain/stratum/stratumclient"
-	"virel-blockchain/util"
-	"virel-blockchain/util/uint128"
+
+	"github.com/virel-project/virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/stratum"
+	"github.com/virel-project/virel-blockchain/stratum/stratumclient"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
 type mergestratum struct {

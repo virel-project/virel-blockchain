@@ -2,8 +2,9 @@ package block
 
 import (
 	"encoding/hex"
-	"virel-blockchain/config"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util"
 )
 
 type Ancestors [config.MINIDAG_ANCESTORS]util.Hash

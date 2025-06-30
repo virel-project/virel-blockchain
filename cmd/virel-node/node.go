@@ -5,9 +5,10 @@ import (
 	"os"
 	"runtime/pprof"
 	"strings"
-	"virel-blockchain/blockchain"
-	"virel-blockchain/config"
-	"virel-blockchain/logger"
+
+	"github.com/virel-project/virel-blockchain/blockchain"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/logger"
 )
 
 var Log = logger.New()

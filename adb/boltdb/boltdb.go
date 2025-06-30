@@ -3,7 +3,8 @@ package boltdb
 import (
 	"os"
 	"path/filepath"
-	"virel-blockchain/adb"
+
+	"github.com/virel-project/virel-blockchain/adb"
 
 	bolt "go.etcd.io/bbolt"
 )

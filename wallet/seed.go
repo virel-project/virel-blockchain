@@ -1,8 +1,8 @@
 package wallet
 
 import (
-	"virel-blockchain/address"
-	"virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/bitcrypto"
 
 	"github.com/tyler-smith/go-bip39"
 	"github.com/zeebo/blake3"

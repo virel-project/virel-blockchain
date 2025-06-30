@@ -1,10 +1,10 @@
 package blockchain
 
 import (
-	"virel-blockchain/adb"
-	"virel-blockchain/block"
-	"virel-blockchain/config"
-	"virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/adb"
+	"github.com/virel-project/virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
 // LTTC: maximum deviation in block timestamp before the algorithm starts adjusting the difficulty

@@ -6,8 +6,9 @@ import (
 	"errors"
 	"hash/crc32"
 	"math/big"
-	"virel-blockchain/bitcrypto"
-	"virel-blockchain/config"
+
+	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/config"
 
 	"github.com/zeebo/blake3"
 )

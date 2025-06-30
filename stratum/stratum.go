@@ -1,8 +1,8 @@
 package stratum
 
 import (
-	"virel-blockchain/util/enc"
-	"virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/util/enc"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
 // Virel follows the XMRig Stratum Mining Protocol as described here:

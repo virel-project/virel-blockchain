@@ -3,9 +3,10 @@ package p2p
 import (
 	"net"
 	"time"
-	"virel-blockchain/binary"
-	"virel-blockchain/bitcrypto"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/util"
 )
 
 func NewConnection(c net.Conn, outgoing bool) *Connection {

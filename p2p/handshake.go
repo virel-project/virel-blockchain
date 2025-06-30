@@ -3,7 +3,8 @@ package p2p
 import (
 	"fmt"
 	"io"
-	"virel-blockchain/binary"
+
+	"github.com/virel-project/virel-blockchain/binary"
 )
 
 const MAX_HANDSHAKE_SIZE = 1024

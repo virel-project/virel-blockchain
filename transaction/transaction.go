@@ -4,12 +4,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"virel-blockchain/address"
-	"virel-blockchain/config"
-	"virel-blockchain/util"
 
-	"virel-blockchain/binary"
-	"virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/bitcrypto"
 
 	"github.com/zeebo/blake3"
 )

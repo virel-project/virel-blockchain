@@ -2,7 +2,8 @@ package bitcrypto
 
 import (
 	"testing"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/util"
 )
 
 var messageToSign = []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse sodales cursus maximus. Donec dapibus, sapien eget rhoncus faucibus, mauris massa commodo purus, eu rutrum nisi nibh eget augue. Maecenas tristique ut magna eu vehicula. Pellentesque vel auctor purus. Vestibulum ante elit, bibendum in ex ut, accumsan commodo sapien. Pellentesque sollicitudin nisl a accumsan consectetur.")

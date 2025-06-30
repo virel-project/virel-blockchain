@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"virel-blockchain/config"
-	"virel-blockchain/util/uint128"
+
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 
 	"github.com/sasha-s/go-deadlock"
 )

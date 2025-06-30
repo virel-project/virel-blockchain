@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"math"
 	"time"
-	"virel-blockchain/adb"
-	"virel-blockchain/address"
-	"virel-blockchain/block"
-	"virel-blockchain/config"
-	"virel-blockchain/stratum"
-	"virel-blockchain/transaction"
-	"virel-blockchain/util"
-	"virel-blockchain/util/uint128"
+
+	"github.com/virel-project/virel-blockchain/adb"
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/stratum"
+	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
 func (bc *Blockchain) StartMining(addr address.Address) {

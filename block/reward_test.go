@@ -2,8 +2,9 @@ package block
 
 import (
 	"testing"
-	"virel-blockchain/config"
-	"virel-blockchain/util"
+
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/util"
 )
 
 func TestReward(t *testing.T) {

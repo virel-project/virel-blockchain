@@ -1,11 +1,11 @@
 package daemonrpc
 
 import (
-	"virel-blockchain/address"
-	"virel-blockchain/block"
-	"virel-blockchain/transaction"
-	"virel-blockchain/util"
-	"virel-blockchain/util/enc"
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/util/enc"
 )
 
 type GetTransactionRequest struct {

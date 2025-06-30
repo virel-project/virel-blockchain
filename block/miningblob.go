@@ -2,8 +2,9 @@ package block
 
 import (
 	"fmt"
-	"virel-blockchain/binary"
-	"virel-blockchain/config"
+
+	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/config"
 
 	"github.com/virel-project/go-randomvirel"
 	"github.com/zeebo/blake3"

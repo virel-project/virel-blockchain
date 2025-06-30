@@ -6,11 +6,12 @@ import (
 	"reflect"
 	"runtime"
 	"testing"
-	"virel-blockchain/address"
-	"virel-blockchain/config"
-	"virel-blockchain/transaction"
 
-	"virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/transaction"
+
+	"github.com/virel-project/virel-blockchain/util/uint128"
 
 	"github.com/virel-project/go-randomvirel"
 	"github.com/zeebo/blake3"

@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/gob"
 	"io"
-	"virel-blockchain/address"
-	"virel-blockchain/transaction"
-	"virel-blockchain/util"
-	"virel-blockchain/util/uint128"
+
+	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
 type Stats struct {

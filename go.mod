@@ -1,4 +1,4 @@
-module virel-blockchain
+module github.com/virel-project/virel-blockchain
 
 go 1.24.0
 
