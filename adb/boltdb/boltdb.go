@@ -1,6 +1,7 @@
 package boltdb
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -91,4 +92,16 @@ func (t *Txn) Del(d adb.Index, key []byte) error {
 
 func (t *Txn) ForEach(d adb.Index, f func(k, v []byte) error) error {
 	return t.txn.Bucket(d.([]byte)).ForEach(f)
+}
+
+func (t *Txn) Entries(d adb.Index) (uint64, error) {
+	buck := t.txn.Bucket(d.([]byte))
+
+	if buck == nil {
+		return 0, fmt.Errorf("bucket not found")
+	}
+
+	s := buck.Stats()
+
+	return uint64(s.KeyN), nil
 }

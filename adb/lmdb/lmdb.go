@@ -213,3 +213,12 @@ func (t *Txn) ForEach(d adb.Index, f func(k, v []byte) error) error {
 
 	return nil
 }
+
+func (t *Txn) Entries(d adb.Index) (uint64, error) {
+	dbi := d.(lmdb.DBI)
+	stat, err := t.txn.Stat(dbi)
+	if err != nil {
+		return 0, err
+	}
+	return stat.Entries, err
+}

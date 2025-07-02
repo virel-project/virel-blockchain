@@ -405,8 +405,10 @@ func prompts(bc *blockchain.Blockchain) {
 		Args:  "",
 		Action: func(args []string) {
 			err := bc.DB.View(func(txn adb.Txn) error {
-				// TODO: count blocks
-				numBlocks := uint64(0)
+				numBlocks, err := txn.Entries(bc.Index.Block)
+				if err != nil {
+					return err
+				}
 				st := bc.GetStats(txn)
 
 				var numSides uint64 = 0
@@ -427,9 +429,9 @@ func prompts(bc *blockchain.Blockchain) {
 				orphans := float64(numBlocks) - float64(st.TopHeight) - float64(numSides)
 
 				Log.Info("blocks:", numBlocks, "height:", st.TopHeight, "orphans:", orphans, "sideblocks:", numSides)
-				Log.Info("mains:", math.Round(float64(st.TopHeight)/float64(numBlocks)*1000)/10, "%")
-				Log.Info("orphans:", math.Round(orphans/float64(numBlocks)*1000)/10, "%")
-				Log.Info("sides:", math.Round(float64(numSides)/float64(numBlocks)*1000)/10, "%")
+				Log.Info("mains:", math.Round(float64(st.TopHeight)/float64(numBlocks)*10000)/100, "%")
+				Log.Info("orphans:", math.Round(orphans/float64(numBlocks)*10000)/100, "%")
+				Log.Info("sides:", math.Round(float64(numSides)/float64(numBlocks)*10000)/100, "%")
 				deltaDiff := st.CumulativeDiff.Sub(sideDiff)
 				Log.Info("without side blocks, the cumulative difficulty would be",
 					100-(deltaDiff.Float64()/st.CumulativeDiff.Float64()*100), "% lower")

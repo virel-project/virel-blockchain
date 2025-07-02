@@ -15,4 +15,5 @@ type Txn interface {
 	Put(Index, []byte, []byte) error
 	Del(Index, []byte) error
 	ForEach(Index, func(k, v []byte) error) error
+	Entries(Index) (uint64, error)
 }
