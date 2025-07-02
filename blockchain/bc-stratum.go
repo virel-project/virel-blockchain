@@ -234,7 +234,7 @@ func (bc *Blockchain) handleConn(v *stratumsrv.Conn) error {
 				Result: stratum.LoginResponse{
 					ID: jobid,
 					Job: stratum.Job{
-						Algo:     "rx/xvr",
+						Algo:     "rx/vrl",
 						Blob:     blob.Serialize(),
 						JobID:    jobid,
 						Target:   target,

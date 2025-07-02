@@ -158,7 +158,8 @@ func (bc *Blockchain) submitMergeMinedBlock(bl *block.Block, pow [16]byte) ([]st
 					if err != nil {
 						Log.Err("submit merge mined block to chain", v.HashingID.NetworkID, "failed:", err)
 						foundsChan <- stratum.FoundBlockInfo{
-							Ok: false,
+							NetworkID: v.HashingID.NetworkID,
+							Ok:        false,
 						}
 						return
 					}
@@ -169,7 +170,8 @@ func (bc *Blockchain) submitMergeMinedBlock(bl *block.Block, pow [16]byte) ([]st
 					if err != nil || len(result.Blocks) != 1 {
 						Log.Err("submit merge mined block to chain", v.HashingID.NetworkID, "failed:", err)
 						foundsChan <- stratum.FoundBlockInfo{
-							Ok: false,
+							NetworkID: v.HashingID.NetworkID,
+							Ok:        false,
 						}
 						return
 					}
