@@ -248,7 +248,6 @@ scanning:
 func (p *P2P) Kick(c *Connection) {
 	var ip string
 	c.Update(func(c *ConnData) error {
-		c.Close()
 		ip = c.Conn.RemoteAddr().String()
 		Log.Debug("p2p kick", ip)
 		c.Close()
@@ -313,10 +312,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		return nil
 	}()
 	if err != nil {
-		conn.Update(func(c *ConnData) error {
-			c.Close()
-			return nil
-		})
+		p.Kick(conn)
 		return err
 	}
 
@@ -457,7 +453,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			if i == ipPort {
 				continue
 			}
-			err := vconn.Update(func(v *ConnData) error {
+			err := vconn.View(func(v *ConnData) error {
 				if v.PeerId == hnds.PeerID {
 					n++
 					if n >= 2 {
