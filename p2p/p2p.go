@@ -25,7 +25,6 @@ import (
 var Log = logger.DiscardLog
 
 const P2P_PING_INTERVAL = 15 // seconds
-const P2P_TIMEOUT = 40       // seconds
 
 type P2P struct {
 	Privkey *ecdh.PrivateKey

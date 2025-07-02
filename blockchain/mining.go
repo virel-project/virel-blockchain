@@ -48,7 +48,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		BlockHeader: block.BlockHeader{
 			Version:    0,
 			Height:     stats.TopHeight + 1,
-			Timestamp:  util.Time(),
+			Timestamp:  max(util.Time()+1, prevBl.Timestamp), // we ensure that the timestamp is always sequential
 			Recipient:  addr,
 			Ancestors:  prevBl.Ancestors.AddHash(stats.TopHash),
 			SideBlocks: make([]block.Commitment, 0),
