@@ -140,7 +140,7 @@ func Start(peers []string) *P2P {
 			port = config.P2P_BIND_PORT
 		}
 
-		p.AddPeerToList(splv[0], port)
+		p.AddPeerToList(splv[0], port, true)
 
 	}
 	return p
@@ -203,22 +203,20 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 	}
 }
 func (p *P2P) StartClients(private bool) {
-	go func() {
-		for {
-			p.Lock()
-			if len(p.Connections) < config.P2P_CONNECTIONS {
-				p.connectToRandomPeer(private)
-			}
-			p.Unlock()
-			time.Sleep(15 * time.Second)
+	for {
+		p.Lock()
+		if len(p.Connections) < config.P2P_CONNECTIONS {
+			p.connectToRandomPeer(private)
 		}
-	}()
+		p.Unlock()
+		time.Sleep(15 * time.Second)
+	}
 }
 
 // P2P MUST be locked before calling this
 func (p *P2P) connectToRandomPeer(private bool) {
 scanning:
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		if len(p.KnownPeers) == 0 {
 			return
 		}
@@ -321,31 +319,33 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 	var peerid = p.PeerId()
 	p.RUnlock()
 
-	err = conn.Update(func(c *ConnData) error {
-		ipPort = c.Conn.RemoteAddr().String()
+	go func() {
+		err = conn.Update(func(c *ConnData) error {
+			ipPort = c.Conn.RemoteAddr().String()
 
-		// send handshake
-		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		port := p.BindPort
-		if private {
-			port = 0
+			// send handshake
+			c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+			port := p.BindPort
+			if private {
+				port = 0
+			}
+
+			hnds := &Handshake{
+				Version:    config.VERSION,
+				P2PVersion: config.P2P_VERSION,
+
+				PeerID:  peerid,
+				P2PPort: port,
+			}
+
+			_, err = hnds.WriteTo(c.Conn)
+			return err
+		})
+		if err != nil {
+			p.Kick(conn)
+			Log.Debug("failed to send handshake:", err)
 		}
-
-		hnds := &Handshake{
-			Version:    config.VERSION,
-			P2PVersion: config.P2P_VERSION,
-
-			PeerID:  peerid,
-			P2PPort: port,
-		}
-
-		_, err = hnds.WriteTo(c.Conn)
-		return err
-	})
-	if err != nil {
-		p.Kick(conn)
-		return err
-	}
+	}()
 
 	// read handshake
 	conn.data.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
@@ -363,7 +363,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		if !c.Outgoing && hnds.P2PPort != 0 {
 			go func() {
 				p.Lock()
-				p.AddPeerToList(c.IP(), hnds.P2PPort)
+				p.AddPeerToList(c.IP(), hnds.P2PPort, false)
 				p.Unlock()
 			}()
 		}
@@ -401,7 +401,6 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 
 	err = conn.Update(func(c *ConnData) error {
 		c.PeerId = hnds.PeerID
-		Log.Debugf("New connection with ID %x", c.PeerId)
 
 		if c.PeerId == p.PeerId() {
 			err := fmt.Errorf("disconnecting from peer: connection to self detected")
@@ -434,6 +433,8 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 				Log.Debug(err)
 			}
 		}()
+
+		Log.Infof("New connection with ID %x IP %v", c.PeerId, c.Conn.RemoteAddr().String())
 
 		p.NewConnections <- conn
 
@@ -581,7 +582,7 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 		}
 
 		p2.Lock()
-		p2.AddPeerToList(address.String(), port)
+		p2.AddPeerToList(address.String(), port, false)
 		p2.Unlock()
 	}
 
@@ -596,11 +597,11 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 }
 
 // P2P must be locked before calling this
-func (p *P2P) AddPeerToList(ip string, port uint16) {
+func (p *P2P) AddPeerToList(ip string, port uint16, force bool) {
 	if port == 0 {
 		return
 	}
-	if p.Exclusive {
+	if p.Exclusive && !force {
 		return
 	}
 

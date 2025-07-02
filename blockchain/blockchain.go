@@ -1354,8 +1354,8 @@ func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive b
 	p2p.Log = Log
 	bc.P2P = p2p.Start(peers)
 	bc.P2P.Exclusive = exclusive
-	bc.P2P.StartClients(private)
 
+	go bc.P2P.StartClients(private)
 	go bc.pinger()
 	go bc.incomingP2P()
 	go bc.newConnections()
