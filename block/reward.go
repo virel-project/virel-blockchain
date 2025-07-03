@@ -19,7 +19,7 @@ func Reward(height uint64) uint64 {
 	// supply reduction every 60 days (2 months)
 	reductions := height / config.REDUCTION_INTERVAL
 	if reductions == 0 {
-		return config.BLOCK_REWARD / 2
+		return config.BLOCK_REWARD
 	}
 
 	return reduce(config.BLOCK_REWARD, reductions-1)

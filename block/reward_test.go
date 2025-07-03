@@ -1,6 +1,7 @@
 package block
 
 import (
+	"math"
 	"testing"
 
 	"github.com/virel-project/virel-blockchain/config"
@@ -9,17 +10,26 @@ import (
 
 func TestReward(t *testing.T) {
 	var supply uint64 = 0
-	var lastRed uint64 = 0
+	var lastRed uint64 = math.MaxUint64
 	var rew uint64 = Reward(0)
-	for height := uint64(0); height < config.BLOCKS_PER_DAY*365*200; height++ {
+
+	for height := range uint64(config.BLOCKS_PER_DAY * 365 * 200) {
 		reductions := height / config.REDUCTION_INTERVAL
 		if reductions != lastRed {
 			rew = Reward(height)
 			lastRed = reductions
+			t.Logf("reduction %d, block reward %s", reductions, util.FormatCoin(rew))
 		}
+		if supply+rew > config.MAX_SUPPLY/2 && supply < config.MAX_SUPPLY/2 {
+			t.Logf("50%% of the supply reached after %d blocks, or %d days", height, height/config.BLOCKS_PER_DAY)
+		}
+		if supply+rew > config.MAX_SUPPLY/4*3 && supply < config.MAX_SUPPLY/4*3 {
+			t.Logf("75%% of the supply reached after %d blocks, or %d days", height, height/config.BLOCKS_PER_DAY)
+		}
+
 		supply += rew
 		if height%(config.BLOCKS_PER_DAY*365) == 0 {
-			t.Logf("supply at year %d is %s", height/(config.BLOCKS_PER_DAY*365), util.FormatCoin(supply))
+			t.Logf("year %d supply %s block reward %s", height/(config.BLOCKS_PER_DAY*365), util.FormatCoin(supply), util.FormatCoin(rew))
 			if GetSupplyAtHeight(height) != supply {
 				t.Fatalf("height %d: mismatched supply %d, should be %d", height, GetSupplyAtHeight(height),
 					supply)

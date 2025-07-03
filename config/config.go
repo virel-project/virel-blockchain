@@ -8,13 +8,13 @@ const VERSION_PATCH = 0
 
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // ~0.06 coins per tx
-const BLOCK_REWARD = 184 * COIN                // initial block reward
-const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 90 // block reward reduces by 10% every 90 days
+const BLOCK_REWARD = 175 * COIN                // initial block reward
+const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 91 // block reward reduces by 10% every 91 days (4 times a year)
 
 // The exact number is slightly smaller than this because of rounding errors. You can see the accurate result
 // using the reward_test.go file. Error is less than 0.00000005% so it doesn't matter much, anyway.
 const MAX_SUPPLY = REDUCTION_INTERVAL*BLOCK_REWARD*10 +
-	(BLOCK_REWARD * REDUCTION_INTERVAL / 2) // also include initial half-reward phase
+	(BLOCK_REWARD * REDUCTION_INTERVAL) // also include initial flat-reward phase
 
 const P2P_CONNECTIONS = 12
 const P2P_PING_INTERVAL = 5
