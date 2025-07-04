@@ -1336,7 +1336,7 @@ func (bc *Blockchain) GetTopo(tx adb.Txn, height uint64) ([32]byte, error) {
 	binary.LittleEndian.PutUint64(heightBin, height)
 	topoHash := tx.Get(bc.Index.Topo, heightBin)
 	if len(topoHash) != 32 {
-		return blHash, errors.New("unknown block")
+		return blHash, fmt.Errorf("unknown block at height %d", height)
 	}
 	blHash = [32]byte(topoHash)
 	return blHash, nil
@@ -1345,7 +1345,7 @@ func (bc *Blockchain) GetTopo(tx adb.Txn, height uint64) ([32]byte, error) {
 func (bc *Blockchain) GetBlockByHeight(tx adb.Txn, height uint64) (*block.Block, error) {
 	hash, err := bc.GetTopo(tx, height)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get topo: %w", err)
 	}
 	return bc.GetBlock(tx, hash)
 }
