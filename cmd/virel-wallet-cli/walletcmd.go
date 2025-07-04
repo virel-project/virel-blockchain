@@ -147,7 +147,7 @@ func prompts(w *wallet.Wallet) {
 				page--
 			}
 
-			txs, err := w.GetTransations(true, page)
+			txs, err := w.GetTransactions(true, page)
 			if err != nil {
 				Log.Warn("failed to get transactions:", err)
 				return
@@ -157,7 +157,7 @@ func prompts(w *wallet.Wallet) {
 				Log.Infof(" - %s", v)
 			}
 			maxPage := txs.MaxPage
-			txs, err = w.GetTransations(false, page)
+			txs, err = w.GetTransactions(false, page)
 			if err != nil {
 				Log.Warn("failed to get transactions:", err)
 				return

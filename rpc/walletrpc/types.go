@@ -55,3 +55,9 @@ type SubmitTransactionRequest struct {
 type SubmitTransactionResponse struct {
 	TXID util.Hash `json:"txid"`
 }
+
+type RefreshRequest struct {
+}
+type RefreshResponse struct {
+	Success bool `json:"success"`
+}

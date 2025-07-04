@@ -182,7 +182,7 @@ func (w *Wallet) GetMempoolLastNonce() uint64 {
 func (w *Wallet) GetAddress() address.Integrated {
 	return w.dbInfo.Address
 }
-func (w *Wallet) GetTransations(inc bool, page uint64) (*daemonrpc.GetTxListResponse, error) {
+func (w *Wallet) GetTransactions(inc bool, page uint64) (*daemonrpc.GetTxListResponse, error) {
 	r := daemonrpc.GetTxListRequest{
 		Address: w.GetAddress(),
 		Page:    page,

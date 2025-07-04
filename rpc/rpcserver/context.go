@@ -41,3 +41,17 @@ func (c *Context) GetParams(result any) error {
 func (c *Context) Response(v rpc.ResponseOut) error {
 	return WriteJSON(c.res, v)
 }
+func (c *Context) SuccessResponse(r any) error {
+	return c.Response(rpc.ResponseOut{
+		JsonRpc: "2.0",
+		Result:  r,
+		Id:      c.Body.Id,
+	})
+}
+func (c *Context) ErrorResponse(e *rpc.Error) error {
+	return c.Response(rpc.ResponseOut{
+		JsonRpc: "2.0",
+		Error:   e,
+		Id:      c.Body.Id,
+	})
+}

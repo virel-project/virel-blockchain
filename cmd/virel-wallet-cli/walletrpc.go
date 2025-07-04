@@ -45,13 +45,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		if err != nil {
 			return
 		}
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: walletrpc.GetBalanceResponse{
-				Balance:        w.GetBalance(),
-				MempoolBalance: w.GetMempoolBalance(),
-			},
-			Id: c.Body.Id,
+		c.SuccessResponse(walletrpc.GetBalanceResponse{
+			Balance:        w.GetBalance(),
+			MempoolBalance: w.GetMempoolBalance(),
 		})
 	})
 
@@ -75,15 +71,11 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 
 			var page uint64 = 0
 			for {
-				txlist, err := w.GetTransations(true, page)
+				txlist, err := w.GetTransactions(true, page)
 				if err != nil {
-					c.Response(rpc.ResponseOut{
-						JsonRpc: "2.0",
-						Error: &rpc.Error{
-							Code:    internalReadFailed,
-							Message: "failed to get transactions",
-						},
-						Id: c.Body.Id,
+					c.ErrorResponse(&rpc.Error{
+						Code:    internalReadFailed,
+						Message: "failed to get transactions",
 					})
 					Log.Warn(err)
 					return
@@ -105,15 +97,11 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 
 			var page uint64 = 0
 			for {
-				txlist, err := w.GetTransations(false, page)
+				txlist, err := w.GetTransactions(false, page)
 				if err != nil {
-					c.Response(rpc.ResponseOut{
-						JsonRpc: "2.0",
-						Error: &rpc.Error{
-							Code:    internalReadFailed,
-							Message: "failed to get transactions",
-						},
-						Id: c.Body.Id,
+					c.ErrorResponse(&rpc.Error{
+						Code:    internalReadFailed,
+						Message: "failed to get transactions",
 					})
 					Log.Warn(err)
 					return
@@ -130,10 +118,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			}
 		}
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result:  walletrpc.GetHistoryResponse{},
-			Id:      c.Body.Id,
+		c.SuccessResponse(walletrpc.GetHistoryResponse{
+			Incoming: inc,
+			Outgoing: out,
 		})
 	})
 
@@ -147,24 +134,16 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		tx, err := w.Transfer(params.Amount, params.Destination)
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    -1,
-					Message: "transfer failed",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "transfer failed",
 			})
 			return
 		}
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: walletrpc.CreateTransactionResponse{
-				TxBlob: tx.Serialize(),
-				TXID:   util.Hash(tx.Hash()),
-			},
-			Id: c.Body.Id,
+		c.SuccessResponse(walletrpc.CreateTransactionResponse{
+			TxBlob: tx.Serialize(),
+			TXID:   util.Hash(tx.Hash()),
 		})
 	})
 
@@ -172,13 +151,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		params := walletrpc.SubmitTransactionRequest{}
 		err := c.GetParams(&params)
 		if err != nil {
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    invalidJson,
-					Message: sInvalidJson,
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    invalidJson,
+				Message: sInvalidJson,
 			})
 			return
 		}
@@ -187,13 +162,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		err = tx.Deserialize(params.TxBlob)
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    -1,
-					Message: "could not deserialize transaction",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "could not deserialize transaction",
 			})
 			return
 		}
@@ -201,27 +172,43 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		submitRes, err := w.SubmitTx(&tx)
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    -1,
-					Message: "could not submit transaction to daemon",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "could not submit transaction to daemon",
 			})
 			return
 		}
 
 		Log.Dev("submitRes:", submitRes)
 
-		c.Response(rpc.ResponseOut{
+		c.SuccessResponse(walletrpc.SubmitTransactionResponse{
+			TXID: util.Hash(submitRes.TXID),
+		})
+	})
+
+	rs.Handle("refresh", func(c *rpcserver.Context) {
+		params := walletrpc.RefreshRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			c.ErrorResponse(&rpc.Error{
+				Code:    invalidJson,
+				Message: sInvalidJson,
+			})
+			return
+		}
+
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn("refresh failed:", err)
+		}
+
+		c.SuccessResponse(rpc.ResponseOut{
 			JsonRpc: "2.0",
-			Result: walletrpc.SubmitTransactionResponse{
-				TXID: util.Hash(submitRes.TXID),
+			Result: walletrpc.RefreshResponse{
+				Success: err == nil,
 			},
 			Id: c.Body.Id,
 		})
-
 	})
 
 }
