@@ -68,7 +68,15 @@ func (h *Handshake) Deserialize(data []byte) error {
 	h.PeerID = [32]byte(d.ReadFixedByteArray(32))
 	h.P2PPort = d.ReadUint16()
 
-	return d.Error()
+	if d.Error() != nil {
+		return d.Error()
+	}
+
+	if len(d.RemainingData()) != 0 {
+		return fmt.Errorf("remaining data is not empty, but has length %d", len(d.RemainingData()))
+	}
+
+	return nil
 }
 func (h *Handshake) Serialize() []byte {
 	b := binary.NewSer(make([]byte, 48))

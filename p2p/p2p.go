@@ -318,37 +318,31 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 	var peerid = p.PeerId()
 	p.RUnlock()
 
-	go func() {
-		err = conn.Update(func(c *ConnData) error {
-			ipPort = c.Conn.RemoteAddr().String()
-
-			// send handshake
-			c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-			port := p.BindPort
-			if private {
-				port = 0
-			}
-
-			hnds := &Handshake{
-				Version:    config.VERSION,
-				P2PVersion: config.P2P_VERSION,
-
-				PeerID:  peerid,
-				P2PPort: port,
-			}
-
-			_, err = hnds.WriteTo(c.Conn)
-			return err
-		})
-		if err != nil {
-			p.Kick(conn)
-			Log.Debug("failed to send handshake:", err)
+	// send handshake
+	err = conn.Update(func(c *ConnData) error {
+		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		port := p.BindPort
+		if private {
+			port = 0
 		}
-	}()
+		hnds := &Handshake{
+			Version:    config.VERSION,
+			P2PVersion: config.P2P_VERSION,
+
+			PeerID:  peerid,
+			P2PPort: port,
+		}
+		_, err = hnds.WriteTo(c.Conn)
+		return err
+	})
+	if err != nil {
+		p.Kick(conn)
+		Log.Debug("failed to send handshake:", err)
+		return err
+	}
 
 	// read handshake
 	conn.data.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-
 	hnds := &Handshake{}
 	_, err = hnds.ReadFrom(conn.data.Conn)
 	if err != nil {
