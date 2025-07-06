@@ -133,7 +133,7 @@ func prompts(bc *blockchain.Blockchain) {
 			bc.P2P.RLock()
 			defer bc.P2P.RUnlock()
 
-			Log.Infof("%s %s %s", util.PadC("Peer ID", 19), util.PadC("IP", 15), "direction")
+			Log.Infof("%s %s %s", util.PadC("Peer ID", 17), util.PadC("IP", 15), "direction")
 			for _, conn := range bc.P2P.Connections {
 				conn.View(func(c *p2p.ConnData) error {
 					direction := "inc"
@@ -141,7 +141,7 @@ func prompts(bc *blockchain.Blockchain) {
 						direction = "out"
 					}
 
-					Log.Infof("%x... %s %s", c.PeerId[:8], util.PadC(c.IP(), 15), util.PadC(direction, 9))
+					Log.Infof("%x… %s %s", c.PeerId[:8], util.PadC(c.IP(), 15), util.PadC(direction, 9))
 					return nil
 				})
 			}

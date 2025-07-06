@@ -62,6 +62,7 @@ type KnownPeer struct {
 	IP          string
 	Port        uint16
 	Type        PeerType
+	Fails       uint16
 	LastConnect int64 // UNIX seconds
 }
 
@@ -194,7 +195,7 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 			}
 		}
 
-		Log.Debugf("New connection with IP %s", c.RemoteAddr().String())
+		Log.Netf("Received TCP P2P connection request with IP %s", c.RemoteAddr().String())
 		err = p.handleConnection(conn, private)
 		if err != nil {
 			Log.Debug("P2P server connection error:", err)
@@ -208,7 +209,7 @@ func (p *P2P) StartClients(private bool) {
 			p.connectToRandomPeer(private)
 		}
 		p.Unlock()
-		time.Sleep(15 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -237,7 +238,7 @@ scanning:
 			}
 		}
 
-		go p.startClient(randPeer.IP+":"+strconv.FormatUint(uint64(randPeer.Port), 10), private)
+		go p.startClient(randPeer.IP, randPeer.Port, private)
 	}
 }
 
@@ -427,7 +428,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			}
 		}()
 
-		Log.Infof("New connection with ID %x IP %v", c.PeerId, c.Conn.RemoteAddr().String())
+		Log.Debugf("New connection with ID %x IP %v", c.PeerId, c.Conn.RemoteAddr().String())
 
 		p.NewConnections <- conn
 
@@ -468,7 +469,6 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 	}
 
 	for {
-		Log.Debugf("reading packet from connection %s %x", ipPort, hnds.PeerID)
 		var encData []byte
 		var packetType uint16
 		var data []byte
