@@ -33,35 +33,38 @@ func (bc *Blockchain) newConnections() {
 	for {
 		conn := <-bc.P2P.NewConnections
 
-		var stats *Stats
-		bc.DB.View(func(tx adb.Txn) error {
-			stats = bc.GetStats(tx)
-			return nil
-		})
+		go func() {
+			var stats *Stats
+			bc.DB.View(func(tx adb.Txn) error {
+				stats = bc.GetStats(tx)
+				return nil
+			})
 
-		conn.SendPacket(&p2p.Packet{
-			Type: packet.STATS,
-			Data: packet.PacketStats{
-				Height:         stats.TopHeight,
-				CumulativeDiff: stats.CumulativeDiff,
-				Hash:           stats.TopHash,
-			}.Serialize(),
-		})
+			conn.SendPacket(&p2p.Packet{
+				Type: packet.STATS,
+				Data: packet.PacketStats{
+					Height:         stats.TopHeight,
+					CumulativeDiff: stats.CumulativeDiff,
+					Hash:           stats.TopHash,
+				}.Serialize(),
+			})
+		}()
 	}
 }
 func (bc *Blockchain) incomingP2P() {
 	for {
 		pack := <-bc.P2P.PacketsIn
 
-		if pack.Type == packet.BLOCK {
+		switch pack.Type {
+		case packet.BLOCK:
 			Log.Debug("Received new block packet")
 			bc.packetBlock(pack)
-		} else if pack.Type == packet.TX {
+		case packet.TX:
 			Log.Debug("Received new transaction packet")
 			bc.packetTx(pack)
-		} else if pack.Type == packet.STATS {
+		case packet.STATS:
 			bc.packetStats(pack)
-		} else if pack.Type == packet.BLOCK_REQUEST {
+		case packet.BLOCK_REQUEST:
 			Log.Debug("Received block request packet")
 			go bc.packetBlockRequest(pack)
 		}

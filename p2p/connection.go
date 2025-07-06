@@ -87,13 +87,11 @@ func (c *ConnData) sendPacket(p pack) error {
 	ser.AddUint32(uint32(len(data)))
 	ser.AddFixedByteArray(data)
 
-	func() {
+	err = func() error {
 		c.writeMut.Lock()
 		defer c.writeMut.Unlock()
-		_, err = c.Conn.Write(ser.Output())
-		if err != nil {
-			Log.Warn(err)
-		}
+		_, err := c.Conn.Write(ser.Output())
+		return err
 	}()
 	if err != nil {
 		return err

@@ -474,6 +474,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 	}
 
 	for {
+		Log.Debugf("reading packet from connection %s %x", ipPort, hnds.PeerID)
 		var encData []byte
 		var packetType uint16
 		var data []byte
