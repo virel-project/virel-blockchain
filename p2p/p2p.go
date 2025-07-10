@@ -372,7 +372,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		Log.Warn(err)
 	}
 
-	func() {
+	err = func() error {
 		p.RLock()
 		defer p.RUnlock()
 
@@ -388,12 +388,16 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 				return nil
 			})
 			if err != nil {
-				p.Kick(conn)
-				Log.Debug(err)
-				return
+				return err
 			}
 		}
+		return nil
 	}()
+	if err != nil {
+		p.Kick(conn)
+		Log.Debug(err)
+		return err
+	}
 
 	err = conn.Update(func(c *ConnData) error {
 		c.PeerId = hnds.PeerID
