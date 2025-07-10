@@ -67,7 +67,7 @@ func (p PacketBlockRequest) Serialize() []byte {
 	if p.Height == 0 {
 		s.AddFixedByteArray(p.Hash[:])
 	} else {
-		s.AddUint8(uint8(p.Height))
+		s.AddUint8(uint8(p.Count))
 	}
 	return s.Output()
 }
