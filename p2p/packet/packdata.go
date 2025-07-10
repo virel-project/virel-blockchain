@@ -58,13 +58,16 @@ func (p PacketStats) String() string {
 type PacketBlockRequest struct {
 	Height uint64 // if height is zero, then request is by hash
 	Hash   [32]byte
+	Count  uint8 // how many blocks to request after the requested block (only if height is not zero)
 }
 
 func (p PacketBlockRequest) Serialize() []byte {
-	s := binary.Ser{}
+	s := binary.NewSer(make([]byte, 0, 9))
 	s.AddUvarint(p.Height)
 	if p.Height == 0 {
 		s.AddFixedByteArray(p.Hash[:])
+	} else {
+		s.AddUint8(uint8(p.Height))
 	}
 	return s.Output()
 }
@@ -73,6 +76,8 @@ func (p *PacketBlockRequest) Deserialize(d []byte) error {
 	p.Height = s.ReadUvarint()
 	if p.Height == 0 {
 		p.Hash = [32]byte(s.ReadFixedByteArray(32))
+	} else if len(s.RemainingData()) > 0 {
+		p.Count = s.ReadUint8()
 	}
 	return s.Error()
 }

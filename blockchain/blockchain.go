@@ -134,7 +134,7 @@ func (bc *Blockchain) Synchronize() {
 		bc.BlockQueue.Update(func(qt *QueueTx) {
 			bc.fillQueue(qt, stats.TopHeight)
 
-			reqbls := []*QueuedBlock{}
+			reqbls := []packet.PacketBlockRequest{}
 			for {
 				reqbl := qt.RequestableBlock()
 				if reqbl == nil {
@@ -144,7 +144,16 @@ func (bc *Blockchain) Synchronize() {
 					qt.RemoveBlockByHeight(reqbl.Height)
 					continue
 				}
-				reqbls = append(reqbls, reqbl)
+				if len(reqbls) > 0 && reqbls[0].Height != 0 && reqbls[0].Height+uint64(reqbls[0].Count) == reqbl.Height-1 {
+					reqbls[0].Count++
+				} else {
+					reqbls = append(reqbls, packet.PacketBlockRequest{
+						Height: reqbl.Height,
+						Hash:   reqbl.Hash,
+						Count:  0,
+					})
+				}
+
 			}
 
 			if len(reqbls) == 0 {

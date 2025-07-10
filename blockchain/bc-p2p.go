@@ -170,33 +170,68 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 		return
 	}
 
-	Log.Devf("received block request with height %d hash %x", st.Height, st.Hash)
+	Log.Devf("received block request with height %d count %d hash %x", st.Height, st.Count, st.Hash)
+
+	if st.Count > config.PARALLEL_BLOCKS_DOWNLOAD {
+		Log.Warn("invalid block request count", st.Count)
+		return
+	}
 
 	var bl *block.Block
+	var bls = make([]*block.Block, 0, st.Count+1)
 	err = bc.DB.View(func(tx adb.Txn) (err error) {
 		if st.Height == 0 {
 			bl, err = bc.GetBlock(tx, st.Hash)
+			if err != nil {
+				return
+			}
+			bls = append(bls, bl)
 		} else {
-			bl, err = bc.GetBlockByHeight(tx, st.Height)
+			for height := st.Height; height <= st.Height+uint64(st.Count); height++ {
+				bl, err = bc.GetBlockByHeight(tx, st.Height)
+				if err != nil {
+					return
+				}
+				bls = append(bls, bl)
+			}
 		}
 		return
 	})
 	if err != nil {
 		Log.Debug("received invalid block request:", err)
+
+		// send all the blocks we have successfully collected
+		if len(bls) > 0 {
+			for _, v := range bls {
+				err := bc.sendBlockToPeer(v, pack.Conn)
+				if err != nil {
+					Log.Debug(err)
+				}
+			}
+		}
 		return
 	}
 
+	// send all the blocks we have successfully collected
+	for _, v := range bls {
+		err := bc.sendBlockToPeer(v, pack.Conn)
+		if err != nil {
+			Log.Debug(err)
+		}
+	}
+}
+
+func (bc *Blockchain) sendBlockToPeer(bl *block.Block, c *p2p.Connection) error {
 	var d []byte
-	err = bc.DB.View(func(txn adb.Txn) (err error) {
+	err := bc.DB.View(func(txn adb.Txn) (err error) {
 		d, err = bc.SerializeFullBlock(txn, bl)
 		return
 	})
 	if err != nil {
-		Log.Err(err)
-		return
+		return err
 	}
 
-	pack.Conn.SendPacket(&p2p.Packet{
+	return c.SendPacket(&p2p.Packet{
 		Type: packet.BLOCK,
 		Data: d,
 	})
