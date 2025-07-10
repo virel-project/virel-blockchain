@@ -188,7 +188,7 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 			bls = append(bls, bl)
 		} else {
 			for height := st.Height; height <= st.Height+uint64(st.Count); height++ {
-				bl, err = bc.GetBlockByHeight(tx, st.Height)
+				bl, err = bc.GetBlockByHeight(tx, height)
 				if err != nil {
 					return
 				}

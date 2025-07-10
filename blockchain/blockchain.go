@@ -144,7 +144,8 @@ func (bc *Blockchain) Synchronize() {
 					qt.RemoveBlockByHeight(reqbl.Height)
 					continue
 				}
-				if len(reqbls) > 0 && reqbls[0].Height != 0 && reqbls[0].Height+uint64(reqbls[0].Count) == reqbl.Height-1 {
+				lastIdx := len(reqbls) - 1
+				if len(reqbls) > 0 && reqbls[lastIdx].Height != 0 && reqbls[lastIdx].Height+uint64(reqbls[lastIdx].Count) == reqbl.Height-1 {
 					reqbls[0].Count++
 				} else {
 					reqbls = append(reqbls, packet.PacketBlockRequest{
@@ -153,7 +154,9 @@ func (bc *Blockchain) Synchronize() {
 						Count:  0,
 					})
 				}
-
+			}
+			for _, v := range reqbls {
+				Log.Debugf("requesting block height %d count %d hash %x", v.Height, v.Count, v.Hash)
 			}
 
 			if len(reqbls) == 0 {
@@ -213,10 +216,7 @@ func (bc *Blockchain) Synchronize() {
 				for _, reqbl := range reqbls {
 					peer.SendPacket(&p2p.Packet{
 						Type: packet.BLOCK_REQUEST,
-						Data: packet.PacketBlockRequest{
-							Height: reqbl.Height,
-							Hash:   reqbl.Hash,
-						}.Serialize(),
+						Data: reqbl.Serialize(),
 					})
 				}
 			}()

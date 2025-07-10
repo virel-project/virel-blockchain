@@ -76,7 +76,7 @@ func (p *PacketBlockRequest) Deserialize(d []byte) error {
 	p.Height = s.ReadUvarint()
 	if p.Height == 0 {
 		p.Hash = [32]byte(s.ReadFixedByteArray(32))
-	} else if len(s.RemainingData()) > 0 {
+	} else {
 		p.Count = s.ReadUint8()
 	}
 	return s.Error()
