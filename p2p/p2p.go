@@ -383,13 +383,14 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			err := vconn.View(func(v *ConnData) error {
 				if v.PeerId == hnds.PeerID && v.Conn.RemoteAddr().String() != ipPort {
 					err := fmt.Errorf("disconnecting from peer: duplicate ID %x", hnds.PeerID)
-					p.Kick(conn)
 					return err
 				}
 				return nil
 			})
 			if err != nil {
+				p.Kick(conn)
 				Log.Debug(err)
+				return
 			}
 		}
 	}()
