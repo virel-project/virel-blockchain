@@ -140,7 +140,6 @@ func (bc *Blockchain) Synchronize() {
 				if reqbl == nil {
 					break
 				}
-				Log.Debugf("requesting block %d %x", reqbl.Height, reqbl.Hash)
 				if reqbl.Height != 0 && reqbl.Height < stats.TopHeight {
 					qt.RemoveBlockByHeight(reqbl.Height)
 					continue
@@ -148,48 +147,68 @@ func (bc *Blockchain) Synchronize() {
 				reqbls = append(reqbls, reqbl)
 			}
 
+			if len(reqbls) == 0 {
+				return
+			}
+
 			go func() {
-				// TODO: faster sync by requesting multiple sequential blocks to the same peer
+				// Find a valid peer
+				var peer *p2p.Connection
+				func() {
+					bc.P2P.RLock()
+					defer bc.P2P.RUnlock()
+
+					// fix a rare crash
+					if len(bc.P2P.ListConns) == 0 {
+						return
+					}
+
+					// take a random connection as the first peer to try
+					peernum := mrand.IntN(len(bc.P2P.ListConns))
+					for i := 0; i < len(bc.P2P.ListConns); i++ {
+						n := (i + peernum) % len(bc.P2P.ListConns)
+						ipPort := bc.P2P.ListConns[n]
+
+						if len(ipPort) == 0 {
+							Log.Fatal("connection with index", n, "is not in P2P.ListConns")
+						}
+
+						conn := bc.P2P.Connections[ipPort]
+
+						found := false
+						conn.PeerData(func(d *p2p.PeerData) {
+							if len(reqbls) == 0 {
+								peer = conn
+								found = true
+								return
+							}
+
+							last := reqbls[len(reqbls)-1]
+
+							if last.Height == 0 || d.Stats.Height >= last.Height {
+								peer = conn
+								found = true
+							}
+						})
+						if found {
+							break
+						}
+					}
+				}()
+
+				if peer == nil {
+					Log.Debug("no peer to query blocks")
+					return
+				}
+				// Request the blocks to the selected peer
 				for _, reqbl := range reqbls {
-					func() {
-						bc.P2P.RLock()
-						defer bc.P2P.RUnlock()
-
-						// fix a rare crash
-						if len(bc.P2P.ListConns) == 0 {
-							return
-						}
-
-						// take a random connection as the first peer to try
-						peernum := mrand.IntN(len(bc.P2P.ListConns))
-						for i := 0; i < len(bc.P2P.ListConns); i++ {
-							n := (i + peernum) % len(bc.P2P.ListConns)
-							ipPort := bc.P2P.ListConns[n]
-
-							if len(ipPort) == 0 {
-								Log.Fatal("connection with index", n, "is not in P2P.ListConns")
-							}
-
-							conn := bc.P2P.Connections[ipPort]
-
-							sent := false
-							conn.PeerData(func(d *p2p.PeerData) {
-								if reqbl.Height == 0 || d.Stats.Height >= reqbl.Height {
-									conn.SendPacket(&p2p.Packet{
-										Type: packet.BLOCK_REQUEST,
-										Data: packet.PacketBlockRequest{
-											Height: reqbl.Height,
-											Hash:   reqbl.Hash,
-										}.Serialize(),
-									})
-									sent = true
-								}
-							})
-							if sent {
-								break
-							}
-						}
-					}()
+					peer.SendPacket(&p2p.Packet{
+						Type: packet.BLOCK_REQUEST,
+						Data: packet.PacketBlockRequest{
+							Height: reqbl.Height,
+							Hash:   reqbl.Hash,
+						}.Serialize(),
+					})
 				}
 			}()
 		})
