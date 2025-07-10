@@ -180,6 +180,8 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 	Log.Infof("P2P server listening: %s:%d", "0.0.0.0", port)
 
 	for {
+		Log.Netf("P2P server ready to accept new connections")
+
 		c, err := listen.Accept()
 		if err != nil {
 			Log.Debug("listener closed:", err)
@@ -195,11 +197,13 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 			}
 		}
 
-		Log.Netf("Received TCP P2P connection request with IP %s", c.RemoteAddr().String())
-		err = p.handleConnection(conn, private)
-		if err != nil {
-			Log.Debug("P2P server connection error:", err)
-		}
+		go func() {
+			Log.Netf("Received TCP P2P connection request with IP %s", c.RemoteAddr().String())
+			err = p.handleConnection(conn, private)
+			if err != nil {
+				Log.Debug("P2P server connection error:", err)
+			}
+		}()
 	}
 }
 func (p *P2P) StartClients(private bool) {
