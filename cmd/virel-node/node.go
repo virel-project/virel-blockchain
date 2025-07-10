@@ -28,6 +28,7 @@ func main() {
 	log_level := flag.Uint("log-level", 1, "sets the log level")
 	private := flag.Bool("private", false, "if set, your ip is not advertised to the network")
 	exclusive := flag.Bool("exclusive", false, "if set, the node will not connect to suggested nodes")
+	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
 
 	var slavechains_stratums *string
 	var stratum_wallet *string
@@ -81,8 +82,14 @@ func main() {
 
 	go startRpc(bc, bind_ip, uint16(*rpc_bind_port), *public_rpc)
 	go bc.StartStratum(*stratum_bind_ip, uint16(*stratum_bind_port))
-	go bc.StartP2P(config.SEED_NODES, uint16(*p2p_bind_port), *private, *exclusive)
+	bc.StartP2P(config.SEED_NODES, uint16(*p2p_bind_port), *private, *exclusive)
 	go bc.NewStratumJob(true)
 
-	prompts(bc)
+	if !*non_interactive {
+		prompts(bc)
+	} else {
+		// wait forever
+		c := make(chan bool)
+		Log.Err(<-c)
+	}
 }

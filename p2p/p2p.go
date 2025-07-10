@@ -372,7 +372,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		Log.Warn(err)
 	}
 
-	go func() {
+	func() {
 		p.RLock()
 		defer p.RUnlock()
 

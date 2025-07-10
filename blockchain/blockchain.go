@@ -149,40 +149,47 @@ func (bc *Blockchain) Synchronize() {
 			}
 
 			go func() {
+				// TODO: faster sync by requesting multiple sequential blocks to the same peer
 				for _, reqbl := range reqbls {
-					// fix a rare crash
-					if len(bc.P2P.ListConns) == 0 {
-						return
-					}
-					// take a random connection as the first peer to try
-					peernum := mrand.IntN(len(bc.P2P.ListConns))
-					for i := 0; i < len(bc.P2P.ListConns); i++ {
-						n := (i + peernum) % len(bc.P2P.ListConns)
-						ipPort := bc.P2P.ListConns[n]
+					func() {
+						bc.P2P.RLock()
+						defer bc.P2P.RUnlock()
 
-						if len(ipPort) == 0 {
-							Log.Fatal("connection with index", n, "is not in P2P.ListConns")
+						// fix a rare crash
+						if len(bc.P2P.ListConns) == 0 {
+							return
 						}
 
-						conn := bc.P2P.Connections[ipPort]
+						// take a random connection as the first peer to try
+						peernum := mrand.IntN(len(bc.P2P.ListConns))
+						for i := 0; i < len(bc.P2P.ListConns); i++ {
+							n := (i + peernum) % len(bc.P2P.ListConns)
+							ipPort := bc.P2P.ListConns[n]
 
-						sent := false
-						conn.PeerData(func(d *p2p.PeerData) {
-							if reqbl.Height == 0 || d.Stats.Height >= reqbl.Height {
-								conn.SendPacket(&p2p.Packet{
-									Type: packet.BLOCK_REQUEST,
-									Data: packet.PacketBlockRequest{
-										Height: reqbl.Height,
-										Hash:   reqbl.Hash,
-									}.Serialize(),
-								})
-								sent = true
+							if len(ipPort) == 0 {
+								Log.Fatal("connection with index", n, "is not in P2P.ListConns")
 							}
-						})
-						if sent {
-							break
+
+							conn := bc.P2P.Connections[ipPort]
+
+							sent := false
+							conn.PeerData(func(d *p2p.PeerData) {
+								if reqbl.Height == 0 || d.Stats.Height >= reqbl.Height {
+									conn.SendPacket(&p2p.Packet{
+										Type: packet.BLOCK_REQUEST,
+										Data: packet.PacketBlockRequest{
+											Height: reqbl.Height,
+											Hash:   reqbl.Hash,
+										}.Serialize(),
+									})
+									sent = true
+								}
+							})
+							if sent {
+								break
+							}
 						}
-					}
+					}()
 				}
 			}()
 		})
@@ -1360,8 +1367,7 @@ func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive b
 	go bc.incomingP2P()
 	go bc.newConnections()
 	go bc.Synchronize()
-
-	bc.P2P.ListenServer(port, private)
+	go bc.P2P.ListenServer(port, private)
 }
 
 func (bc *Blockchain) GetSupply(tx adb.Txn) uint64 {
