@@ -251,6 +251,14 @@ func (p *P2P) Kick(c *Connection) {
 	})
 	p.Lock()
 	delete(p.Connections, ip)
+	// TODO: remove this
+	Log.Devf("now connections IDs are:")
+	for _, v := range p.Connections {
+		v.View(func(c *ConnData) error {
+			Log.Devf("-", c.PeerId)
+			return nil
+		})
+	}
 	p.Unlock()
 }
 
