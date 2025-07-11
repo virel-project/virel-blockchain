@@ -7,7 +7,7 @@ require (
 	github.com/ergochat/readline v0.1.3
 	github.com/sasha-s/go-deadlock v0.3.5
 	github.com/tyler-smith/go-bip39 v1.1.0
-	github.com/virel-project/go-randomvirel v1.1.0
+	github.com/virel-project/go-randomvirel v1.1.1
 	github.com/zeebo/blake3 v0.2.4
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.39.0
