@@ -58,8 +58,6 @@ func (p2 *P2P) startClient(addr string, port uint16, private bool) {
 	err = p2.handleConnection(conn, private)
 	if err != nil {
 		Log.Debug("P2P client connection error:", err)
-	} else {
-		Log.Debug("P2P client connection gracefully closed")
 	}
 }
 

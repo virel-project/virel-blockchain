@@ -193,13 +193,11 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 			}
 		}
 
-		go func() {
-			Log.Netf("Received TCP P2P connection request with IP %s", c.RemoteAddr().String())
-			err = p.handleConnection(conn, private)
-			if err != nil {
-				Log.Debug("P2P server connection error:", err)
-			}
-		}()
+		Log.Netf("Received TCP P2P connection request with IP %s", c.RemoteAddr().String())
+		err = p.handleConnection(conn, private)
+		if err != nil {
+			Log.Debug("P2P server connection error:", err)
+		}
 	}
 }
 func (p *P2P) StartClients(private bool) {
@@ -306,13 +304,23 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		return err
 	}
 
+	go func() {
+		err := p.connectionMainHandling(conn, private, ipPort)
+		if err != nil {
+			Log.Debugf("connection error with peer %v: %v", ipPort, err)
+		}
+	}()
+	return nil
+}
+
+func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort string) error {
 	p.RLock()
 	// Peer ID of this node
 	var peerid = p.PeerId()
 	p.RUnlock()
 
 	// send handshake
-	err = conn.Update(func(c *ConnData) error {
+	err := conn.Update(func(c *ConnData) error {
 		c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		port := p.BindPort
 		if private {
@@ -325,7 +333,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			PeerID:  peerid,
 			P2PPort: port,
 		}
-		_, err = hnds.WriteTo(c.Conn)
+		_, err := hnds.WriteTo(c.Conn)
 		return err
 	})
 	if err != nil {
