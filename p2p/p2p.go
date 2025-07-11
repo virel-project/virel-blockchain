@@ -255,7 +255,7 @@ func (p *P2P) Kick(c *Connection) {
 	Log.Devf("now connections IDs are:")
 	for _, v := range p.Connections {
 		v.View(func(c *ConnData) error {
-			Log.Devf("-", c.PeerId)
+			Log.Devf("- %x", c.PeerId)
 			return nil
 		})
 	}
