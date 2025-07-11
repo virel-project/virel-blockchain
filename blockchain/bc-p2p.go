@@ -58,7 +58,7 @@ func (bc *Blockchain) incomingP2P() {
 		switch pack.Type {
 		case packet.BLOCK:
 			Log.Debug("Received new block packet")
-			bc.packetBlock(pack)
+			bc.Validator.ProcessBlock(pack)
 		case packet.TX:
 			Log.Debug("Received new transaction packet")
 			bc.packetTx(pack)
@@ -128,13 +128,13 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 		return
 	} else {
 		// TODO: remove this, it's only for debug purposes
-		err := bc.DB.View(func(tx adb.Txn) error {
+		/*err := bc.DB.View(func(tx adb.Txn) error {
 			bc.CheckSupply(tx)
 			return nil
 		})
 		if err != nil {
 			Log.Err(err)
-		}
+		}*/
 	}
 }
 

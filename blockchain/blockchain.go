@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	mrand "math/rand/v2"
+	"runtime"
 	"sync"
 	"time"
 
@@ -42,6 +43,8 @@ type Blockchain struct {
 	MergesMut     util.RWMutex
 	mergesUpdated bool
 	lastJob       time.Time
+
+	Validator *Validator
 
 	BlockQueue *BlockQueue
 
@@ -89,6 +92,8 @@ func New() *Blockchain {
 		InTx:  bc.DB.Index("intx"),
 		OutTx: bc.DB.Index("outtx"),
 	}
+
+	bc.Validator = bc.NewValidator(runtime.NumCPU() * 2)
 
 	// add genesis block if it doesn't exist
 	bc.addGenesis()
@@ -261,6 +266,8 @@ func (bc *Blockchain) Close() {
 	bc.MergesMut.Lock()
 	bc.Mining = false
 	bc.MergesMut.Unlock()
+	Log.Info("Stopping validator")
+	bc.Validator.Close()
 	Log.Info("Shutting down P2P server")
 	bc.P2P.Close()
 	Log.Info("Saving block download queue")
