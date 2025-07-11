@@ -227,7 +227,7 @@ func (bc *Blockchain) Synchronize() {
 			}()
 		})
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -441,13 +441,11 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 // Block should be already prevalidated.
 // If the block doesn't fit in the mainchain, it is either added to an altchain or orphaned.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block) (util.Hash, error) {
-	hash := bl.Hash()
-
+func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) error {
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
-		return hash, fmt.Errorf("received duplicate block %x height %d", hash, bl.Height)
+		return fmt.Errorf("received duplicate block %x height %d", hash, bl.Height)
 	}
 
 	prevHash := bl.PrevHash()
@@ -458,11 +456,9 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block) (util.Hash, error) {
 		err := bc.addOrphanBlock(tx, bl, hash, false)
 		if err != nil {
 			Log.Err(err)
-			return hash, err
+			return err
 		}
-		// mark orphan block as downloaded in queue
-		bc.queuedBlockDownloaded(hash, bl.Height)
-		return hash, nil
+		return nil
 	}
 
 	// check if parent block is orphaned
@@ -472,17 +468,15 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block) (util.Hash, error) {
 		err := bc.addOrphanBlock(tx, bl, hash, true)
 		if err != nil {
 			Log.Err(err)
-			return hash, err
+			return err
 		}
-		// mark orphan block as downloaded in queue
-		bc.queuedBlockDownloaded(hash, bl.Height)
-		return hash, nil
+		return nil
 	}
 
 	err = bc.checkBlock(tx, bl, prevBl)
 	if err != nil {
 		Log.Warn("block is invalid:", err)
-		return hash, err
+		return err
 	}
 
 	// add block to chain
@@ -493,21 +487,19 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block) (util.Hash, error) {
 
 		err = bc.addMainchainBlock(tx, bl, hash)
 	} else {
-		bc.queuedBlockDownloaded(hash, bl.Height)
-
 		err = bc.addAltchainBlock(tx, bl, hash)
 	}
 	if err != nil {
 		Log.Err(err)
-		return hash, err
+		return err
 	}
 	err = bc.checkDeorphanage(tx, bl, hash)
 	if err != nil {
 		Log.Err(err)
-		return hash, err
+		return err
 	}
 
-	return hash, nil
+	return nil
 }
 
 func (bc *Blockchain) removeFromQueue(hash [32]byte, height uint64) {

@@ -288,8 +288,7 @@ func (bc *Blockchain) blockFound(bl *block.Block, powHash [16]byte) ([]stratum.F
 		}
 		go bc.BroadcastBlock(bl)
 		err = bc.DB.Update(func(tx adb.Txn) error {
-			_, err := bc.AddBlock(tx, bl)
-			return err
+			return bc.AddBlock(tx, bl, hash)
 		})
 		if err != nil {
 			return nil, err

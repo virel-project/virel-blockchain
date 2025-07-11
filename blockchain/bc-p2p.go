@@ -103,13 +103,16 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 		return
 	}
 
+	hash := bl.Hash()
+
+	bc.queuedBlockDownloaded(hash, bl.Height)
+
 	err = bl.Prevalidate()
 	if err != nil {
 		Log.Warn("invalid block received:", err)
 		return
 	}
 
-	var hash [32]byte
 	err = bc.DB.Update(func(tx adb.Txn) error {
 		for _, v := range txs {
 			err := bc.AddTransaction(tx, v, v.Hash(), false)
@@ -117,8 +120,7 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 				return err
 			}
 		}
-		hash, err = bc.AddBlock(tx, bl)
-		return err
+		return bc.AddBlock(tx, bl, hash)
 	})
 	if err != nil {
 		Log.Warn("could not add block to chain:", err)
