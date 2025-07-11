@@ -32,9 +32,6 @@ type P2P struct {
 	// IP:PORT -> Connection
 	Connections map[string]*Connection
 
-	// int -> IP:PORT
-	ListConns []string
-
 	BindPort uint16
 
 	PacketsIn      chan Packet
@@ -112,7 +109,6 @@ func Start(peers []string) *P2P {
 		PacketsIn:      make(chan Packet),
 		NewConnections: make(chan *Connection),
 		Connections:    make(map[string]*Connection),
-		ListConns:      make([]string, 0),
 	}
 
 	err = p.loadPeerlist()
@@ -257,13 +253,6 @@ func (p *P2P) Kick(c *Connection) {
 	})
 	p.Lock()
 	delete(p.Connections, ip)
-	for i, v := range p.ListConns {
-		if v == ip {
-			// Remove the element at index i while preserving order
-			p.ListConns = append(p.ListConns[:i], p.ListConns[i+1:]...)
-			break
-		}
-	}
 	p.Unlock()
 }
 
@@ -310,7 +299,6 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			return fmt.Errorf("peer %s is already connected", ipPort)
 		}
 		p.Connections[ipPort] = conn
-		p.ListConns = append(p.ListConns, ipPort)
 		return nil
 	}()
 	if err != nil {
@@ -382,7 +370,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 			}
 			err := vconn.View(func(v *ConnData) error {
 				if v.PeerId == hnds.PeerID && v.Conn.RemoteAddr().String() != ipPort {
-					err := fmt.Errorf("disconnecting from peer: duplicate ID %x", hnds.PeerID)
+					err := fmt.Errorf("disconnecting from peer %s: duplicate ID %x", ipPort, hnds.PeerID)
 					return err
 				}
 				return nil
@@ -403,7 +391,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		c.PeerId = hnds.PeerID
 
 		if c.PeerId == p.PeerId() {
-			err := fmt.Errorf("disconnecting from peer: connection to self detected")
+			err := fmt.Errorf("disconnecting from peer %s: connection to self detected", ipPort)
 			return err
 		}
 

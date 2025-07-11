@@ -171,21 +171,21 @@ func (bc *Blockchain) Synchronize() {
 					defer bc.P2P.RUnlock()
 
 					// fix a rare crash
-					if len(bc.P2P.ListConns) == 0 {
+					if len(bc.P2P.Connections) == 0 {
 						return
 					}
 
 					// take a random connection as the first peer to try
-					peernum := mrand.IntN(len(bc.P2P.ListConns))
-					for i := 0; i < len(bc.P2P.ListConns); i++ {
-						n := (i + peernum) % len(bc.P2P.ListConns)
-						ipPort := bc.P2P.ListConns[n]
+					peernum := mrand.IntN(len(bc.P2P.Connections))
 
-						if len(ipPort) == 0 {
-							Log.Fatal("connection with index", n, "is not in P2P.ListConns")
-						}
+					keys := make([]string, 0, len(bc.P2P.Connections))
+					for k := range bc.P2P.Connections {
+						keys = append(keys, k)
+					}
 
-						conn := bc.P2P.Connections[ipPort]
+					for i := 0; i < len(keys); i++ {
+						n := (i + peernum) % len(keys)
+						conn := bc.P2P.Connections[keys[n]]
 
 						found := false
 						conn.PeerData(func(d *p2p.PeerData) {
