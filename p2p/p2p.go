@@ -391,7 +391,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 	}()
 	if err != nil {
 		p.Kick(conn)
-		Log.Debug(err)
 		return err
 	}
 
