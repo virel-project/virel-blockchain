@@ -66,6 +66,7 @@ func (b Block) String() string {
 	x += "This chain hashing id: " + strconv.FormatUint(hid.NetworkID, 16) + " " +
 		hex.EncodeToString(hid.Hash[:]) + "\n"
 	x += "MiningBlob: " + commitment.MiningBlob().String() + "\n"
+	x += "Seed hash: " + fmt.Sprintf("%x (%d)", commitment.MiningBlob().GetSeed(), GetSeedhashId(commitment.Timestamp)) + "\n"
 	x += "Other chains: " + strconv.FormatUint(uint64(len(b.OtherChains)), 10) + "\n"
 	for _, v := range b.OtherChains {
 		x += fmt.Sprintf(" - %x\n", v)
@@ -412,7 +413,7 @@ func (b Block) Prevalidate() error {
 		seed := mb.GetSeed()
 		powhash := commitment.PowHash(seed)
 		if !b.ValidPowHash(powhash) {
-			return fmt.Errorf("block %x with PoW %x does not meet difficulty", b.Hash(), powhash)
+			return fmt.Errorf("block %d %x with PoW %x does not meet difficulty", b.Height, b.Hash(), powhash)
 		}
 
 		// prevalidate side blocks

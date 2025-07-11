@@ -211,8 +211,6 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Info("block is in mainchain:", inMainchain)
 				Log.Info(bl)
 
-				go bc.BroadcastBlock(bl) // TODO: this is only for debug
-
 				return nil
 			})
 			if err != nil {
