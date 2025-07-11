@@ -245,7 +245,7 @@ func (p *P2P) Kick(c *Connection) {
 	var ip string
 	c.Update(func(c *ConnData) error {
 		ip = c.Conn.RemoteAddr().String()
-		Log.Debug("p2p kick", ip)
+		Log.Debugf("p2p kick %s %x", ip, c.PeerId)
 		c.Close()
 		return nil
 	})
