@@ -81,26 +81,19 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 		if err != nil {
 			Log.Debug(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalReadFailed,
-					Message: "Block not found",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "Block not found",
 			})
 			return
 		}
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: daemonrpc.GetBlockResponse{
-				Block:  *bl,
-				Hash:   hex.EncodeToString(hash[:]),
-				Reward: bl.Reward(),
-				Miner:  bl.Recipient.String(),
-			},
-			Id: c.Body.Id,
+		c.SuccessResponse(daemonrpc.GetBlockResponse{
+			Block:       *bl,
+			Hash:        hex.EncodeToString(hash[:]),
+			TotalReward: bl.Reward(),
+			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
+			Miner:       bl.Recipient.String(),
 		})
 	})
 
@@ -127,55 +120,45 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return err
 			})
 			if err != nil {
-				c.Response(rpc.ResponseOut{
-					JsonRpc: "2.0",
-					Error: &rpc.Error{
-						Code:    internalReadFailed,
-						Message: "transaction not found",
-					},
-					Id: c.Body.Id,
+				c.ErrorResponse(&rpc.Error{
+					Code:    internalReadFailed,
+					Message: "transaction not found",
 				})
 				return
 			}
 
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Result: daemonrpc.GetTransactionResponse{
-					Sender: nil,
-					Outputs: []transaction.Output{
-						{
-							Amount:    bl.Reward(),
-							Recipient: bl.Recipient,
-							Subaddr:   0,
-						},
+			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT
+
+			c.SuccessResponse(daemonrpc.GetTransactionResponse{
+				Sender: nil,
+				Outputs: []transaction.Output{
+					{
+						Amount:    bl.Reward() - rewardFee,
+						Recipient: bl.Recipient,
+						Subaddr:   0,
 					},
-					Fee:       0,
-					Nonce:     0,
-					Signature: nil,
-					Height:    bl.Height,
-					Coinbase:  true,
 				},
-				Id: c.Body.Id,
+				Fee:       rewardFee,
+				Nonce:     0,
+				Signature: nil,
+				Height:    bl.Height,
+				Coinbase:  true,
 			})
 			return
 		}
 
 		integr := address.FromPubKey(tx.Sender).Integrated()
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: daemonrpc.GetTransactionResponse{
-				Sender:      &integr,
-				TotalAmount: tx.TotalAmount(),
-				Outputs:     tx.Outputs,
-				Fee:         tx.Fee,
-				Nonce:       tx.Nonce,
-				Signature:   tx.Signature[:],
-				Height:      height,
-				Coinbase:    false,
-				VirtualSize: tx.GetVirtualSize(),
-			},
-			Id: c.Body.Id,
+		c.SuccessResponse(daemonrpc.GetTransactionResponse{
+			Sender:      &integr,
+			TotalAmount: tx.TotalAmount(),
+			Outputs:     tx.Outputs,
+			Fee:         tx.Fee,
+			Nonce:       tx.Nonce,
+			Signature:   tx.Signature[:],
+			Height:      height,
+			Coinbase:    false,
+			VirtualSize: tx.GetVirtualSize(),
 		})
 
 	})
@@ -194,20 +177,16 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		supply := block.GetSupplyAtHeight(stats.TopHeight)
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: daemonrpc.GetInfoResponse{
-				Height:            stats.TopHeight,
-				TopHash:           stats.TopHash,
-				CirculatingSupply: supply,
-				MaxSupply:         config.MAX_SUPPLY,
-				Coin:              config.COIN,
-				Difficulty:        topBl.Difficulty.String(),
-				CumulativeDiff:    stats.CumulativeDiff.String(),
-				Target:            config.TARGET_BLOCK_TIME,
-				BlockReward:       block.Reward(stats.TopHeight),
-			},
-			Id: c.Body.Id,
+		c.SuccessResponse(daemonrpc.GetInfoResponse{
+			Height:            stats.TopHeight,
+			TopHash:           stats.TopHash,
+			CirculatingSupply: supply,
+			MaxSupply:         config.MAX_SUPPLY,
+			Coin:              config.COIN,
+			Difficulty:        topBl.Difficulty.String(),
+			CumulativeDiff:    stats.CumulativeDiff.String(),
+			Target:            config.TARGET_BLOCK_TIME,
+			BlockReward:       block.Reward(stats.TopHeight),
 		})
 	})
 
@@ -225,13 +204,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		err = tx.Deserialize(params.Hex)
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    invalidParams,
-					Message: "invalid transaction hex data",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    invalidParams,
+				Message: "invalid transaction hex data",
 			})
 			return
 		}
@@ -239,13 +214,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		err = tx.Prevalidate()
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalValidationErr,
-					Message: "transaction verification failed",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalValidationErr,
+				Message: "transaction verification failed",
 			})
 			return
 		}
@@ -255,24 +226,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalInsertFailed,
-					Message: "failed to add transaction to chain",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalInsertFailed,
+				Message: "failed to add transaction to chain",
 			})
 			return
 		}
 
 		txhash := tx.Hash()
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: daemonrpc.SubmitTransactionResponse{
-				TXID: util.Hash(txhash),
-			},
+		c.SuccessResponse(daemonrpc.SubmitTransactionResponse{
+			TXID: util.Hash(txhash),
 		})
 	})
 
@@ -284,13 +248,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		if params.Address.Addr == address.INVALID_ADDRESS {
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    invalidParams,
-					Message: "invalid wallet address",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    invalidParams,
+				Message: "invalid wallet address",
 			})
 			return
 		}
@@ -352,22 +312,14 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 		if err != nil {
 			Log.Warn(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalReadFailed,
-					Message: "could not get transactions",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "could not get transactions",
 			})
 			return
 		}
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result:  result,
-			Id:      c.Body.Id,
-		})
+		c.SuccessResponse(result)
 	})
 
 	rs.Handle("get_tx_list", func(c *rpcserver.Context) {
@@ -399,13 +351,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				startNum = s.LastNonce
 				getTopoFunc = bc.GetTxTopoOut
 			default:
-				c.Response(rpc.ResponseOut{
-					JsonRpc: "2.0",
-					Error: &rpc.Error{
-						Code:    invalidParams,
-						Message: "invalid transfer_type received, must be incoming or outgoing",
-					},
-					Id: c.Body.Id,
+				c.ErrorResponse(&rpc.Error{
+					Code:    invalidParams,
+					Message: "invalid transfer_type received, must be incoming or outgoing",
 				})
 				return nil
 			}
@@ -429,13 +377,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			endNum = min(startNum, endNum)
 
 			if startNum == 0 {
-				c.Response(rpc.ResponseOut{
-					JsonRpc: "2.0",
-					Result: daemonrpc.GetTxListResponse{
-						Transactions: []util.Hash{},
-						MaxPage:      maxPage,
-					},
-					Id: c.Body.Id,
+				c.SuccessResponse(daemonrpc.GetTxListResponse{
+					Transactions: []util.Hash{},
+					MaxPage:      maxPage,
 				})
 				return nil
 			}
@@ -452,25 +396,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				list = append(list, h)
 			}
 
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Result: daemonrpc.GetTxListResponse{
-					Transactions: list,
-					MaxPage:      maxPage,
-				},
-				Id: c.Body.Id,
+			c.SuccessResponse(daemonrpc.GetTxListResponse{
+				Transactions: list,
+				MaxPage:      maxPage,
 			})
 			return nil
 		})
 		if err != nil {
 			Log.Debug(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalReadFailed,
-					Message: "address not in state",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "address not in state",
 			})
 		}
 
@@ -491,25 +427,19 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 		if err != nil {
 			Log.Debug(err)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Error: &rpc.Error{
-					Code:    internalReadFailed,
-					Message: "block not found",
-				},
-				Id: c.Body.Id,
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "block not found",
 			})
 			return
 		}
 
-		c.Response(rpc.ResponseOut{
-			JsonRpc: "2.0",
-			Result: daemonrpc.GetBlockResponse{
-				Block:  *bl,
-				Hash:   bl.Hash().String(),
-				Reward: bl.Reward(),
-				Miner:  bl.Recipient.String(),
-			},
+		c.SuccessResponse(daemonrpc.GetBlockResponse{
+			Block:       *bl,
+			Hash:        bl.Hash().String(),
+			TotalReward: bl.Reward(),
+			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
+			Miner:       bl.Recipient.String(),
 		})
 	})
 
@@ -523,11 +453,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			}
 
 			hash := randomvirel.PowHash(randomvirel.Seed(params.SeedHash), params.Blob)
-			c.Response(rpc.ResponseOut{
-				JsonRpc: "2.0",
-				Result: daemonrpc.CalcPowResponse{
-					Hash: hash,
-				},
+			c.SuccessResponse(daemonrpc.CalcPowResponse{
+				Hash: hash,
 			})
 		})
 	}
