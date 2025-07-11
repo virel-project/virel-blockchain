@@ -57,7 +57,6 @@ func (bc *Blockchain) incomingP2P() {
 
 		switch pack.Type {
 		case packet.BLOCK:
-			Log.Debug("Received new block packet")
 			bc.Validator.ProcessBlock(pack)
 		case packet.TX:
 			Log.Debug("Received new transaction packet")
@@ -113,31 +112,11 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 		return
 	}
 
-	err = bc.DB.Update(func(tx adb.Txn) error {
-		for _, v := range txs {
-			err := bc.AddTransaction(tx, v, v.Hash(), false)
-			if err != nil {
-				return err
-			}
-		}
-		return bc.AddBlock(tx, bl, hash)
-	})
-	if err != nil {
-		Log.Warn("could not add block to chain:", err)
-		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.RemoveBlock(bl.Height, hash)
-		})
-		return
-	} else {
-		// TODO: remove this, it's only for debug purposes
-		/*err := bc.DB.View(func(tx adb.Txn) error {
-			bc.CheckSupply(tx)
-			return nil
-		})
-		if err != nil {
-			Log.Err(err)
-		}*/
-	}
+	bc.SyncMut.RLock()
+	insta := bl.Height >= bc.SyncHeight
+	bc.SyncMut.RUnlock()
+
+	bc.Validator.PostprocessBlock(bl, hash, txs, insta)
 }
 
 func (bc *Blockchain) packetStats(pack p2p.Packet) {

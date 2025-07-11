@@ -93,7 +93,7 @@ func New() *Blockchain {
 		OutTx: bc.DB.Index("outtx"),
 	}
 
-	bc.Validator = bc.NewValidator(runtime.NumCPU() * 2)
+	bc.Validator = bc.NewValidator(runtime.NumCPU())
 
 	// add genesis block if it doesn't exist
 	bc.addGenesis()
@@ -445,7 +445,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
-		return fmt.Errorf("received duplicate block %x height %d", hash, bl.Height)
+		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
 	prevHash := bl.PrevHash()
