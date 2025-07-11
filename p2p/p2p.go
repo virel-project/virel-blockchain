@@ -255,7 +255,7 @@ func (p *P2P) Kick(c *Connection) {
 	Log.Devf("now connections IDs are:")
 	for _, v := range p.Connections {
 		v.View(func(c *ConnData) error {
-			Log.Devf("- %x", c.PeerId)
+			Log.Devf("- %s %x", c.Conn.RemoteAddr(), c.PeerId)
 			return nil
 		})
 	}
@@ -308,7 +308,10 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		return nil
 	}()
 	if err != nil {
-		p.Kick(conn)
+		conn.Update(func(c *ConnData) error {
+			c.Close()
+			return nil
+		})
 		return err
 	}
 
