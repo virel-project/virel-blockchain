@@ -127,7 +127,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return
 			}
 
-			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT
+			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT / 100
 
 			c.SuccessResponse(daemonrpc.GetTransactionResponse{
 				Sender: nil,
