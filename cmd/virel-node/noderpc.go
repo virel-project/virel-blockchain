@@ -160,7 +160,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			Coinbase:    false,
 			VirtualSize: tx.GetVirtualSize(),
 		})
-
 	})
 
 	rs.Handle("get_info", func(c *rpcserver.Context) {
@@ -409,7 +408,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				Message: "address not in state",
 			})
 		}
-
 	})
 
 	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {

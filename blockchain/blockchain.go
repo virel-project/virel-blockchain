@@ -1000,17 +1000,17 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 
 	// iterate transactions to find tx fee sum for coinbase transaction
 	var totalFee uint64
-	for _, v := range bl.Transactions {
+	for i, v := range bl.Transactions {
 		tx, _, err := bc.GetTx(txn, v)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
 		totalFee += tx.Fee
-		txs = append(txs, txCache{
+		txs[i] = txCache{
 			Hash: v,
 			Tx:   tx,
-		})
+		}
 	}
 
 	// undo coinbase transaction
