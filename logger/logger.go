@@ -38,6 +38,12 @@ func (l *Log) SetLogLevel(lvl uint8) {
 
 	l.logLevel = lvl
 }
+func (l *Log) GetLogLevel() uint8 {
+	l.RLock()
+	defer l.RUnlock()
+
+	return l.logLevel
+}
 func (l *Log) SetStdout(stdout io.Writer) {
 	l.Lock()
 	defer l.Unlock()

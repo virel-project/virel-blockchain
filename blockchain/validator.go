@@ -163,7 +163,7 @@ func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*t
 			qt.RemoveBlock(bl.Height, hash)
 		})
 		return
-	} else {
+	} else if Log.GetLogLevel() > 1 {
 		// TODO: remove this, it's only for debug purposes
 		err := v.bc.DB.View(func(tx adb.Txn) error {
 			v.bc.CheckSupply(tx)

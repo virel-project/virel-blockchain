@@ -251,14 +251,6 @@ func (p *P2P) Kick(c *Connection) {
 	})
 	p.Lock()
 	delete(p.Connections, ip)
-	// TODO: remove this
-	Log.Devf("now connections IDs are:")
-	for _, v := range p.Connections {
-		v.View(func(c *ConnData) error {
-			Log.Devf("- %s %x", c.Conn.RemoteAddr(), c.PeerId)
-			return nil
-		})
-	}
 	p.Unlock()
 }
 
@@ -571,6 +563,8 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 
 	d := binary.NewDes(packetData)
 
+	var added bool = false
+
 	for len(packetData) > 3 {
 		port := d.ReadUint16()
 
@@ -588,27 +582,29 @@ func (p2 *P2P) OnAddPeerPacket(packetData []byte) error {
 		}
 
 		p2.Lock()
-		p2.AddPeerToList(address.String(), port, false)
+		added = p2.AddPeerToList(address.String(), port, false)
 		p2.Unlock()
 	}
 
-	go func() {
-		err := p2.savePeerlist()
-		if err != nil {
-			Log.Warn(err)
-		}
-	}()
+	if added {
+		go func() {
+			err := p2.savePeerlist()
+			if err != nil {
+				Log.Warn(err)
+			}
+		}()
+	}
 
 	return nil
 }
 
 // P2P must be locked before calling this
-func (p *P2P) AddPeerToList(ip string, port uint16, force bool) {
+func (p *P2P) AddPeerToList(ip string, port uint16, force bool) bool {
 	if port == 0 {
-		return
+		return false
 	}
 	if p.Exclusive && !force {
-		return
+		return force
 	}
 
 	shouldAdd := true
@@ -626,4 +622,5 @@ func (p *P2P) AddPeerToList(ip string, port uint16, force bool) {
 			Type: PEER_GRAY,
 		})
 	}
+	return shouldAdd
 }

@@ -102,6 +102,8 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 		return
 	}
 
+	Log.Debugf("Processing block %d %x", bl.Height, bl.Hash())
+
 	hash := bl.Hash()
 
 	bc.queuedBlockDownloaded(hash, bl.Height)
