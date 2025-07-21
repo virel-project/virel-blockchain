@@ -9,7 +9,7 @@ func (m Privkey) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + base64.StdEncoding.EncodeToString(m[:]) + `"`), nil
 }
 func (m *Privkey) UnmarshalJSON(c []byte) error {
-	if c == nil || len(c) < 2 {
+	if len(c) < 2 {
 		return errors.New("value is too short")
 	} else if len(c) == 2 {
 		*m = Privkey{}

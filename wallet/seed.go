@@ -1,29 +1,32 @@
 package wallet
 
 import (
-	"github.com/virel-project/virel-blockchain/address"
+	"fmt"
+
 	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/bitcrypto/slip10"
+	"github.com/virel-project/virel-blockchain/config"
 
 	"github.com/tyler-smith/go-bip39"
-	"github.com/zeebo/blake3"
 )
 
 // seed entropy in bytes
-const SEED_ENTROPY = 16
+const SEED_ENTROPY = 24
 
 // generates a seed and returns the seed and the associated keypair
-func newMnemonic() (string, bitcrypto.Privkey) {
-	entropy := make([]byte, SEED_ENTROPY)
-	bitcrypto.RandRead(entropy)
-
+func newMnemonic(entropy []byte) (string, bitcrypto.Privkey) {
 	seed, err := bip39.NewMnemonic(entropy)
 	if err != nil {
 		panic(err)
 	}
 
-	key := address.GenerateKeypair(blake3.Sum256(entropy[:]))
+	node, err := slip10.DeriveForPath(fmt.Sprintf("m/%d'/501'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
+	if err != nil {
+		panic(err)
+	}
+	_, privk := node.Keypair()
 
-	return seed, key
+	return seed, bitcrypto.Privkey(privk)
 }
 
 // decodes a mnemonic seedphrase into a private key
@@ -33,6 +36,12 @@ func decodeMnemonic(seed string) (bitcrypto.Privkey, error) {
 		return bitcrypto.Privkey{}, err
 	}
 
-	key := address.GenerateKeypair(blake3.Sum256(entropy[:]))
-	return key, nil
+	node, err := slip10.DeriveForPath(fmt.Sprintf("m/%d'/501'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
+	if err != nil {
+		panic(err)
+	}
+
+	_, privk := node.Keypair()
+
+	return bitcrypto.Privkey(privk), nil
 }

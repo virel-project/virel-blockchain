@@ -1,6 +1,7 @@
 package transaction_test
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"slices"
@@ -15,8 +16,9 @@ import (
 )
 
 func TestTransaction(t *testing.T) {
-	privk := address.GenerateKeypair(blake3.Sum256([]byte("test")))
-	pubk := privk.Public()
+	sd := blake3.Sum256([]byte("test"))
+	privk := ed25519.NewKeyFromSeed(sd[:])
+	pubk := bitcrypto.Pubkey(privk.Public().(ed25519.PublicKey))
 
 	if hex.EncodeToString(pubk[:]) != "87560320f9cd73a12ef35c886bcde72049d8e4d83ea3b32586270bc7d8e8e422" {
 		t.Errorf("invalid public key %x", privk.Public())
@@ -26,7 +28,7 @@ func TestTransaction(t *testing.T) {
 	rand.Read(recipient[:])
 
 	tx := transaction.Transaction{
-		Sender: privk.Public(),
+		Sender: pubk,
 		Outputs: []transaction.Output{
 			{
 				Recipient: recipient,
@@ -40,7 +42,7 @@ func TestTransaction(t *testing.T) {
 	}
 	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
 
-	tx.Sign(privk)
+	tx.Sign(bitcrypto.Privkey(privk))
 
 	tx.Serialize()
 

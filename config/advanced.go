@@ -31,6 +31,9 @@ const PARALLEL_BLOCKS_DOWNLOAD = 50
 
 const VERSION = VERSION_MAJOR<<32 + VERSION_MINOR<<16 + VERSION_PATCH
 
+// fork coins should not change this if they want to be easily merge mined
+const HD_COIN_TYPE = 6310
+
 var BinaryNetworkID = make([]byte, 8)
 
 func init() {

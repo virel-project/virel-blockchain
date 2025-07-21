@@ -1,7 +1,6 @@
 package address
 
 import (
-	"crypto/ed25519"
 	"encoding/binary"
 	"errors"
 	"hash/crc32"
@@ -19,15 +18,6 @@ type Address [SIZE]byte
 
 // The zero-value of address is considered invalid
 var INVALID_ADDRESS = Address{}
-
-// s is the seed (usually 32 byte long)
-func GenerateKeypair(seed [32]byte) bitcrypto.Privkey {
-	return newKeyFromSeed(seed)
-}
-func newKeyFromSeed(seed [32]byte) bitcrypto.Privkey {
-	prk := ed25519.NewKeyFromSeed(seed[:])
-	return bitcrypto.Privkey(prk)
-}
 
 func FromPubKey(p bitcrypto.Pubkey) Address {
 	// Address is obtained from the hash of the public key
@@ -119,7 +109,7 @@ func (a Integrated) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Integrated) UnmarshalJSON(c []byte) error {
-	if c == nil || len(c) < 2 {
+	if len(c) < 2 {
 		return errors.New("value is too short")
 	}
 

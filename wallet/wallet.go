@@ -62,7 +62,9 @@ func CreateWallet(rpcAddr string, pass []byte, fastkdf bool) (*Wallet, []byte, e
 		password: pass,
 	}
 
-	w.dbInfo.Mnemonic, w.dbInfo.PrivateKey = newMnemonic()
+	entropy := make([]byte, SEED_ENTROPY)
+	bitcrypto.RandRead(entropy)
+	w.dbInfo.Mnemonic, w.dbInfo.PrivateKey = newMnemonic(entropy)
 
 	w.dbInfo.Address = address.FromPubKey(w.dbInfo.PrivateKey.Public()).Integrated()
 

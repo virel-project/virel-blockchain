@@ -4,19 +4,19 @@ import (
 	"testing"
 
 	"github.com/virel-project/virel-blockchain/address"
-
+	"github.com/virel-project/virel-blockchain/bitcrypto"
 	"github.com/zeebo/blake3"
 )
 
 func TestAddress(t *testing.T) {
-	pk := address.GenerateKeypair(blake3.Sum256([]byte("example seed")))
+	pk := bitcrypto.Pubkey(blake3.Sum256([]byte("test")))
 
-	x := address.FromPubKey(pk.Public()).Integrated()
+	x := address.FromPubKey(pk).Integrated()
 
 	str := x.String()
 	t.Log(str)
 
-	if str != "s1hbvnh60rkffrlxrrvaaatb2epi146o2gvjnox" {
+	if str != "s7xxb13ng6gzd3tugb8nqzx28btuq0ihkhqxm6" {
 		t.Error("address is not valid")
 	}
 
