@@ -2,20 +2,17 @@ package block
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/binary"
-	"github.com/virel-project/virel-blockchain/checkpoints"
 	"github.com/virel-project/virel-blockchain/config"
 	"github.com/virel-project/virel-blockchain/transaction"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/virel-project/virel-blockchain/util/uint128"
 
-	"github.com/virel-project/go-randomvirel"
 	"github.com/zeebo/blake3"
 )
 
@@ -352,94 +349,21 @@ func (b Block) Hash() util.Hash {
 	return blake3.Sum256(b.Serialize()[:])
 }
 
-func (c Commitment) PowHash(seed randomvirel.Seed) [16]byte {
-	hash := randomvirel.PowHash(seed, c.MiningBlob().Serialize())
-
-	return [16]byte(hash[16:])
-}
-func (c Commitment) PowValue(seed randomvirel.Seed) Uint128 {
-	pow := c.PowHash(seed)
-	upow := uint128.FromBytes(pow[:])
-	return upow
-}
 func (b Block) ValidPowHash(hash [16]byte) bool {
 	val := uint128.FromBytes(hash[:])
-
 	return val.Cmp(uint128.Max.Div(b.Difficulty)) <= 0
 }
-func (c Commitment) ValidPowHash(seed randomvirel.Seed, diff Uint128) bool {
-	return c.PowValue(seed).Cmp(uint128.Max.Div(diff)) <= 0
+func ValidPowHash(hash [16]byte, diff Uint128) bool {
+	val := uint128.FromBytes(hash[:])
+	return val.Cmp(uint128.Max.Div(diff)) <= 0
+}
+func ValidPowHash32(hash [32]byte, diff Uint128) bool {
+	val := HashToVal(hash)
+	return val.Cmp(uint128.Max.Div(diff)) <= 0
 }
 func ValidPowValue(val Uint128, diff Uint128) bool {
 	return val.Cmp(uint128.Max.Div(diff)) <= 0
 }
-
-// Prevalidate contains basic validity check, such as PoW hash and timestamp not in future
-func (b Block) Prevalidate() error {
-	// Generally, try insering the least expensive checks first, most expensive last
-
-	if b.Version != 0 {
-		return fmt.Errorf("unexpected block version %d", b.Version)
-	}
-
-	if b.Difficulty.IsZero() {
-		return errors.New("difficulty is zero")
-	}
-
-	if b.Difficulty.Cmp64(config.MIN_DIFFICULTY) < 0 {
-		return errors.New("difficulty is less than minimum")
-	}
-
-	if b.Timestamp > util.Time()+config.FUTURE_TIME_LIMIT*1000 {
-		return errors.New("block is too much in the future")
-	}
-
-	// check that OtherChains are valid (no duplicates)
-	for i, v := range b.OtherChains {
-		if v.NetworkID == config.NETWORK_ID {
-			return fmt.Errorf("other chain %x includes current network id", v.Hash)
-		}
-		for i2, v2 := range b.OtherChains {
-			if i != i2 && (v.Hash == v2.Hash || v.NetworkID == v2.NetworkID) {
-				return fmt.Errorf("duplicate OtherChain: %x %d; %x %d", v.Hash, v.NetworkID,
-					v2.Hash, v2.NetworkID)
-			}
-		}
-	}
-
-	if !checkpoints.IsSecured(b.Height) {
-		commitment := b.Commitment()
-		mb := commitment.MiningBlob()
-		seed := mb.GetSeed()
-		powhash := commitment.PowHash(seed)
-		if !b.ValidPowHash(powhash) {
-			return fmt.Errorf("block %d %x with PoW %x does not meet difficulty", b.Height, b.Hash(), powhash)
-		}
-
-		// prevalidate side blocks
-		// TODO: verify this is ok
-		for _, side := range b.SideBlocks {
-			/*if side.Height < b.Height-config.MINIDAG_ANCESTORS || side.Height >= b.Height {
-				return fmt.Errorf("side block has invalid height %d, current block has height %d", side.Height, b.Height)
-			}*/
-			if GetSeedhashId(side.Timestamp) != GetSeedhashId(b.Timestamp) {
-				return fmt.Errorf("side block has a different seedhash")
-			}
-			//
-			// verify that side block's difficulty is at least 2/3 of current block difficulty
-			if !side.ValidPowHash(seed, b.Difficulty.Mul64(2).Div64(3)) {
-				return fmt.Errorf("commitment does not meet difficulty")
-			}
-		}
-	} else {
-		if checkpoints.IsCheckpoint(b.Height) {
-			expectedHash := checkpoints.GetCheckpoint(b.Height)
-			h := b.Hash()
-			if h != expectedHash {
-				return fmt.Errorf("block %x does not match checkpoint %x", h, expectedHash)
-			}
-		}
-	}
-
-	return nil
+func HashToVal(hash [32]byte) Uint128 {
+	return uint128.FromBytes(hash[16:])
 }

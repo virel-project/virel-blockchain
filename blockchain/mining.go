@@ -6,6 +6,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/virel-project/go-randomvirel"
 	"github.com/virel-project/virel-blockchain/adb"
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/block"
@@ -233,14 +234,16 @@ func (bc *Blockchain) findBlockSolution(bl *block.Block, min_diff Uint128) {
 		}
 		bc.MergesMut.Unlock()
 
+		mb := bl.Commitment().MiningBlob()
 		if bl.Nonce&0xff == 0 {
 			bl.Timestamp = util.Time()
-			seed = bl.Commitment().MiningBlob().GetSeed()
+			seed = mb.GetSeed()
 		}
 
-		powHash := bl.Commitment().PowValue(seed)
-		if block.ValidPowValue(powHash, min_diff) {
-			_, err := bc.blockFound(bl, powHash.Bytes())
+		pow := randomvirel.PowHash(seed, mb.Serialize())
+		powHash := [16]byte(pow[16:])
+		if block.ValidPowHash(powHash, min_diff) {
+			_, err := bc.blockFound(bl, powHash)
 			if err != nil {
 				Log.Err(err)
 			}
@@ -281,7 +284,7 @@ func (bc *Blockchain) blockFound(bl *block.Block, powHash [16]byte) ([]stratum.F
 			Ok:         true,
 		})
 		Log.Infof("Found block %x with diff %s sideblocks %v", hash, bl.Difficulty.String(), bl.SideBlocks)
-		err := bl.Prevalidate()
+		err := bc.PrevalidateBlock(bl)
 		if err != nil {
 			Log.Warn(err)
 			return nil, err

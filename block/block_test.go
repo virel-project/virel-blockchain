@@ -4,7 +4,6 @@ import (
 	crand "crypto/rand"
 	"math/rand/v2"
 	"reflect"
-	"runtime"
 	"testing"
 
 	"github.com/virel-project/virel-blockchain/address"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/virel-project/virel-blockchain/util/uint128"
 
-	"github.com/virel-project/go-randomvirel"
 	"github.com/zeebo/blake3"
 )
 
@@ -32,8 +30,6 @@ var sampleBlock = Block{
 }
 
 func TestBlock(t *testing.T) {
-	randomvirel.InitHash(runtime.NumCPU(), false)
-
 	bl := sampleBlock
 	bl2 := Block{}
 

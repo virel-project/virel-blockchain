@@ -209,7 +209,7 @@ func prompts(bc *blockchain.Blockchain) {
 					Log.Info("block is not in mainchain")
 				}
 				Log.Info("block is in mainchain:", inMainchain)
-				Log.Info(bl.String() + fmt.Sprintf("PoW: %x\n", bl.Commitment().PowHash(bl.Commitment().MiningBlob().GetSeed())))
+				Log.Info(bl.String())
 
 				return nil
 			})

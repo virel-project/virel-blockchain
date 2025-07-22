@@ -372,8 +372,9 @@ func (bc *Blockchain) handleConn(v *stratumsrv.Conn) error {
 
 				jb.Nonce = nonce
 				commitment := jb.Commitment()
-				powhash := commitment.PowHash(commitment.MiningBlob().GetSeed())
-				blocks, err = bc.blockFound(&jb, powhash)
+				mb := commitment.MiningBlob()
+				powhash := randomvirel.PowHash(mb.GetSeed(), mb.Serialize())
+				blocks, err = bc.blockFound(&jb, [16]byte(powhash[16:]))
 				if err != nil {
 					v.WriteJSON(rpc.ResponseOut{
 						JsonRpc: "2.0",

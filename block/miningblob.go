@@ -6,7 +6,6 @@ import (
 	"github.com/virel-project/virel-blockchain/binary"
 	"github.com/virel-project/virel-blockchain/config"
 
-	"github.com/virel-project/go-randomvirel"
 	"github.com/zeebo/blake3"
 )
 
@@ -80,7 +79,7 @@ func (m *MiningBlob) Deserialize(b []byte) error {
 	return nil
 }
 
-func (m MiningBlob) GetSeed() randomvirel.Seed {
+func (m MiningBlob) GetSeed() [32]byte {
 	b := make([]byte, 8)
 	seedhashId := GetSeedhashId(m.Timestamp)
 	binary.LittleEndian.PutUint64(b, seedhashId)
