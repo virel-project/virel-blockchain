@@ -62,7 +62,9 @@ func New(destination, wallet string) (
 
 const merge_prefix = "merge-mining:"
 
-func (cl *Client) Start() error {
+// isNode should be true only if this client is used by the main chain node when it
+// gets blocks from other chains for merge mining.
+func (cl *Client) Start(isNode bool) error {
 	var job *stratum.Job
 
 	cl.JobChan = make(chan *stratum.Job, 1)
@@ -79,11 +81,17 @@ func (cl *Client) Start() error {
 		cl.alive = true
 
 		// send login
+		var lg string
+		if isNode {
+			lg = strconv.Quote(merge_prefix + cl.wallet)
+		} else {
+			lg = strconv.Quote(cl.wallet)
+		}
 		data := `{` +
 			`"id":1,` +
 			`"method":"login",` +
 			`"params":{` +
-			`"login":` + strconv.Quote(merge_prefix+cl.wallet) + `,` +
+			`"login":` + lg + `,` +
 			`"pass":` + strconv.Quote("x") + `,` +
 			`"agent":` + strconv.Quote("stratum-client") +
 			`}` +
@@ -152,7 +160,22 @@ func (cl *Client) request(requestData any, expectedResponseId uint32) (*rpc.Resp
 	if response == nil || !ok {
 		return nil, fmt.Errorf("resp chan closed")
 	}
-	if response.Id != expectedResponseId {
+	var resId uint32
+
+	switch response.Id.(type) {
+	case float32:
+		resId = uint32(response.Id.(float32))
+	case float64:
+		resId = uint32(response.Id.(float64))
+	case uint32:
+		resId = uint32(response.Id.(uint32))
+	case uint64:
+		resId = uint32(response.Id.(uint64))
+	default:
+		return nil, fmt.Errorf("failed to submit work: invalid type of response id")
+	}
+
+	if resId != expectedResponseId {
 		return nil, fmt.Errorf("failed to submit work: unexpected response %d, expected %d", response.Id, expectedResponseId)
 	}
 	return response, nil

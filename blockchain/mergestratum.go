@@ -14,6 +14,7 @@ import (
 	"github.com/virel-project/virel-blockchain/util/uint128"
 )
 
+// The purpose of mergestratum is to connect to other nodes to receive merge-mining jobs.
 type mergestratum struct {
 	Destination string
 	Permanent   bool
@@ -28,7 +29,7 @@ type mergestratum struct {
 func (m *mergestratum) Start() error {
 	cl := m.Client
 	Log.Debug("starting merge stratum", m.Destination)
-	return cl.Start()
+	return cl.Start(true)
 }
 
 // AddStratum blocks until the stratum errors out if permanent, otherwise it blocks forever.
