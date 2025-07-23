@@ -176,7 +176,7 @@ func (cl *Client) request(requestData any, expectedResponseId uint32) (*rpc.Resp
 	}
 
 	if resId != expectedResponseId {
-		return nil, fmt.Errorf("failed to submit work: unexpected response %d, expected %d", response.Id, expectedResponseId)
+		return nil, fmt.Errorf("failed to submit work: unexpected response %d, expected %d", resId, expectedResponseId)
 	}
 	return response, nil
 }
