@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -45,6 +44,7 @@ const internalInsertFailed = -32002
 const TX_LIST_PAGE_SIZE = 25
 
 var err_orphan = fmt.Errorf("coinbase tx is orphan")
+var err_block_orphan = fmt.Errorf("block is orphan")
 
 func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool) {
 	ratelimitCount := 100_000 // max 100k requests per minute for private RPC
@@ -77,11 +77,18 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			}
 			hash = bl.Hash()
 			if topo != hash {
-				return errors.New("block is not included in mainchain")
+				return err_block_orphan
 			}
 			return err
 		})
 		if err != nil {
+			if err == err_block_orphan {
+				c.ErrorResponse(&rpc.Error{
+					Code:    internalReadFailed,
+					Message: "block is orphan",
+				})
+				return
+			}
 			Log.Debug(err)
 			c.ErrorResponse(&rpc.Error{
 				Code:    internalReadFailed,
