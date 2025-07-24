@@ -20,7 +20,7 @@ func newMnemonic(entropy []byte) (string, bitcrypto.Privkey) {
 		panic(err)
 	}
 
-	node, err := slip10.DeriveForPath(fmt.Sprintf("m/%d'/501'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
+	node, err := slip10.DeriveForPath(fmt.Sprintf("m/44'/%d'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
 	if err != nil {
 		panic(err)
 	}
@@ -36,7 +36,7 @@ func decodeMnemonic(seed string) (bitcrypto.Privkey, error) {
 		return bitcrypto.Privkey{}, err
 	}
 
-	node, err := slip10.DeriveForPath(fmt.Sprintf("m/%d'/501'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
+	node, err := slip10.DeriveForPath(fmt.Sprintf("m/44'/%d'/0'/0'/0'", config.HD_COIN_TYPE), entropy)
 	if err != nil {
 		panic(err)
 	}
