@@ -44,6 +44,8 @@ const internalInsertFailed = -32002
 
 const TX_LIST_PAGE_SIZE = 25
 
+var err_orphan = fmt.Errorf("coinbase tx is orphan")
+
 func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool) {
 	ratelimitCount := 100_000 // max 100k requests per minute for private RPC
 	if restricted {
@@ -117,9 +119,26 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			var bl *block.Block
 			err = bc.DB.View(func(txn adb.Txn) error {
 				bl, err = bc.GetBlock(txn, params.Txid)
-				return err
+				if err != nil {
+					return err
+				}
+				topoHash, err := bc.GetTopo(txn, bl.Height)
+				if err != nil {
+					return err
+				}
+				if topoHash != params.Txid {
+					return err_orphan
+				}
+				return nil
 			})
 			if err != nil {
+				if err == err_orphan {
+					c.ErrorResponse(&rpc.Error{
+						Code:    internalReadFailed,
+						Message: "coinbase transaction is orphan",
+					})
+					return
+				}
 				c.ErrorResponse(&rpc.Error{
 					Code:    internalReadFailed,
 					Message: "transaction not found",
