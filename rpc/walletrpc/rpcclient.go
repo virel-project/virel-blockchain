@@ -8,11 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/virel-project/virel-blockchain/logger"
 	"github.com/virel-project/virel-blockchain/rpc"
 )
-
-var log *logger.Log = rpc.Log
 
 type RpcClient struct {
 	WalletRpcAddress string
