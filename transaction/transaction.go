@@ -118,6 +118,8 @@ const base_overhead = bitcrypto.PUBKEY_SIZE /*sender*/ + bitcrypto.SIGNATURE_SIZ
 
 const output_overhead = address.SIZE /* address */ + 1 /* subaddress */ + 1 /* amount */
 
+const max_tx_size = base_overhead + config.MAX_OUTPUTS*output_overhead
+
 func (t Transaction) GetVirtualSize() uint64 {
 	return base_overhead + uint64(len(t.Outputs))*(output_overhead)
 }
@@ -141,7 +143,7 @@ func (t *Transaction) Prevalidate() error {
 	// verify VSize
 	vsize := t.GetVirtualSize()
 
-	if vsize > config.MAX_TX_SIZE {
+	if vsize > max_tx_size {
 		return fmt.Errorf("invalid vsize: %d > MAX_TX_SIZE", vsize)
 	}
 

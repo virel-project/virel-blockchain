@@ -32,10 +32,9 @@ const DIFFICULTY_N = 30 * 60 / TARGET_BLOCK_TIME // DAA half-life (30 minutes).
 
 const MEMPOOL_EXPIRATION = 2 * time.Hour
 
-const MAX_TX_SIZE = 512                      // Hard cap for the maximum VSize of a transaction
-const MAX_BLOCK_SIZE = 1000 + 25*MAX_TX_SIZE // Hard cap for the maximum VSize of a block
+const MAX_BLOCK_SIZE = 64 * 1024 // Hard cap for the maximum VSize of a block (64 KiB)
 
 const MINIDAG_ANCESTORS = 3 // number of ancestors saved for each block
 const MAX_SIDE_BLOCKS = 2   // max number of side blocks that can be referenced by a block
 
-const MAX_OUTPUTS = 16 // max output count for a transaction
+const MAX_OUTPUTS = 32 // max output count for a transaction
