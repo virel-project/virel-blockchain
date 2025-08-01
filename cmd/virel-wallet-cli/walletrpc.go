@@ -131,7 +131,13 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
-		tx, err := w.Transfer(params.Amount, params.Destination)
+		outs := make([]transaction.Output, len(params.Outputs))
+		for i, v := range params.Outputs {
+			outs[i].Amount = v.Amount
+			outs[i].Recipient = v.Recipient.Addr
+			outs[i].Subaddr = v.Recipient.Subaddr
+		}
+		tx, err := w.Transfer(outs)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{

@@ -40,9 +40,13 @@ type GetHistoryResponse struct {
 	Outgoing []TxInfo `json:"outgoing,omitempty"`
 }
 
+type Output struct {
+	Amount    uint64             `json:"amount"`
+	Recipient address.Integrated `json:"recipient"`
+}
+
 type CreateTransactionRequest struct {
-	Destination address.Integrated `json:"destination"`
-	Amount      uint64             `json:"amount"`
+	Outputs []Output `json:"outputs"`
 }
 type CreateTransactionResponse struct {
 	TxBlob enc.Hex   `json:"tx_blob"`

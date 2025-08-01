@@ -216,27 +216,22 @@ func (w *Wallet) SetRpcDaemonAddress(a string) {
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) Transfer(amount uint64, recipient address.Integrated) (*transaction.Transaction, error) {
+func (w *Wallet) Transfer(outputs []transaction.Output) (*transaction.Transaction, error) {
 	err := w.Refresh()
 	if err != nil {
 		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
 	}
 
-	if w.GetAddress() == recipient {
-		return nil, fmt.Errorf("cannot transfer funds to self")
+	for _, out := range outputs {
+		if w.GetAddress().Addr == out.Recipient {
+			return nil, fmt.Errorf("cannot transfer funds to self")
+		}
 	}
 
 	txn := &transaction.Transaction{
-		Sender: w.dbInfo.PrivateKey.Public(),
-		Nonce:  w.GetMempoolLastNonce() + 1,
-		Outputs: []transaction.Output{
-			{
-				Recipient: recipient.Addr,
-				Amount:    amount,
-				Subaddr:   recipient.Subaddr,
-			},
-		},
-		Fee: 0,
+		Sender:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Outputs: outputs,
 	}
 
 	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE

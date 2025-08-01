@@ -8,6 +8,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/transaction"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/virel-project/virel-blockchain/wallet"
 
@@ -117,7 +118,13 @@ func prompts(w *wallet.Wallet) {
 
 			Log.Info("transferring", util.FormatCoin(amt), "to", dst)
 
-			txn, err := w.Transfer(amt, dst)
+			txn, err := w.Transfer([]transaction.Output{
+				{
+					Amount:    amt,
+					Recipient: dst.Addr,
+					Subaddr:   dst.Subaddr,
+				},
+			})
 			if err != nil {
 				Log.Err(err)
 				return
