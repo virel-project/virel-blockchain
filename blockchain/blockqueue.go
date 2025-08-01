@@ -39,7 +39,7 @@ type QueueTx struct {
 func NewBlockQueue(bc *Blockchain) *BlockQueue {
 	bq := &BlockQueue{
 		bc:     bc,
-		blocks: make([]*QueuedBlock, 0, config.PARALLEL_BLOCKS_DOWNLOAD+5),
+		blocks: make([]*QueuedBlock, 0, config.PARALLEL_BLOCKS_DOWNLOAD*5),
 	}
 	err := bq.load()
 	if err != nil {

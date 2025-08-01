@@ -57,7 +57,7 @@ func New(dbpath string, filemode os.FileMode, log *logger.Log) (*DB, error) {
 
 	// we currently have NoMetaSync (database durability not guaranteed since it's not critical here)
 	// TODO: make this configurable
-	err = d.env.Open(dbpath, lmdb.NoMetaSync, filemode)
+	err = d.env.Open(dbpath, lmdb.NoMetaSync|lmdb.NoSync, filemode)
 	if err != nil {
 		d.env.Close()
 		return nil, err
@@ -159,6 +159,10 @@ func (d *DB) Update(f func(txn adb.Txn) error) error {
 }
 
 func (d *DB) Close() error {
+	err := d.env.Sync(true)
+	if err != nil {
+		return err
+	}
 	return d.env.Close()
 }
 
