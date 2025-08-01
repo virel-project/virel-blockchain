@@ -6,6 +6,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/config"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/zeebo/blake3"
 )
@@ -19,18 +20,18 @@ type testVector struct {
 var testVectors = []testVector{
 	{
 		Mnemonic: "warfare process youth leaf attend pluck census canvas follow remember fashion kiwi",
-		Privkey:  util.AssertHexDec("3fedf0226ff456f7e975c727fdc981464ac433c2713279b5bdf6b7c9face5255a3a0ab9015a343b4af0bd70f0fd39ea4810299ed5877d46545adf5755dc8929b"),
-		Address:  "s112j1u96oxmjwnsf6atm65vg43cha0r5tu3pmw",
+		Privkey:  util.AssertHexDec("1d55a334b7752aec8d69fa921278f06f75daf7e282c6c26ab59d29cabb1ebcd4544ffcd2d717070543503e0be7d464e9d980b750fc2e64019221fc78aab943eb"),
+		Address:  config.WALLET_PREFIX + "q5yxhxyl1vubysjoiyo27ejwiqwwsn90il738",
 	},
 	{
 		Mnemonic: "culture sorry knock eyebrow whip differ hurry narrow diary ring fork crowd slow other flower pilot sentence repeat",
-		Privkey:  util.AssertHexDec("7422614d2f04b49839c49a4766547a5267c668616a7f8667ae51b6ca6951d49d6a39bd3a0fafc088dc7a46bcd4f50dc2ad6e50ed7025a7c652d64b45a3ac6d41"),
-		Address:  "szn85qncpxr5ls8ii2oio44tn72o1exsamr5en",
+		Privkey:  util.AssertHexDec("4e770191020963283b4cc6194fa5229921c947d2243d76ee0c1642a6003d980f859e23e1de615ea927b3bb72b342247d7db2aec697a2ac655a05434891bb0f1e"),
+		Address:  config.WALLET_PREFIX + "564swxrqb24ize4mfis44a0pnhzb44jsrjrpe",
 	},
 	{
 		Mnemonic: "enjoy hotel surround sting frost churn game inform term type olympic memory inch ostrich banana lens calm maximum",
-		Privkey:  util.AssertHexDec("4d738c2ea5714a241d4490efb18a6a8b700f87cbbc72af160128589f60efd87622cd857eaf02e8ee0b2d594829fc6f284f0dabe4d9a8831eda2bac466d28b3f2"),
-		Address:  "s1gth43sxli9ubiotog750lgwkkixkgfs1htxss",
+		Privkey:  util.AssertHexDec("eb5ec44da5a9bac2f2c9d4b2173adcdf753d9a05416876167f35cad944357d1314c15304f7b85aeeb8e03eba05253840e5ccd60906e945a3435ffee1d636f0e3"),
+		Address:  config.WALLET_PREFIX + "1mhz2r9jjuzfugeiesmbvibsc1jc3iuufqkits",
 	},
 }
 
@@ -48,7 +49,7 @@ func TestSeed(t *testing.T) {
 		addr := address.FromPubKey(privk.Public())
 		fmt.Printf("address: %v\n", addr)
 
-		if addr.String() != "s1evmew2s567o7yf9lx0ecq0i1pkmb351wax0ws" {
+		if addr.String() != "svpw9fao00h5nhvl3wl1bwxe3mshbbqf5sidhe" {
 			t.Fatalf("incorrect address %v", addr)
 		}
 	}
@@ -61,6 +62,13 @@ func TestSeed(t *testing.T) {
 		if privk != bitcrypto.Privkey(v.Privkey) {
 			t.Fatalf("incorrect privk %x expected %x", privk, v.Privkey)
 		}
+
+		addr := address.FromPubKey(privk.Public())
+
+		if addr.String() != v.Address {
+			t.Fatalf("incorrect address %s expected %s", addr, v.Address)
+		}
+
 	}
 
 }
