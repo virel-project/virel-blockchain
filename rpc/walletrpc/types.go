@@ -2,22 +2,23 @@ package walletrpc
 
 import (
 	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/virel-project/virel-blockchain/util/enc"
 )
 
 type TxInfo struct {
-	Hash util.Hash `json:"hash"`
-	Data *TxData   `json:"data,omitempty"`
+	Hash util.Hash                         `json:"hash"`
+	Data *daemonrpc.GetTransactionResponse `json:"data,omitempty"`
 }
 
 type TxData struct {
-	Sender    address.Integrated `json:"sender"`    // Sender
-	Recipient address.Integrated `json:"recipient"` // Recipient
-	Amount    uint64             `json:"amount"`
-	Fee       uint64             `json:"fee"`
-	Nonce     uint64             `json:"nonce"`
-	Signature enc.Hex            `json:"signature"`
+	Sender    *address.Integrated `json:"sender"`    // Sender
+	Recipient address.Integrated  `json:"recipient"` // Recipient
+	Amount    uint64              `json:"amount"`
+	Fee       uint64              `json:"fee"`
+	Nonce     uint64              `json:"nonce"`
+	Signature enc.Hex             `json:"signature"`
 }
 
 ////////

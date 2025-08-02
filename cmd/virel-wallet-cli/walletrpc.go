@@ -58,11 +58,6 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
-		// TODO: implement IncludeTxData
-		if params.IncludeTxData {
-			Log.Warn("IncludeTxData not implemented")
-		}
-
 		var inc []walletrpc.TxInfo
 		var out []walletrpc.TxInfo
 
@@ -83,6 +78,14 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 				for _, tx := range txlist.Transactions {
 					txinfo := walletrpc.TxInfo{
 						Hash: tx,
+					}
+					if params.IncludeTxData {
+						txres, err := w.GetTransaction(tx)
+						if err != nil {
+							Log.Warn(err)
+						} else {
+							txinfo.Data = txres
+						}
 					}
 					inc = append(inc, txinfo)
 				}
@@ -109,6 +112,14 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 				for _, tx := range txlist.Transactions {
 					txinfo := walletrpc.TxInfo{
 						Hash: tx,
+					}
+					if params.IncludeTxData {
+						txres, err := w.GetTransaction(tx)
+						if err != nil {
+							Log.Warn(err)
+						} else {
+							txinfo.Data = txres
+						}
 					}
 					out = append(out, txinfo)
 				}
