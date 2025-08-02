@@ -58,6 +58,14 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
+		if params.FilterIncomingByPaymentId != 0 && !params.IncludeTxData {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -2,
+				Message: "include_tx_data must be true when using filter_incoming_by_payment_id",
+			})
+			return
+		}
+
 		var inc []walletrpc.TxInfo
 		var out []walletrpc.TxInfo
 
@@ -79,6 +87,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 					txinfo := walletrpc.TxInfo{
 						Hash: tx,
 					}
+					okToAdd := true
 					if params.IncludeTxData {
 						txres, err := w.GetTransaction(tx)
 						if err != nil {
@@ -86,8 +95,18 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 						} else {
 							txinfo.Data = txres
 						}
+						if params.FilterIncomingByPaymentId != 0 {
+							okToAdd = false
+							for _, v := range txres.Outputs {
+								if v.Subaddr == params.FilterIncomingByPaymentId {
+									okToAdd = true
+								}
+							}
+						}
 					}
-					inc = append(inc, txinfo)
+					if okToAdd {
+						inc = append(inc, txinfo)
+					}
 				}
 				if txlist.MaxPage <= page {
 					break

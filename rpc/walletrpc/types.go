@@ -31,10 +31,11 @@ type GetBalanceResponse struct {
 }
 
 type GetHistoryRequest struct {
-	Subaddress      string `json:"subaddress,omitempty"`
-	IncludeTxData   bool   `json:"include_tx_data"`
-	IncludeIncoming bool   `json:"include_incoming"`
-	IncludeOutgoing bool   `json:"include_outgoing"`
+	Subaddress                string `json:"subaddress,omitempty"`
+	IncludeTxData             bool   `json:"include_tx_data"`
+	IncludeIncoming           bool   `json:"include_incoming"`
+	IncludeOutgoing           bool   `json:"include_outgoing"`
+	FilterIncomingByPaymentId uint64 `json:"filter_incoming_by_payment_id"`
 }
 type GetHistoryResponse struct {
 	Incoming []TxInfo `json:"incoming,omitempty"`
