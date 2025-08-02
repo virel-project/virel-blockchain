@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/rpc"
 	"github.com/virel-project/virel-blockchain/rpc/rpcserver"
 	"github.com/virel-project/virel-blockchain/rpc/walletrpc"
@@ -98,8 +99,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 						if params.FilterIncomingByPaymentId != 0 {
 							okToAdd = false
 							for _, v := range txres.Outputs {
-								if v.Subaddr == params.FilterIncomingByPaymentId {
+								if v.PaymentId == params.FilterIncomingByPaymentId {
 									okToAdd = true
+									break
 								}
 							}
 						}
@@ -154,6 +156,75 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		})
 	})
 
+	rs.Handle("get_subaddress", func(c *rpcserver.Context) {
+		params := walletrpc.GetSubaddressRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		if params.Subaddress.Addr == address.INVALID_ADDRESS {
+			params.Subaddress.Addr = w.GetAddress().Addr
+			params.Subaddress.PaymentId = params.PaymentId
+		}
+
+		if params.Subaddress.Addr != w.GetAddress().Addr {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "the subaddress specified does not belong to this wallet",
+			})
+			return
+		}
+		if params.Subaddress.PaymentId == 0 {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "you must specify a valid subaddress or payment id",
+			})
+			return
+		}
+
+		res := walletrpc.GetSubaddressResponse{
+			PaymentId:            params.Subaddress.PaymentId,
+			Subaddress:           params.Subaddress,
+			TotalReceived:        0,
+			MempoolTotalReceived: 0,
+		}
+
+		var page uint64 = 0
+		for {
+			txlist, err := w.GetTransactions(true, page)
+			if err != nil {
+				c.ErrorResponse(&rpc.Error{
+					Code:    internalReadFailed,
+					Message: "failed to get transactions",
+				})
+				Log.Warn(err)
+				return
+			}
+			for _, tx := range txlist.Transactions {
+				txres, err := w.GetTransaction(tx)
+				if err != nil {
+					Log.Err(err)
+					continue
+				}
+				for _, v := range txres.Outputs {
+					if v.Recipient == params.Subaddress.Addr && v.PaymentId == params.Subaddress.PaymentId {
+						if txres.Height == 0 {
+							res.MempoolTotalReceived += v.Amount
+						} else {
+							res.TotalReceived += v.Amount
+						}
+					}
+				}
+			}
+			if txlist.MaxPage <= page {
+				break
+			}
+		}
+
+		c.SuccessResponse(res)
+	})
+
 	rs.Handle("create_transaction", func(c *rpcserver.Context) {
 		params := walletrpc.CreateTransactionRequest{}
 		err := c.GetParams(&params)
@@ -165,7 +236,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		for i, v := range params.Outputs {
 			outs[i].Amount = v.Amount
 			outs[i].Recipient = v.Recipient.Addr
-			outs[i].Subaddr = v.Recipient.Subaddr
+			outs[i].PaymentId = v.Recipient.PaymentId
 		}
 		tx, err := w.Transfer(outs)
 		if err != nil {

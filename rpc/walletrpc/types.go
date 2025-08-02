@@ -31,7 +31,6 @@ type GetBalanceResponse struct {
 }
 
 type GetHistoryRequest struct {
-	Subaddress                string `json:"subaddress,omitempty"`
 	IncludeTxData             bool   `json:"include_tx_data"`
 	IncludeIncoming           bool   `json:"include_incoming"`
 	IncludeOutgoing           bool   `json:"include_outgoing"`
@@ -66,4 +65,15 @@ type RefreshRequest struct {
 }
 type RefreshResponse struct {
 	Success bool `json:"success"`
+}
+
+type GetSubaddressRequest struct {
+	PaymentId  uint64             `json:"payment_id"`
+	Subaddress address.Integrated `json:"subaddress"`
+}
+type GetSubaddressResponse struct {
+	PaymentId            uint64             `json:"payment_id"`
+	Subaddress           address.Integrated `json:"subaddress"`
+	TotalReceived        uint64             `json:"total_received"`
+	MempoolTotalReceived uint64             `json:"mempool_total_received"`
 }

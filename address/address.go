@@ -57,8 +57,8 @@ func FromString(p string) (Integrated, error) {
 	}
 
 	return Integrated{
-		Addr:    Address(data[2 : 2+SIZE]),
-		Subaddr: subaddr,
+		Addr:      Address(data[2 : 2+SIZE]),
+		PaymentId: subaddr,
 	}, nil
 }
 
@@ -79,15 +79,15 @@ func (a Address) String() string {
 }
 
 type Integrated struct {
-	Addr    Address
-	Subaddr uint64
+	Addr      Address
+	PaymentId uint64
 }
 
 func (a Integrated) bytes() []byte {
 	b := a.Addr[:]
 
 	sbytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(sbytes, a.Subaddr)
+	binary.LittleEndian.PutUint64(sbytes, a.PaymentId)
 	for len(sbytes) > 0 && sbytes[len(sbytes)-1] == 0 {
 		sbytes = sbytes[:len(sbytes)-2]
 	}

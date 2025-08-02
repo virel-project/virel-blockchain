@@ -162,7 +162,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 					{
 						Amount:    bl.Reward() - rewardFee,
 						Recipient: bl.Recipient,
-						Subaddr:   0,
+						PaymentId: 0,
 					},
 				},
 				Fee:       rewardFee,

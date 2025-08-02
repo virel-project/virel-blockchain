@@ -26,30 +26,30 @@ type Transaction struct {
 }
 
 type Output struct {
-	Recipient address.Address // recipient's address
-	Subaddr   uint64          // subaddress id
-	Amount    uint64          // amount excludes the fee
+	Recipient address.Address `json:"recipient"`  // recipient's address
+	PaymentId uint64          `json:"payment_id"` // subaddress id
+	Amount    uint64          `json:"amount"`     // amount excludes the fee
 }
 
 func (o Output) Serialize() []byte {
 	b := binary.NewSer(make([]byte, address.SIZE+4+4))
 
 	b.AddFixedByteArray(o.Recipient[:])
-	b.AddUvarint(o.Subaddr)
+	b.AddUvarint(o.PaymentId)
 	b.AddUvarint(o.Amount)
 
 	return b.Output()
 }
 func (o *Output) Deserialize(d *binary.Des) error {
 	o.Recipient = address.Address(d.ReadFixedByteArray(address.SIZE))
-	o.Subaddr = d.ReadUvarint()
+	o.PaymentId = d.ReadUvarint()
 	o.Amount = d.ReadUvarint()
 
 	return d.Error()
 }
 
 func (o Output) String() string {
-	return fmt.Sprintf("amount: %d recipient: %v subaddr: %d", o.Amount, o.Recipient, o.Subaddr)
+	return fmt.Sprintf("amount: %d recipient: %v subaddr: %d", o.Amount, o.Recipient, o.PaymentId)
 }
 
 type TXID [32]byte

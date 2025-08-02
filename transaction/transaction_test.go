@@ -32,7 +32,7 @@ func TestTransaction(t *testing.T) {
 		Outputs: []transaction.Output{
 			{
 				Recipient: recipient,
-				Subaddr:   1337,
+				PaymentId: 1337,
 				Amount:    config.COIN,
 			},
 		},

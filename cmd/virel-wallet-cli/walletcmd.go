@@ -122,7 +122,7 @@ func prompts(w *wallet.Wallet) {
 				{
 					Amount:    amt,
 					Recipient: dst.Addr,
-					Subaddr:   dst.Subaddr,
+					PaymentId: dst.PaymentId,
 				},
 			})
 			if err != nil {

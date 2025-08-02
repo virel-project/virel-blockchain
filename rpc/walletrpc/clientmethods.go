@@ -19,3 +19,8 @@ func (r *RpcClient) SubmitTransaction(p SubmitTransactionRequest) (*SubmitTransa
 	o := &SubmitTransactionResponse{}
 	return o, r.Request("submit_transaction", p, o)
 }
+
+func (r *RpcClient) GetSubaddress(p GetSubaddressRequest) (*GetSubaddressResponse, error) {
+	o := &GetSubaddressResponse{}
+	return o, r.Request("get_subaddress", p, o)
+}
