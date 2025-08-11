@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/rpc"
 )
@@ -17,6 +18,9 @@ type RpcClient struct {
 }
 
 func NewRpcClient(addr, basicauth string) *RpcClient {
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
 	return &RpcClient{
 		WalletRpcAddress: addr,
 		BasicAuth:        basicauth,
