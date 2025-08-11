@@ -990,8 +990,6 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 
 // Reverses the transaction of a block from the blockchain state
 func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
-	// TODO: add removed transactions to mempool
-
 	type txCache struct {
 		Hash [32]byte
 		Tx   *transaction.Transaction
@@ -1000,16 +998,35 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 
 	// iterate transactions to find tx fee sum for coinbase transaction
 	var totalFee uint64
-	for i, v := range bl.Transactions {
-		tx, _, err := bc.GetTx(txn, v)
+	if len(bl.Transactions) > 0 {
+		memp := bc.GetMempool(txn)
+		for i, v := range bl.Transactions {
+			tx, _, err := bc.GetTx(txn, v)
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
+			totalFee += tx.Fee
+			txs[i] = txCache{
+				Hash: v,
+				Tx:   tx,
+			}
+			// add removed transactions back to mempool
+			if memp.GetEntry(v) == nil {
+				memp.Entries = append(memp.Entries, &MempoolEntry{
+					TXID:    v,
+					Size:    tx.GetVirtualSize(),
+					Fee:     tx.Fee,
+					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
+					Sender:  address.FromPubKey(tx.Sender),
+					Outputs: tx.Outputs,
+				})
+			}
+		}
+		err := bc.SetMempool(txn, memp)
 		if err != nil {
 			Log.Err(err)
 			return err
-		}
-		totalFee += tx.Fee
-		txs[i] = txCache{
-			Hash: v,
-			Tx:   tx,
 		}
 	}
 

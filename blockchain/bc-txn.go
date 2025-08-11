@@ -83,7 +83,7 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transactio
 	des := binary.NewDes(txbin)
 	includedIn := des.ReadUint64()
 	if des.Error() != nil {
-		return nil, 0, des.Error()
+		return nil, 0, fmt.Errorf("failed to deserialize transaction: %w", des.Error())
 	}
 	return tx, includedIn, tx.Deserialize(des.RemainingData())
 }
