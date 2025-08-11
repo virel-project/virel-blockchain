@@ -52,6 +52,7 @@ type CreateTransactionRequest struct {
 type CreateTransactionResponse struct {
 	TxBlob enc.Hex   `json:"tx_blob"`
 	TXID   util.Hash `json:"txid"`
+	Fee    uint64    `json:"fee"`
 }
 
 type SubmitTransactionRequest struct {

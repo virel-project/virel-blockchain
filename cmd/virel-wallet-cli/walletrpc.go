@@ -251,6 +251,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		c.SuccessResponse(walletrpc.CreateTransactionResponse{
 			TxBlob: tx.Serialize(),
 			TXID:   util.Hash(tx.Hash()),
+			Fee:    tx.Fee,
 		})
 	})
 
