@@ -146,6 +146,7 @@ func main() {
 	rpc_auth := flag.String("rpc-auth", "", "colon-separated username and password, like user:pass")
 	open_wallet := flag.String("open-wallet", "", "open a wallet file")
 	wallet_password := flag.String("wallet-password", "", "wallet password when using --open-wallet")
+	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
 
 	flag.Parse()
 
@@ -195,5 +196,11 @@ func main() {
 		Log.Info("Last nonce:", w.GetLastNonce())
 	}
 
-	prompts(w)
+	if !*non_interactive {
+		prompts(w)
+	} else {
+		// wait forever
+		c := make(chan bool)
+		Log.Err(<-c)
+	}
 }
