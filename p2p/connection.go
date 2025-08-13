@@ -17,6 +17,7 @@ func NewConnection(c net.Conn, outgoing bool) *Connection {
 			LastPing: time.Now().Unix(),
 		},
 		peerData: &PeerData{},
+		Time:     time.Now().UnixMilli(),
 	}
 }
 
@@ -24,6 +25,7 @@ func NewConnection(c net.Conn, outgoing bool) *Connection {
 type Connection struct {
 	data     *ConnData
 	peerData *PeerData
+	Time     int64 // UNIX millisecond timestamp of when connection started
 
 	mut   util.RWMutex
 	pdMut util.Mutex

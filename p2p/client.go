@@ -3,6 +3,7 @@ package p2p
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 const MAX_PEER_FAILURES = 5
@@ -46,6 +47,7 @@ func (p2 *P2P) startClient(addr string, port uint16, private bool) {
 					p2.KnownPeers[i].Fails = 0
 					if p2.KnownPeers[i].Type == PEER_GRAY {
 						p2.KnownPeers[i].Type = PEER_WHITE
+						p2.KnownPeers[i].LastConnect = time.Now().Unix()
 					}
 
 					p2.KnownPeers[i] = kp

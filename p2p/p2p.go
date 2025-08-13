@@ -268,6 +268,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 	for i, v := range p.KnownPeers {
 		if v.IP == ip {
 			v.Type = PEER_WHITE
+			v.LastConnect = time.Now().Unix()
 			p.KnownPeers[i] = v
 		} else if v.Type == PEER_WHITE {
 			Log.Debugf("sendPeerList: sending %v:%v", v.IP, v.Port)

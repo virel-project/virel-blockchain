@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -134,7 +135,20 @@ func prompts(bc *blockchain.Blockchain) {
 			defer bc.P2P.RUnlock()
 
 			Log.Infof("%s %s %s", util.PadC("Peer ID", 17), util.PadC("IP", 15), "direction")
+
+			cns := make([]*p2p.Connection, len(bc.P2P.Connections))
+
+			i := 0
 			for _, conn := range bc.P2P.Connections {
+				cns[i] = conn
+				i++
+			}
+
+			slices.SortStableFunc(cns, func(a, b *p2p.Connection) int {
+				return int(a.Time - b.Time)
+			})
+
+			for _, conn := range cns {
 				conn.View(func(c *p2p.ConnData) error {
 					direction := "inc"
 					if c.Outgoing {
