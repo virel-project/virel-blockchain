@@ -270,6 +270,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 			v.Type = PEER_WHITE
 			p.KnownPeers[i] = v
 		} else if v.Type == PEER_WHITE {
+			Log.Debugf("sendPeerList: sending %v:%v", v.IP, v.Port)
 			s.AddUint16(v.Port)
 			s.AddString(v.IP)
 		}
@@ -277,7 +278,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 	p.RUnlock()
 	return conn.Update(func(c *ConnData) error {
 		return c.sendPacket(pack{
-			Type: 2,
+			Type: 1,
 			Data: s.Output(),
 		})
 	})
