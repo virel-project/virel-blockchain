@@ -140,7 +140,7 @@ func (bc *Blockchain) Synchronize() {
 			bc.fillQueue(qt, stats.TopHeight)
 
 			reqbls := []packet.PacketBlockRequest{}
-			for i := 0; i < config.PARALLEL_BLOCKS_DOWNLOAD; i++ {
+			for range config.PARALLEL_BLOCKS_DOWNLOAD {
 				reqbl := qt.RequestableBlock()
 				if reqbl == nil {
 					break
@@ -239,11 +239,11 @@ func (bc *Blockchain) fillQueue(qt *QueueTx, topHeight uint64) {
 	syncHeight := bc.SyncHeight
 	bc.SyncMut.RUnlock()
 
-	if qt.Length() < config.PARALLEL_BLOCKS_DOWNLOAD*5 {
+	if qt.Length() < QUEUE_SIZE {
 		if syncHeight > topHeight {
 			n := qt.Length()
 			for i := topHeight + 1; i <= syncHeight; i++ {
-				if n > config.PARALLEL_BLOCKS_DOWNLOAD*5 {
+				if n > QUEUE_SIZE {
 					break
 				}
 				n++

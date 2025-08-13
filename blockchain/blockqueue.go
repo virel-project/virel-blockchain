@@ -10,6 +10,8 @@ import (
 	"github.com/virel-project/virel-blockchain/util"
 )
 
+const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20
+
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
 	return &QueuedBlock{
 		Height:  height,
@@ -39,7 +41,7 @@ type QueueTx struct {
 func NewBlockQueue(bc *Blockchain) *BlockQueue {
 	bq := &BlockQueue{
 		bc:     bc,
-		blocks: make([]*QueuedBlock, 0, config.PARALLEL_BLOCKS_DOWNLOAD*5),
+		blocks: make([]*QueuedBlock, 0, QUEUE_SIZE),
 	}
 	err := bq.load()
 	if err != nil {
@@ -92,7 +94,7 @@ func (qt *QueueTx) RemoveBlock(height uint64, hash [32]byte) {
 	qt.bq.cleanup()
 }
 
-const downloaded_expire = 5
+const downloaded_expire = 15
 
 // BlockDownloaded is used when a block has been downloaded but it's not in mainchain yet, so we cannot
 // remove it immediately, as that would eventually trigger a redownload.

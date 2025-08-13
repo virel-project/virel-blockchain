@@ -96,7 +96,7 @@ func (v *Validator) PostprocessBlock(bl *block.Block, hash util.Hash, txs []*tra
 		return
 	}
 
-	if len(v.postprocess) >= POSTPROCESS_SIZE-1 {
+	if len(v.postprocess) >= POSTPROCESS_SIZE {
 		v.postprocessChan <- true
 	}
 }
