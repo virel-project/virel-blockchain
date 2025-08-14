@@ -221,6 +221,9 @@ func (bc *Blockchain) sendBlockToPeer(bl *block.Block, c *p2p.Connection) error 
 }
 
 func (bc *Blockchain) SendStats(stats *Stats) {
+	bc.P2P.RLock()
+	defer bc.P2P.RUnlock()
+
 	for _, v := range bc.P2P.Connections {
 		v.SendPacket(&p2p.Packet{
 			Type: packet.STATS,
