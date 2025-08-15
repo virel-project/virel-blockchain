@@ -32,13 +32,13 @@ type GetBalanceResponse struct {
 
 type GetHistoryRequest struct {
 	IncludeTxData             bool   `json:"include_tx_data"`
-	IncludeIncoming           bool   `json:"include_incoming"`
-	IncludeOutgoing           bool   `json:"include_outgoing"`
 	FilterIncomingByPaymentId uint64 `json:"filter_incoming_by_payment_id"`
+	TransferType              string `json:"transfer_type"` // incoming or outgoing
+	Page                      uint64 `json:"page"`
 }
 type GetHistoryResponse struct {
-	Incoming []TxInfo `json:"incoming,omitempty"`
-	Outgoing []TxInfo `json:"outgoing,omitempty"`
+	Transactions []TxInfo `json:"transactions"`
+	MaxPage      uint64   `json:"max_page"`
 }
 
 type Output struct {

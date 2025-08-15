@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/rpc"
@@ -67,92 +68,57 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
-		var inc []walletrpc.TxInfo
-		var out []walletrpc.TxInfo
-
-		if params.IncludeIncoming {
-			inc = []walletrpc.TxInfo{}
-
-			var page uint64 = 0
-			for {
-				txlist, err := w.GetTransactions(true, page)
-				if err != nil {
-					c.ErrorResponse(&rpc.Error{
-						Code:    internalReadFailed,
-						Message: "failed to get transactions",
-					})
-					Log.Warn(err)
-					return
-				}
-				for _, tx := range txlist.Transactions {
-					txinfo := walletrpc.TxInfo{
-						Hash: tx,
-					}
-					okToAdd := true
-					if params.IncludeTxData {
-						txres, err := w.GetTransaction(tx)
-						if err != nil {
-							Log.Warn(err)
-						} else {
-							txinfo.Data = txres
-						}
-						if params.FilterIncomingByPaymentId != 0 {
-							okToAdd = false
-							for _, v := range txres.Outputs {
-								if v.PaymentId == params.FilterIncomingByPaymentId {
-									okToAdd = true
-									break
-								}
-							}
-						}
-					}
-					if okToAdd {
-						inc = append(inc, txinfo)
-					}
-				}
-				if txlist.MaxPage <= page {
-					break
-				}
-			}
+		txns, err := w.GetTransactions(strings.HasPrefix(strings.ToLower(params.TransferType), "inc"), uint64(params.Page))
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "failed to get transactions",
+			})
+			return
 		}
 
-		if params.IncludeOutgoing {
-			out = []walletrpc.TxInfo{}
+		txinfo := make([]walletrpc.TxInfo, 0, len(txns.Transactions))
 
-			var page uint64 = 0
-			for {
-				txlist, err := w.GetTransactions(false, page)
+		if params.IncludeTxData {
+			for _, txid := range txns.Transactions {
+				resp, err := w.GetTransaction(txid)
 				if err != nil {
+					Log.Warn(err)
 					c.ErrorResponse(&rpc.Error{
 						Code:    internalReadFailed,
-						Message: "failed to get transactions",
+						Message: "failed to get transaction " + txid.String(),
 					})
-					Log.Warn(err)
 					return
 				}
-				for _, tx := range txlist.Transactions {
-					txinfo := walletrpc.TxInfo{
-						Hash: tx,
-					}
-					if params.IncludeTxData {
-						txres, err := w.GetTransaction(tx)
-						if err != nil {
-							Log.Warn(err)
-						} else {
-							txinfo.Data = txres
+				if params.FilterIncomingByPaymentId != 0 {
+					ok := false
+					for _, out := range resp.Outputs {
+						if out.PaymentId == params.FilterIncomingByPaymentId && out.Recipient == w.GetAddress().Addr {
+							ok = true
+							break
 						}
 					}
-					out = append(out, txinfo)
+					if !ok {
+						continue
+					}
 				}
-				if txlist.MaxPage <= page {
-					break
-				}
+				txinfo = append(txinfo, walletrpc.TxInfo{
+					Hash: txid,
+					Data: resp,
+				})
+			}
+		} else {
+			for _, v := range txns.Transactions {
+				txinfo = append(txinfo, walletrpc.TxInfo{
+					Hash: v,
+				})
 			}
 		}
 
 		c.SuccessResponse(walletrpc.GetHistoryResponse{
-			Incoming: inc,
-			Outgoing: out,
+			Transactions: txinfo,
+			MaxPage:      txns.MaxPage,
 		})
 	})
 
