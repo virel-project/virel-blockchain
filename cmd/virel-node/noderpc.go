@@ -360,11 +360,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		err = bc.DB.View(func(tx adb.Txn) error {
-			// TODO: test if pagination works correctly
 			txType := params.TransferType
 			var startNum uint64
-			var endNum uint64
-			page := params.Page
 			var getTopoFunc = bc.GetTxTopoInc
 			switch txType {
 			case "incoming":
@@ -388,23 +385,20 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return nil
 			}
 
-			sn := startNum
-			if sn > 1 {
-				sn -= 2
-			}
-			maxPage := sn / TX_LIST_PAGE_SIZE
-
-			if page*TX_LIST_PAGE_SIZE >= startNum {
-				page = startNum / TX_LIST_PAGE_SIZE
+			// Calculate maxPage using correct ceiling division
+			var maxPage uint64
+			if startNum > 0 {
+				maxPage = (startNum - 1) / TX_LIST_PAGE_SIZE
 			}
 
+			page := params.Page
+			// Ensure requested page doesn't exceed maxPage
+			if page > maxPage {
+				page = maxPage
+			}
+
+			// Adjust startNum for pagination
 			startNum -= page * TX_LIST_PAGE_SIZE
-			if startNum > TX_LIST_PAGE_SIZE {
-				endNum = startNum - TX_LIST_PAGE_SIZE
-			} else {
-				endNum = 1
-			}
-			endNum = min(startNum, endNum)
 
 			if startNum == 0 {
 				c.SuccessResponse(daemonrpc.GetTxListResponse{
@@ -414,8 +408,22 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return nil
 			}
 
-			list := make([]util.Hash, 0, startNum-endNum)
+			// Calculate endNum correctly to get exactly TX_LIST_PAGE_SIZE transactions
+			endNum := startNum - TX_LIST_PAGE_SIZE + 1
+			if endNum < 1 {
+				endNum = 1
+			}
 
+			// Handle case where startNum < endNum after adjustment
+			if startNum < endNum {
+				c.SuccessResponse(daemonrpc.GetTxListResponse{
+					Transactions: []util.Hash{},
+					MaxPage:      maxPage,
+				})
+				return nil
+			}
+
+			list := make([]util.Hash, 0, startNum-endNum+1)
 			for i := endNum; i <= startNum; i++ {
 				h, err := getTopoFunc(tx, params.Address.Addr, i)
 				if err != nil {
