@@ -19,7 +19,7 @@ var Log = logger.New()
 
 var default_rpc = fmt.Sprintf("http://127.0.0.1:%d", config.RPC_BIND_PORT)
 
-func initialPrompt() *wallet.Wallet {
+func initialPrompt(daemon_address string) *wallet.Wallet {
 	l, err := readline.NewEx(&readline.Config{
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
@@ -92,7 +92,7 @@ func initialPrompt() *wallet.Wallet {
 		if cmds[0] == "open" {
 			Log.Info("opening wallet")
 
-			w, err := wallet.OpenWalletFile(default_rpc, cmds[1]+".keys", []byte(password))
+			w, err := wallet.OpenWalletFile(daemon_address, cmds[1]+".keys", []byte(password))
 			if err != nil {
 				Log.Err(err)
 				continue
@@ -110,7 +110,7 @@ func initialPrompt() *wallet.Wallet {
 			}
 
 			if cmd == "create" {
-				w, err := wallet.CreateWalletFile(default_rpc, cmds[1]+".keys", []byte(password))
+				w, err := wallet.CreateWalletFile(daemon_address, cmds[1]+".keys", []byte(password))
 				if err != nil {
 					Log.Err("Could not create wallet:", err)
 					continue
@@ -127,7 +127,7 @@ func initialPrompt() *wallet.Wallet {
 					os.Exit(0)
 				}
 
-				w, err := wallet.CreateWalletFileFromMnemonic(default_rpc, cmds[1]+".keys",
+				w, err := wallet.CreateWalletFileFromMnemonic(daemon_address, cmds[1]+".keys",
 					mnemonic, []byte(password))
 				if err != nil {
 					Log.Err(err)
@@ -147,6 +147,7 @@ func main() {
 	open_wallet := flag.String("open-wallet", "", "open a wallet file")
 	wallet_password := flag.String("wallet-password", "", "wallet password when using --open-wallet")
 	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
+	daemon_address := flag.String("daemon-address", default_rpc, "sets the daemon")
 
 	flag.Parse()
 
@@ -163,12 +164,12 @@ func main() {
 			Log.Fatal("invalid wallet name")
 		}
 		var err error
-		w, err = wallet.OpenWalletFile(default_rpc, wallname+".keys", []byte(*wallet_password))
+		w, err = wallet.OpenWalletFile(*daemon_address, wallname+".keys", []byte(*wallet_password))
 		if err != nil {
 			Log.Fatal(err)
 		}
 	} else {
-		w = initialPrompt()
+		w = initialPrompt(*daemon_address)
 	}
 
 	if *rpc_bind_port != 0 {
