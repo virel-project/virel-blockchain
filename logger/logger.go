@@ -9,7 +9,19 @@ import (
 	"strings"
 	"sync"
 	"time"
+        "golang.org/x/term"
 )
+
+var Reset = "\033[0m"
+var Red = "\033[31m"
+var Green = "\033[32m"
+var Yellow = "\033[33m"
+var Blue = "\033[34m"
+var Purple = "\033[35m"
+var Cyan = "\033[36m"
+var Gray = "\033[37m"
+var White = "\033[97m"
+var Bold = "\033[1m"
 
 var DiscardLog = &Log{
 	logLevel: 0,
@@ -33,6 +45,20 @@ type Log struct {
 }
 
 func (l *Log) SetLogLevel(lvl uint8) {
+        // colors off if not console
+        if !term.IsTerminal(int(os.Stdout.Fd())) {
+            Reset = ""
+            Red = ""
+            Green = ""
+            Yellow = ""
+            Blue = ""
+            Purple = ""
+            Cyan = ""
+            Gray = ""
+            White = ""
+            Bold = ""
+        }
+
 	l.Lock()
 	defer l.Unlock()
 
@@ -56,17 +82,6 @@ func (l *Log) SetStderr(stderr io.Writer) {
 
 	l.stderr = stderr
 }
-
-var Reset = "\033[0m"
-var Red = "\033[31m"
-var Green = "\033[32m"
-var Yellow = "\033[33m"
-var Blue = "\033[34m"
-var Purple = "\033[35m"
-var Cyan = "\033[36m"
-var Gray = "\033[37m"
-var White = "\033[97m"
-var Bold = "\033[1m"
 
 func getLogPrefix() string {
 	_, file, line, _ := runtime.Caller(2)
