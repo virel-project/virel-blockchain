@@ -213,6 +213,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			CumulativeDiff:    stats.CumulativeDiff.String(),
 			Target:            config.TARGET_BLOCK_TIME,
 			BlockReward:       block.Reward(stats.TopHeight),
+                        Version:           fmt.Sprintf("%d.%d.%d", config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH),
+                        Connections:       len(bc.P2P.Connections),
 		})
 	})
 
