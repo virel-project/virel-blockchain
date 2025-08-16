@@ -225,7 +225,7 @@ func (bc *Blockchain) SendStats(stats *Stats) {
 	defer bc.P2P.RUnlock()
 
 	for _, v := range bc.P2P.Connections {
-		v.SendPacket(&p2p.Packet{
+		go v.SendPacket(&p2p.Packet{
 			Type: packet.STATS,
 			Data: packet.PacketStats{
 				Height:         stats.TopHeight,
