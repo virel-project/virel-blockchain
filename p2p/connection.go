@@ -110,6 +110,7 @@ func (c *Connection) sendPacketLock(p pack) error {
 	ser.AddFixedByteArray(p.Data)
 	data, err := c.data.Cipher.Encrypt(ser.Output())
 	if err != nil {
+		c.mut.Unlock()
 		return err
 	}
 	c.mut.Unlock()
