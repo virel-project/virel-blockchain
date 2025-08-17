@@ -109,28 +109,21 @@ func (c *Connection) sendPacketLock(p pack) error {
 	ser.AddUint16(p.Type)
 	ser.AddFixedByteArray(p.Data)
 	data, err := c.data.Cipher.Encrypt(ser.Output())
+	c.mut.Unlock()
+
 	if err != nil {
-		c.mut.Unlock()
 		return err
 	}
-	c.mut.Unlock()
 
 	ser = binary.Ser{}
 	ser.AddUint32(uint32(len(data)))
 	ser.AddFixedByteArray(data)
 
-	err = func() error {
-		c.data.writeMut.Lock()
-		defer c.data.writeMut.Unlock()
-		c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-		_, err := c.data.Conn.Write(ser.Output())
-		return err
-	}()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	c.data.writeMut.Lock()
+	defer c.data.writeMut.Unlock()
+	c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_, err = c.data.Conn.Write(ser.Output())
+	return err
 }
 
 func (c *ConnData) SendPacket(p *Packet) error {
