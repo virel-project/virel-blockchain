@@ -74,7 +74,7 @@ func AssertHexDec(s string) []byte {
 }
 
 func init() {
-	deadlock.Opts.DeadlockTimeout = 10 * time.Second
+	deadlock.Opts.DeadlockTimeout = 20 * time.Second
 }
 
 type Mutex = deadlock.Mutex
