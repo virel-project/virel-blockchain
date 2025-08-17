@@ -29,8 +29,9 @@ type Uint128 = uint128.Uint128
 
 // Blockchain represents a Blockchain structure, for storing transactions
 type Blockchain struct {
-	DB    adb.DB
-	Index Index
+	DB      adb.DB
+	Index   Index
+	DataDir string
 
 	P2P     *p2p.P2P
 	Stratum *stratumsrv.Server
@@ -69,15 +70,16 @@ func (bc *Blockchain) IsShuttingDown() bool {
 	return bc.shutdownInfo.ShuttingDown
 }
 
-func New() *Blockchain {
+func New(dataDir string) *Blockchain {
 	bc := &Blockchain{
 		Stratum: &stratumsrv.Server{
 			NewConnections: make(chan *stratumsrv.Conn),
 		},
 	}
 
+	bc.DataDir = dataDir
 	var err error
-	bc.DB, err = lmdb.New("./"+config.NETWORK_NAME+"-lmdb/", 0755, Log)
+	bc.DB, err = lmdb.New(bc.DataDir+"/lmdb/", 0755, Log)
 	// bc.DB, err = boltdb.New("./"+config.NETWORK_NAME+".db", 0755)
 	if err != nil {
 		panic(err)
@@ -1403,7 +1405,7 @@ func (bc *Blockchain) GetBlockByHeight(tx adb.Txn, height uint64) (*block.Block,
 
 func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive bool) {
 	p2p.Log = Log
-	bc.P2P = p2p.Start(peers)
+	bc.P2P = p2p.Start(peers, bc.DataDir)
 	bc.P2P.Exclusive = exclusive
 
 	go bc.P2P.StartClients(private)
