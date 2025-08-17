@@ -3,8 +3,6 @@ package p2p
 import (
 	"encoding/json"
 	"os"
-
-	"github.com/virel-project/virel-blockchain/config"
 )
 
 func (p *P2P) savePeerlist() error {
@@ -14,12 +12,12 @@ func (p *P2P) savePeerlist() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile("./peerlist-"+config.NETWORK_NAME+".json", d, 0o660)
+	return os.WriteFile(p.DataDir+"/peerlist.json", d, 0o660)
 }
 
 // P2P must be locked before calling this
 func (p *P2P) loadPeerlist() error {
-	peerlistData, err := os.ReadFile("./peerlist-" + config.NETWORK_NAME + ".json")
+	peerlistData, err := os.ReadFile(p.DataDir + "/peerlist.json")
 	if err != nil {
 		return err
 	}

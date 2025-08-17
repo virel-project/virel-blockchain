@@ -13,8 +13,17 @@ import (
 
 var Log = logger.New()
 
+var defaultDataDir string
+
 func init() {
 	blockchain.Log = Log
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		Log.Fatal(err)
+	}
+
+	defaultDataDir = home + "/" + config.NAME + "-" + config.NETWORK_NAME
 }
 
 var cpu_profile = flag.String("cpu-profile", "", "write cpu profile to the provided file")
@@ -29,6 +38,7 @@ func main() {
 	private := flag.Bool("private", false, "if set, your ip is not advertised to the network")
 	exclusive := flag.Bool("exclusive", false, "if set, the node will not connect to suggested nodes")
 	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
+	data_dir := flag.String("data-dir", defaultDataDir, "sets the data directory which contains blockchain and peer list")
 
 	var slavechains_stratums *string
 	var stratum_wallet *string
@@ -61,7 +71,7 @@ func main() {
 		Log.Warn("Be aware that any amount transacted in", config.NETWORK_NAME, "is worthless.")
 	}
 
-	bc := blockchain.New()
+	bc := blockchain.New(*data_dir)
 
 	if config.IS_MASTERCHAIN {
 		if len(*slavechains_stratums) > 0 {

@@ -27,6 +27,7 @@ var Log = logger.DiscardLog
 const P2P_PING_INTERVAL = 15 // seconds
 
 type P2P struct {
+	DataDir string
 	Privkey *ecdh.PrivateKey
 
 	// IP:PORT -> Connection
@@ -96,7 +97,7 @@ func (p *pack) String() string {
 	return fmt.Sprintf("%d %x", p.Type, p.Data)
 }
 
-func Start(peers []string) *P2P {
+func Start(peers []string, dataDir string) *P2P {
 	pk, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
@@ -105,6 +106,7 @@ func Start(peers []string) *P2P {
 	Log.Infof("P2P public key: %x", pk.PublicKey().Bytes())
 
 	p := &P2P{
+		DataDir:        dataDir,
 		Privkey:        pk,
 		PacketsIn:      make(chan Packet),
 		NewConnections: make(chan *Connection),
