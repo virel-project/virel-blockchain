@@ -71,6 +71,9 @@ func main() {
 		Log.Warn("Be aware that any amount transacted in", config.NETWORK_NAME, "is worthless.")
 	}
 
+	err := os.MkdirAll(*data_dir, 0o664)
+	Log.Debug("failed to create data dir:", err)
+
 	bc := blockchain.New(*data_dir)
 
 	if config.IS_MASTERCHAIN {
