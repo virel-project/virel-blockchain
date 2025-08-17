@@ -101,13 +101,42 @@ func (c *ConnData) sendPacket(p pack) error {
 
 	return nil
 }
+
+func (c *Connection) sendPacketLock(p pack) error {
+	c.mut.Lock()
+	c.data.LastOutPacket = time.Now().Unix()
+	ser := binary.Ser{}
+	ser.AddUint16(p.Type)
+	ser.AddFixedByteArray(p.Data)
+	data, err := c.data.Cipher.Encrypt(ser.Output())
+	if err != nil {
+		return err
+	}
+	c.mut.Unlock()
+
+	ser = binary.Ser{}
+	ser.AddUint32(uint32(len(data)))
+	ser.AddFixedByteArray(data)
+
+	err = func() error {
+		c.data.writeMut.Lock()
+		defer c.data.writeMut.Unlock()
+		c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		_, err := c.data.Conn.Write(ser.Output())
+		return err
+	}()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *ConnData) SendPacket(p *Packet) error {
 	Log.NetDevf("Sending packet of type %s to peer %x data %x", p.Type.String(), c.PeerId, p.Data)
 	return c.sendPacket(pack{Data: p.Data, Type: uint16(p.Type) + 2})
 }
 
 func (c *Connection) SendPacket(p *Packet) error {
-	return c.Update(func(c *ConnData) error {
-		return c.SendPacket(p)
-	})
+	return c.sendPacketLock(pack{Data: p.Data, Type: uint16(p.Type) + 2})
 }
