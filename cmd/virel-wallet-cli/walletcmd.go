@@ -88,43 +88,58 @@ func prompts(w *wallet.Wallet) {
 		},
 	}, {
 		Names: []string{"transfer"},
-		Args:  "<destination> <amount>",
+		Args:  "<destination> <amount> [<destination 2>] [<amount 2>]",
 		Action: func(args []string) {
 			fmt.Println("args:", args)
-			const USAGE = "Usage: transfer <destination> <amount>"
+			const USAGE = "Usage: transfer <destination> <amount> [<destination 2>] [<amount 2>]"
 			if len(args) < 2 {
 				Log.Err(USAGE)
 				return
 			}
 
-			dst, err := address.FromString(args[0])
-			if err != nil {
-				Log.Err("invalid destination:", err)
-				return
-			}
+			outputs := []transaction.Output{}
+			var totalAmt uint64 = 0
 
-			xbal, err := strconv.ParseFloat(args[1], 64)
-			if err != nil {
-				Log.Err("invalid amount:", err)
-				return
-			}
+			for len(args) >= 2 {
+				dst, err := address.FromString(args[0])
+				if err != nil {
+					Log.Err("invalid destination:", err)
+					return
+				}
 
-			var amt = uint64(xbal * config.COIN)
+				xbal, err := strconv.ParseFloat(args[1], 64)
+				if err != nil {
+					Log.Err("invalid amount:", err)
+					return
+				}
 
-			if amt < 1 || amt > w.GetBalance() {
-				Log.Errf("transaction spends too much money, wallet balance is: %s", util.FormatCoin(w.GetBalance()))
-				return
-			}
+				var amt = int64(xbal * config.COIN)
 
-			Log.Info("transferring", util.FormatCoin(amt), "to", dst)
+				if amt < 1 {
+					Log.Errf("invalid output amount: %d", amt)
+					return
+				}
+				totalAmt += uint64(amt)
+				if totalAmt > w.GetBalance() {
+					Log.Errf("transaction spends too much money, wallet balance is: %s", util.FormatCoin(w.GetBalance()))
+					return
+				}
 
-			txn, err := w.Transfer([]transaction.Output{
-				{
-					Amount:    amt,
+				outputs = append(outputs, transaction.Output{
+					Amount:    uint64(amt),
 					Recipient: dst.Addr,
 					PaymentId: dst.PaymentId,
-				},
-			})
+				})
+			}
+
+			if len(outputs) == 0 {
+				Log.Err(USAGE)
+				return
+			}
+
+			Log.Info("transferring", totalAmt)
+
+			txn, err := w.Transfer(outputs)
 			if err != nil {
 				Log.Err(err)
 				return
