@@ -107,6 +107,7 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 			}
 			if string(confirmPass) != string(password) {
 				Log.Err("password doesn't match")
+				continue
 			}
 
 			if cmd == "create" {

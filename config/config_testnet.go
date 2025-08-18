@@ -9,6 +9,8 @@ const NETWORK_ID uint64 = 0x5af15cf1542ba49a // Network identifier. It MUST be u
 
 const NETWORK_NAME = "testnet"
 
+const MIN_DIFFICULTY = 1000
+
 // GENESIS BLOCK INFO
 const GENESIS_ADDRESS = "so3yexhnu89af4aai83uou17dupb79c3gxng1q"
 const GENESIS_TIMESTAMP = 0

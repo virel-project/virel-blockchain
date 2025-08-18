@@ -16,7 +16,7 @@ func TestAddress(t *testing.T) {
 	str := x.String()
 	t.Log(str)
 
-	if str != "s7xxb13ng6gzd3tugb8nqzx28btuq0ihkhqxm6" {
+	if str != "v7xxb13ng6gzd3tugb8nqzx28btuq0ihkhqxm6" {
 		t.Error("address is not valid")
 	}
 

@@ -21,11 +21,11 @@ const STRATUM_JOBS_HISTORY = MINIDAG_ANCESTORS
 
 var ATOMIC = math.Round(math.Log10(COIN))
 
-const WALLET_PREFIX = "s" // Wallet prefix should be the same for all merge mined chains
+const WALLET_PREFIX = "v" // Wallet prefix should be the same for all merge mined chains
 
 // True if the current chain is a Master Chain; if false, the node will try connecting to the masterchain
 // node to send Merge Mining jobs
-const IS_MASTERCHAIN = NETWORK_ID == 0x4af15cf1542ba49a // do not change this
+const IS_MASTERCHAIN = NETWORK_ID == 0xd38dab1d4676d0c5 // do not change this
 
 const PARALLEL_BLOCKS_DOWNLOAD = 50
 
