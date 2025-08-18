@@ -43,7 +43,9 @@ func (bc *Blockchain) StartStratum(bindIp string, bindPort uint16) {
 			err := bc.handleConn(conn)
 			if err != nil {
 				Log.Warn(err)
+				bc.Stratum.Lock()
 				bc.Stratum.Kick(conn)
+				bc.Stratum.Unlock()
 			}
 		}()
 	}

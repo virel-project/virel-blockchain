@@ -99,6 +99,7 @@ func (s *Server) StartStratum(ip string, port uint16) error {
 	}
 }
 
+// Server MUST be locked before calling this
 func (s *Server) Kick(c *Conn) {
 	c.Update(func(c *ConnData) error {
 		c.Conn.Close()
