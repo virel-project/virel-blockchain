@@ -11,7 +11,7 @@ require (
 	github.com/zeebo/blake3 v0.2.4
 	go.etcd.io/bbolt v1.4.2
 	golang.org/x/crypto v0.40.0
-        golang.org/x/term v0.33.0
+	golang.org/x/term v0.33.0
 )
 
 require (

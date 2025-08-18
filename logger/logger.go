@@ -9,7 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
-        "golang.org/x/term"
+
+	"golang.org/x/term"
 )
 
 var Reset = "\033[0m"
@@ -45,19 +46,19 @@ type Log struct {
 }
 
 func (l *Log) SetLogLevel(lvl uint8) {
-        // colors off if not console
-        if !term.IsTerminal(int(os.Stdout.Fd())) {
-            Reset = ""
-            Red = ""
-            Green = ""
-            Yellow = ""
-            Blue = ""
-            Purple = ""
-            Cyan = ""
-            Gray = ""
-            White = ""
-            Bold = ""
-        }
+	// colors off if not console
+	if !term.IsTerminal(int(os.Stdout.Fd())) {
+		Reset = ""
+		Red = ""
+		Green = ""
+		Yellow = ""
+		Blue = ""
+		Purple = ""
+		Cyan = ""
+		Gray = ""
+		White = ""
+		Bold = ""
+	}
 
 	l.Lock()
 	defer l.Unlock()

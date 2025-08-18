@@ -37,7 +37,7 @@ type GetInfoResponse struct {
 	Target            int       `json:"target_block_time"`
 	BlockReward       uint64    `json:"block_reward"`
 	Version           string    `json:"version"`
-        Connections       int       `json:"peers"`
+	Connections       int       `json:"peers"`
 }
 
 type GetAddressRequest struct {
