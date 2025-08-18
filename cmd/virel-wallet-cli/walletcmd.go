@@ -120,8 +120,9 @@ func prompts(w *wallet.Wallet) {
 					return
 				}
 				totalAmt += uint64(amt)
-				if totalAmt > w.GetBalance() {
-					Log.Errf("transaction spends too much money, wallet balance is: %s", util.FormatCoin(w.GetBalance()))
+				balance := w.GetBalance()
+				if totalAmt > balance {
+					Log.Errf("transaction spends too much money (%s), wallet balance is: %s", util.FormatCoin(balance))
 					return
 				}
 
@@ -130,6 +131,8 @@ func prompts(w *wallet.Wallet) {
 					Recipient: dst.Addr,
 					PaymentId: dst.PaymentId,
 				})
+
+				args = args[2:]
 			}
 
 			if len(outputs) == 0 {
