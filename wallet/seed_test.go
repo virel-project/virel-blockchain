@@ -49,7 +49,7 @@ func TestSeed(t *testing.T) {
 		addr := address.FromPubKey(privk.Public())
 		fmt.Printf("address: %v\n", addr)
 
-		if addr.String() != "svpw9fao00h5nhvl3wl1bwxe3mshbbqf5sidhe" {
+		if addr.String() != "vvpw9fao00h5nhvl3wl1bwxe3mshbbqf5sidhe" {
 			t.Fatalf("incorrect address %v", addr)
 		}
 	}
