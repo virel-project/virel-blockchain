@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Matches tags starting with 'v'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc
+          # Additional dependencies for Windows cross-compilation
+          sudo apt-get install -y gcc-mingw-w64 g++-mingw-w64
+
+      - name: Get tag version
+        id: tag
+        run: echo "TAG_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build for Linux amd64
+        run: |
+          # Create output directory
+          mkdir -p bin/linux-amd64
+          
+          # Build both binaries
+          GOOS=linux GOARCH=amd64 go build -o bin/linux-amd64/virel-node ./cmd/virel-node
+          GOOS=linux GOARCH=amd64 go build -o bin/linux-amd64/virel-wallet-cli ./cmd/virel-wallet-cli
+          
+          # Create archive with both binaries
+          tar -czf "bin/virel-linux-amd64-${{ env.TAG_VERSION }}.tar.gz" -C bin/linux-amd64 .
+
+      - name: Build for Windows amd64
+        run: |
+          # Create output directory
+          mkdir -p bin/windows-amd64
+          
+          # Build both binaries
+          GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 \
+            go build -o bin/windows-amd64/virel-node.exe ./cmd/virel-node
+          GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc CGO_ENABLED=1 \
+            go build -o bin/windows-amd64/virel-wallet-cli.exe ./cmd/virel-wallet-cli
+          
+          # Create archive with both binaries
+          zip -j "bin/virel-windows-amd64-${{ env.TAG_VERSION }}.zip" bin/windows-amd64/*.exe
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create ${{ github.ref_name }}
+          --generate-notes
+          --title "Version ${{ github.ref_name }}"
+          bin/virel-linux-amd64-${{ env.TAG_VERSION }}.tar.gz
+          bin/virel-windows-amd64-${{ env.TAG_VERSION }}.zip
