@@ -203,6 +203,14 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			outs[i].Amount = v.Amount
 			outs[i].Recipient = v.Recipient.Addr
 			outs[i].PaymentId = v.Recipient.PaymentId
+
+			if outs[i].Recipient == address.INVALID_ADDRESS {
+				c.ErrorResponse(&rpc.Error{
+					Code:    -1,
+					Message: fmt.Sprintf("cannot transfer to invalid address %v", outs[i].Recipient),
+				})
+				return
+			}
 		}
 		tx, err := w.Transfer(outs)
 		if err != nil {
