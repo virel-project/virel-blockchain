@@ -70,7 +70,7 @@ func (b Block) String() string {
 	}
 	x += "Transactions: " + strconv.FormatUint(uint64(len(b.Transactions)), 10) + "\n"
 	for _, v := range b.Transactions {
-		x += fmt.Sprintf(" - %x\n", v)
+		x += fmt.Sprintf(" - %s\n", v)
 	}
 	x += "Side blocks: " + strconv.FormatUint(uint64(len(b.SideBlocks)), 10) + "\n"
 	for _, v := range b.SideBlocks {
