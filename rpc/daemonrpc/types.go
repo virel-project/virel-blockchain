@@ -92,11 +92,13 @@ type CalcPowResponse struct {
 	Hash util.Hash `json:"hash"`
 }
 
-// TODO: implement these methods in the daemon
-type GetBlockTemplateRequest struct {
-	Address address.Integrated `json:"address"`
+type ValidateAddressRequest struct {
+	Address string `json:"address"`
 }
-type GetBlockTemplateResponse struct {
-	Blob       enc.Hex `json:"blob"`
-	MiningBlob enc.Hex `json:"mining_blob"`
+type ValidateAddressResponse struct {
+	Address      string `json:"address"`
+	Valid        bool   `json:"valid"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	MainAddress  string `json:"main_address"`
+	PaymentId    uint64 `json:"payment_id"`
 }

@@ -442,7 +442,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {
 		params := daemonrpc.GetBlockByHeightRequest{}
-
 		err := c.GetParams(&params)
 		if err != nil {
 			return
@@ -468,6 +467,40 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			TotalReward: bl.Reward(),
 			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
 			Miner:       bl.Recipient.String(),
+		})
+	})
+
+	rs.Handle("validate_address", func(c *rpcserver.Context) {
+		params := daemonrpc.ValidateAddressRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		addr, err := address.FromString(params.Address)
+		if err != nil {
+			c.SuccessResponse(daemonrpc.ValidateAddressResponse{
+				Address:      params.Address,
+				Valid:        false,
+				ErrorMessage: err.Error(),
+			})
+			return
+		}
+
+		if addr.Addr == address.INVALID_ADDRESS {
+			c.SuccessResponse(daemonrpc.ValidateAddressResponse{
+				Address:      params.Address,
+				Valid:        false,
+				ErrorMessage: "address is the zero address",
+			})
+			return
+		}
+
+		c.SuccessResponse(daemonrpc.ValidateAddressResponse{
+			Address:     params.Address,
+			Valid:       true,
+			MainAddress: addr.Addr.String(),
+			PaymentId:   addr.PaymentId,
 		})
 	})
 

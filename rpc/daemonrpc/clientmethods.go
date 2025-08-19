@@ -40,3 +40,8 @@ func (r *RpcClient) CalcPow(p CalcPowRequest) (*CalcPowResponse, error) {
 	o := &CalcPowResponse{}
 	return o, r.Request("calc_pow", p, &o)
 }
+
+func (r *RpcClient) ValidateAddress(p ValidateAddressRequest) (*ValidateAddressResponse, error) {
+	o := &ValidateAddressResponse{}
+	return o, r.Request("validate_address", p, &o)
+}
