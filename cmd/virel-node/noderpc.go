@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"sort"
 
 	"github.com/virel-project/virel-blockchain/adb"
 	"github.com/virel-project/virel-blockchain/address"
@@ -525,15 +526,25 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 							Address: address.Address(k).String(),
 							State:   s,
 						})
+						// Sort the slice when we reach the count
+						if len(resp.Richest) == COUNT {
+							sort.Slice(resp.Richest, func(i, j int) bool {
+								return resp.Richest[i].State.Balance > resp.Richest[j].State.Balance
+							})
+						}
 					} else {
-						for i, v := range resp.Richest {
-							if v.State.Balance < s.Balance {
-								resp.Richest[i] = daemonrpc.StateInfo{
-									Address: address.Address(k).String(),
-									State:   s,
-								}
-								break
+						// Check if this address has a higher balance than the smallest in our list
+						if s.Balance > resp.Richest[COUNT-1].State.Balance {
+							// Replace the smallest balance
+							resp.Richest[COUNT-1] = daemonrpc.StateInfo{
+								Address: address.Address(k).String(),
+								State:   s,
 							}
+
+							// Re-sort the slice to maintain order
+							sort.Slice(resp.Richest, func(i, j int) bool {
+								return resp.Richest[i].State.Balance > resp.Richest[j].State.Balance
+							})
 						}
 					}
 
