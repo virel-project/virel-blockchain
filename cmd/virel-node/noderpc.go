@@ -433,9 +433,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 		if err != nil {
 			Log.Debug(err)
-			c.ErrorResponse(&rpc.Error{
-				Code:    internalReadFailed,
-				Message: "address not in state",
+			c.SuccessResponse(daemonrpc.GetTxListResponse{
+				Transactions: []util.Hash{},
+				MaxPage:      0,
 			})
 		}
 	})
