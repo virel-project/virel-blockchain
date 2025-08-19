@@ -3,6 +3,7 @@ package daemonrpc
 import (
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/block"
+	"github.com/virel-project/virel-blockchain/blockchain"
 	"github.com/virel-project/virel-blockchain/transaction"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/virel-project/virel-blockchain/util/enc"
@@ -101,4 +102,14 @@ type ValidateAddressResponse struct {
 	ErrorMessage string `json:"error_message,omitempty"`
 	MainAddress  string `json:"main_address"`
 	PaymentId    uint64 `json:"payment_id"`
+}
+
+type StateInfo struct {
+	Address string
+	State   *blockchain.State
+}
+type RichListRequest struct {
+}
+type RichListResponse struct {
+	Richest []StateInfo
 }

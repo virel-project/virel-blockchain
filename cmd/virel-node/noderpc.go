@@ -505,6 +505,56 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 	})
 
 	if !restricted {
+		rs.Handle("rich_list", func(c *rpcserver.Context) {
+			const COUNT = 25
+
+			resp := daemonrpc.RichListResponse{
+				Richest: make([]daemonrpc.StateInfo, 0, COUNT),
+			}
+
+			err := bc.DB.View(func(txn adb.Txn) error {
+				return txn.ForEach(bc.Index.State, func(k, v []byte) error {
+					s := &blockchain.State{}
+					err := s.Deserialize(v)
+					if err != nil {
+						return err
+					}
+
+					if len(resp.Richest) < COUNT {
+						resp.Richest = append(resp.Richest, daemonrpc.StateInfo{
+							Address: address.Address(k).String(),
+							State:   s,
+						})
+					} else {
+						for i, v := range resp.Richest {
+							if v.State.Balance < s.Balance {
+								resp.Richest[i] = daemonrpc.StateInfo{
+									Address: address.Address(k).String(),
+									State:   s,
+								}
+								break
+							}
+						}
+					}
+
+					return nil
+				})
+			})
+			if err != nil {
+				Log.Err(err)
+				c.ErrorResponse(&rpc.Error{
+					Code: internalReadFailed,
+				})
+				return
+			}
+
+			slices.SortStableFunc(resp.Richest, func(a, b daemonrpc.StateInfo) int {
+				return int(b.State.Balance) - int(a.State.Balance)
+			})
+
+			c.SuccessResponse(resp)
+		})
+
 		rs.Handle("calc_pow", func(c *rpcserver.Context) {
 			params := daemonrpc.CalcPowRequest{}
 
