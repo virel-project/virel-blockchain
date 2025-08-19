@@ -3,6 +3,7 @@ package address
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"hash/crc32"
 	"math/big"
 
@@ -33,13 +34,13 @@ func FromString(p string) (Integrated, error) {
 
 	bigi, success := big.NewInt(0).SetString(p, 36)
 	if !success {
-		return Integrated{}, errors.New("invalid address")
+		return Integrated{}, errors.New("invalid address base36 encoding")
 	}
 
 	data := bigi.Bytes()
 
 	if len(data) < SIZE+2 {
-		return Integrated{}, errors.New("invalid address")
+		return Integrated{}, fmt.Errorf("invalid address size: %d", len(data))
 	}
 
 	sum := checksum(data[len(data)-SIZE:])
