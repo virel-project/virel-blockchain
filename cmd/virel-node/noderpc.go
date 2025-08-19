@@ -506,7 +506,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 	if !restricted {
 		rs.Handle("rich_list", func(c *rpcserver.Context) {
-			const COUNT = 25
+			const COUNT = 100
 
 			resp := daemonrpc.RichListResponse{
 				Richest: make([]daemonrpc.StateInfo, 0, COUNT),
