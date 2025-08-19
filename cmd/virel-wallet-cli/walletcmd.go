@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -59,6 +58,22 @@ func (c Commands) Do(line []rune, pos int) (newLine [][]rune, length int) {
 }
 
 func prompts(w *wallet.Wallet) {
+	l, err := readline.NewEx(&readline.Config{
+		Prompt:          "\033[32m>\033[0m ",
+		AutoComplete:    commands,
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+
+		HistorySearchFold: true,
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+
+	Log.SetStdout(l.Stdout())
+	Log.SetStderr(l.Stderr())
+
 	commands = append(commands, []Cmd{{
 		Names: []string{"status", "info", "balance", "addr", "address"},
 		Args:  "",
@@ -90,7 +105,6 @@ func prompts(w *wallet.Wallet) {
 		Names: []string{"transfer"},
 		Args:  "<destination> <amount> [<destination 2>] [<amount 2>]",
 		Action: func(args []string) {
-			fmt.Println("args:", args)
 			const USAGE = "Usage: transfer <destination> <amount> [<destination 2>] [<amount 2>]"
 			if len(args) < 2 {
 				Log.Err(USAGE)
@@ -140,15 +154,28 @@ func prompts(w *wallet.Wallet) {
 				return
 			}
 
-			Log.Info("transferring", totalAmt)
+			for _, v := range outputs {
+				Log.Infof("%v receives %v", v.Recipient, util.FormatCoin(v.Amount))
+			}
 
 			txn, err := w.Transfer(outputs)
 			if err != nil {
 				Log.Err(err)
 				return
 			}
+			Log.Infof("Amount: %v", util.FormatCoin(totalAmt))
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalAmt+txn.Fee))
 
-			Log.Infof("transaction has been generated, fee: %s", util.FormatCoin(txn.Fee))
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
 
 			submitRes, err := w.SubmitTx(txn)
 			if err != nil {
@@ -204,22 +231,6 @@ func prompts(w *wallet.Wallet) {
 			Log.Infof("Write down this mnemonic seed phrase on a secure offline medium (e.g. paper) to recover your wallet.")
 		},
 	}}...)
-
-	l, err := readline.NewEx(&readline.Config{
-		Prompt:          "\033[32m>\033[0m ",
-		AutoComplete:    commands,
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-
-		HistorySearchFold: true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	defer l.Close()
-
-	Log.SetStdout(l.Stdout())
-	Log.SetStderr(l.Stderr())
 
 	for {
 		line, err := l.ReadLine()

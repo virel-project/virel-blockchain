@@ -100,6 +100,15 @@ func getTime() string {
 	return s + " "
 }
 
+func (l *Log) Prompt(a ...any) {
+	l.Lock()
+	defer l.Unlock()
+	if l.logLevel < 1 {
+		return
+	}
+	l.stdout.Write([]byte(fmt.Sprint(a...) + Reset))
+}
+
 func (l *Log) Info(a ...any) {
 	l.Lock()
 	defer l.Unlock()
