@@ -42,7 +42,7 @@ type GetInfoResponse struct {
 }
 
 type GetAddressRequest struct {
-	Address address.Integrated `json:"address"`
+	Address string `json:"address"`
 }
 type GetAddressResponse struct {
 	Balance         uint64 `json:"balance"`

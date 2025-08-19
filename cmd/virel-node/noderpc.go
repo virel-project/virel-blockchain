@@ -276,7 +276,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		if params.Address.Addr == address.INVALID_ADDRESS {
+		addr, err := address.FromString(params.Address)
+		if err != nil {
 			c.ErrorResponse(&rpc.Error{
 				Code:    invalidParams,
 				Message: "invalid wallet address",
@@ -287,7 +288,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		result := daemonrpc.GetAddressResponse{}
 
 		err = bc.DB.View(func(tx adb.Txn) error {
-			state, err := bc.GetState(tx, params.Address.Addr)
+			state, err := bc.GetState(tx, addr.Addr)
 			if err != nil {
 				Log.Debug(err)
 				return err
@@ -317,14 +318,14 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			for _, v := range mem.Entries {
-				if v.Sender == params.Address.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == params.Address.Addr }) {
+				if v.Sender == addr.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
 					Log.Devf("adding txn %x", v.TXID)
 					txn, _, err := bc.GetTx(txn, v.TXID)
 					if err != nil {
 						Log.Err(err)
 						return err
 					}
-					if v.Sender == params.Address.Addr {
+					if v.Sender == addr.Addr {
 						result.MempoolBalance -= txn.TotalAmount()
 						result.MempoolNonce++
 						// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
@@ -334,7 +335,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 					}
 
 					for _, out := range v.Outputs {
-						if out.Recipient == params.Address.Addr {
+						if out.Recipient == addr.Addr {
 							result.MempoolBalance += out.Amount
 						}
 					}
