@@ -149,7 +149,7 @@ func (w *Wallet) Refresh() error {
 	}
 
 	res, err := w.rpc.GetAddress(daemonrpc.GetAddressRequest{
-		Address: w.dbInfo.Address,
+		Address: w.dbInfo.Address.String(),
 	})
 	if err != nil {
 		return err
