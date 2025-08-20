@@ -201,7 +201,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 				add := false
 				for _, v := range txres.Outputs {
 					if v.Recipient == params.Subaddress.Addr && v.PaymentId == params.Subaddress.PaymentId {
-						if txres.Height == 0 || txres.Height+params.Confirmations > height {
+						if txres.Height == 0 || txres.Height+params.Confirmations >= height {
 							res.MempoolTotalReceived += v.Amount
 							add = true
 						} else {
