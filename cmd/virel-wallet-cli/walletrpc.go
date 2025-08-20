@@ -157,12 +157,29 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
+		if params.Confirmations == 0 {
+			params.Confirmations = 1
+		}
+
 		res := walletrpc.GetSubaddressResponse{
 			PaymentId:            params.Subaddress.PaymentId,
 			Subaddress:           *params.Subaddress,
 			TotalReceived:        0,
 			MempoolTotalReceived: 0,
+			Transactions:         []walletrpc.TxInfo{},
 		}
+
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "refresh failed",
+			})
+			return
+		}
+
+		height := w.GetHeight()
 
 		var page uint64 = 0
 		for {
@@ -181,14 +198,23 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 					Log.Err(err)
 					continue
 				}
+				add := false
 				for _, v := range txres.Outputs {
 					if v.Recipient == params.Subaddress.Addr && v.PaymentId == params.Subaddress.PaymentId {
-						if txres.Height == 0 {
+						if txres.Height == 0 || txres.Height+params.Confirmations > height {
 							res.MempoolTotalReceived += v.Amount
+							add = true
 						} else {
 							res.TotalReceived += v.Amount
+							add = true
 						}
 					}
+				}
+				if add {
+					res.Transactions = append(res.Transactions, walletrpc.TxInfo{
+						Hash: tx,
+						Data: txres,
+					})
 				}
 			}
 			page++

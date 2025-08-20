@@ -69,12 +69,14 @@ type RefreshResponse struct {
 }
 
 type GetSubaddressRequest struct {
-	PaymentId  uint64              `json:"payment_id,omitempty"`
-	Subaddress *address.Integrated `json:"subaddress,omitempty"`
+	PaymentId     uint64              `json:"payment_id,omitempty"`
+	Subaddress    *address.Integrated `json:"subaddress,omitempty"`
+	Confirmations uint64              `json:"confirmations"`
 }
 type GetSubaddressResponse struct {
 	PaymentId            uint64             `json:"payment_id"`
 	Subaddress           address.Integrated `json:"subaddress"`
 	TotalReceived        uint64             `json:"total_received"`
 	MempoolTotalReceived uint64             `json:"mempool_total_received"`
+	Transactions         []TxInfo           `json:"transactions"`
 }
