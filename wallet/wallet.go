@@ -228,6 +228,17 @@ func (w *Wallet) Transfer(outputs []transaction.Output) (*transaction.Transactio
 		}
 	}
 
+	for i := 0; i < len(outputs); i++ {
+		for j := i + 1; j < len(outputs); j++ {
+			if outputs[i].Recipient == outputs[j].Recipient && outputs[i].PaymentId == outputs[j].PaymentId {
+				outputs[i].Amount += outputs[j].Amount
+				// Remove the duplicate by slicing
+				outputs = append(outputs[:j], outputs[j+1:]...)
+				j-- // Adjust index since we removed an element
+			}
+		}
+	}
+
 	txn := &transaction.Transaction{
 		Sender:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
