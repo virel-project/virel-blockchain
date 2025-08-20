@@ -129,9 +129,17 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
-		if params.Subaddress.Addr == address.INVALID_ADDRESS {
-			params.Subaddress.Addr = w.GetAddress().Addr
+		if params.Subaddress == nil {
+			wa := w.GetAddress()
+			params.Subaddress = &wa
 			params.Subaddress.PaymentId = params.PaymentId
+		}
+		if params.Subaddress.Addr == address.INVALID_ADDRESS {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "invalid subaddress",
+			})
+			return
 		}
 
 		if params.Subaddress.Addr != w.GetAddress().Addr {
@@ -151,7 +159,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 
 		res := walletrpc.GetSubaddressResponse{
 			PaymentId:            params.Subaddress.PaymentId,
-			Subaddress:           params.Subaddress,
+			Subaddress:           *params.Subaddress,
 			TotalReceived:        0,
 			MempoolTotalReceived: 0,
 		}
@@ -183,6 +191,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 					}
 				}
 			}
+			page++
 			if txlist.MaxPage <= page {
 				break
 			}

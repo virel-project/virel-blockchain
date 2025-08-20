@@ -43,18 +43,17 @@ func FromString(p string) (Integrated, error) {
 		return Integrated{}, fmt.Errorf("invalid address size: %d", len(data))
 	}
 
-	sum := checksum(data[len(data)-SIZE:])
+	sum := checksum(data[2:])
 	if data[0] != sum[0] || data[1] != sum[1] {
-		return Integrated{}, errors.New("invalid address checksum")
+		return Integrated{}, fmt.Errorf("invalid address checksum %x%x calculated %x%x", data[0], data[1], sum[0], sum[1])
 	}
 
 	var subaddr uint64 = 0
-	if len(data) == SIZE+2 {
-		var code int
-		subaddr, code = binary.Uvarint(data[2+SIZE:])
-		if code < 0 {
-			return Integrated{}, errors.New("invalid integrated value")
-		}
+	if len(data) > SIZE+2 {
+		paymentIDBytes := data[SIZE+2:]
+		b := make([]byte, 8)
+		copy(b, paymentIDBytes)
+		subaddr = binary.LittleEndian.Uint64(b)
 	}
 
 	return Integrated{
@@ -87,12 +86,7 @@ type Integrated struct {
 func (a Integrated) bytes() []byte {
 	b := a.Addr[:]
 
-	sbytes := make([]byte, 8)
-	binary.LittleEndian.PutUint64(sbytes, a.PaymentId)
-	for len(sbytes) > 0 && sbytes[len(sbytes)-1] == 0 {
-		sbytes = sbytes[:len(sbytes)-2]
-	}
-	b = append(b, sbytes...)
+	b = append(b, Uint64ToCompactLittleEndian(a.PaymentId)...)
 
 	return append(checksum(b), b...)
 }
@@ -137,4 +131,27 @@ func init() {
 		panic(err)
 	}
 	GenesisAddress = addr.Addr
+}
+
+func Uint64ToCompactLittleEndian(n uint64) []byte {
+	// Handle zero case - return empty slice
+	if n == 0 {
+		return []byte{}
+	}
+
+	// Convert to little-endian byte slice (8 bytes)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, n)
+
+	// Find the index of the last non-zero byte
+	lastNonZero := 0
+	for i := len(bytes) - 1; i >= 0; i-- {
+		if bytes[i] != 0 {
+			lastNonZero = i
+			break
+		}
+	}
+
+	// Return slice up to and including the last non-zero byte
+	return bytes[:lastNonZero+1]
 }
