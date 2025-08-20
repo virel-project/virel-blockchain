@@ -45,3 +45,8 @@ func (r *RpcClient) ValidateAddress(p ValidateAddressRequest) (*ValidateAddressR
 	o := &ValidateAddressResponse{}
 	return o, r.Request("validate_address", p, &o)
 }
+
+func (r *RpcClient) GetRichList(p RichListRequest) (*RichListResponse, error) {
+	o := &RichListResponse{}
+	return o, r.Request("rich_list", p, &o)
+}
