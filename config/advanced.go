@@ -16,7 +16,7 @@ const SEEDHASH_DURATION = 4 * (60 * 60 * 24) // seed hash changes once every 4 d
 
 const BLOCKS_PER_DAY = 60 * 60 * 24 / TARGET_BLOCK_TIME
 
-const STRATUM_READ_TIMEOUT = 90 * time.Second
+const STRATUM_READ_TIMEOUT = 5 * 60 * time.Second
 const STRATUM_JOBS_HISTORY = MINIDAG_ANCESTORS
 
 var ATOMIC = math.Round(math.Log10(COIN))
