@@ -141,6 +141,7 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 }
 
 func main() {
+	version := flag.Bool("version", false, "prints version and exits")
 	log_level := flag.Uint("log-level", 1, "sets the log level (range: 0-3)")
 	rpc_bind_ip := flag.String("rpc-bind-ip", "127.0.0.1", "starts RPC server on this IP")
 	rpc_bind_port := flag.Uint("rpc-bind-port", 0, "starts RPC server on this port")
@@ -151,6 +152,11 @@ func main() {
 	daemon_address := flag.String("daemon-address", default_rpc, "sets the daemon")
 
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("%s-wallet-cli v%v.%v.%v", config.NAME, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
+		os.Exit(0)
+	}
 
 	Log.SetLogLevel(uint8(*log_level))
 

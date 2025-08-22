@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"runtime/pprof"
 	"strings"
@@ -29,6 +30,7 @@ func init() {
 var cpu_profile = flag.String("cpu-profile", "", "write cpu profile to the provided file")
 
 func main() {
+	version := flag.Bool("version", false, "prints version and exits")
 	p2p_bind_port := flag.Uint("p2p-bind-port", config.P2P_BIND_PORT, "starts P2P server on this port")
 	public_rpc := flag.Bool("public-rpc", false, "required for public RPC nodes: blocks private RPC calls and binds on 0.0.0.0")
 	rpc_bind_port := flag.Uint("rpc-bind-port", config.RPC_BIND_PORT, "starts RPC server on this port")
@@ -48,6 +50,11 @@ func main() {
 	}
 
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("%s-wallet-cli v%v.%v.%v", config.NAME, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
+		os.Exit(0)
+	}
 
 	if *cpu_profile != "" {
 		f, err := os.Create(*cpu_profile)
