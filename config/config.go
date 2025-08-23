@@ -6,7 +6,7 @@ const NAME = "virel"
 
 const VERSION_MAJOR = 1
 const VERSION_MINOR = 2
-const VERSION_PATCH = 1
+const VERSION_PATCH = 2
 
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // ~0.06 coins per tx
