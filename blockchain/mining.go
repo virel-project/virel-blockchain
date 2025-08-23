@@ -174,9 +174,12 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		bl.Transactions = append(bl.Transactions, v.TXID)
 		validEntries = append(validEntries, v)
 	}
-	mem.Entries = validEntries
 	if len(mem.Entries) != len(validEntries) {
-		bc.SetMempool(txn, mem)
+		mem.Entries = validEntries
+		err = bc.SetMempool(txn, mem)
+		if err != nil {
+			Log.Warn(err)
+		}
 	}
 
 	var min_diff uint64 = bl.Difficulty.Lo
