@@ -869,13 +869,13 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		totalAmount := tx.TotalAmount()
 
 		if senderState.Balance < totalAmount {
-			err = fmt.Errorf("transaction %x spends too much money: balance: %d, amount+fee: %d", v,
+			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount+fee: %d", v,
 				senderState.Balance, totalAmount)
 			Log.Warn(err)
 			return err
 		}
 		if tx.Nonce != senderState.LastNonce+1 {
-			err = fmt.Errorf("transaction %x has unexpected nonce: %d, previous nonce: %d", v,
+			err = fmt.Errorf("transaction %s has unexpected nonce: %d, previous nonce: %d", v,
 				tx.Nonce, senderState.LastNonce)
 			Log.Warn(err)
 			return err
