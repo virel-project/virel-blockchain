@@ -148,8 +148,11 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			}
 
 			if v.Sender == senderAddr {
+				if vt.TotalAmount() > senderState.Balance {
+					Log.Errf("previous tx entry %x total amount %d > sender balance %v", v.TXID, vt.TotalAmount(), senderState.Balance)
+					return err
+				}
 				senderState.Balance -= vt.TotalAmount()
-				senderState.Balance -= vt.Fee
 				senderState.LastNonce++
 			}
 
