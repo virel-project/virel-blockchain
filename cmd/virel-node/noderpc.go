@@ -326,12 +326,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 						return err
 					}
 					if v.Sender == addr.Addr {
+						totamt := txn.TotalAmount()
 						result.MempoolBalance -= txn.TotalAmount()
 						result.MempoolNonce++
 						// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
 						// as we consider them more trustworthy (to avoid double sending money by mistake)
-						result.Balance -= txn.TotalAmount()
-						result.LastNonce++
+						if totamt > result.Balance {
+							Log.Warnf("invalid mempool transaction %x", v.TXID)
+						} else {
+							result.Balance -= txn.TotalAmount()
+							result.LastNonce++
+						}
 					}
 
 					for _, out := range v.Outputs {

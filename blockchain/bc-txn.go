@@ -160,7 +160,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			}
 		}
 	}
-	Log.Dev("sender state after applying all the mempool transactions:", senderState)
+	Log.Debug("sender state after applying all the mempool transactions:", senderState)
 
 	if senderState.Balance < tx.TotalAmount() {
 		err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),

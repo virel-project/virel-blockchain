@@ -175,6 +175,9 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		validEntries = append(validEntries, v)
 	}
 	mem.Entries = validEntries
+	if len(mem.Entries) != len(validEntries) {
+		bc.SetMempool(txn, mem)
+	}
 
 	var min_diff uint64 = bl.Difficulty.Lo
 
