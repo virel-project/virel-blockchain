@@ -153,26 +153,28 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 	// possibly also take in account transaction age in the sorting algorithm
 	mem := bc.GetMempool(txn)
 	var totsize uint64 = 0
+	validEntries := make([]*MempoolEntry, 0, len(mem.Entries))
 	for _, v := range mem.Entries {
-		totsize += v.Size
 		if totsize+v.Size > config.MAX_BLOCK_SIZE {
-			Log.Dev("reached block max size, stop adding transactions to block")
 			break
 		}
 
-		// check that no invalid transactions are added here, as blocks received may invalidate transactions
 		memtx, _, err := bc.GetTx(txn, v.TXID)
 		if err != nil {
 			Log.Err(err)
 			continue
 		}
-		err = bc.validateMempoolTx(txn, memtx, v.TXID)
+		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries)
 		if err != nil {
 			Log.Warn("GetBlockTemplate: mempool tx is not valid:", err)
 			continue
 		}
+
+		totsize += v.Size
 		bl.Transactions = append(bl.Transactions, v.TXID)
+		validEntries = append(validEntries, v)
 	}
+	mem.Entries = validEntries
 
 	var min_diff uint64 = bl.Difficulty.Lo
 

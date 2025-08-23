@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -25,11 +26,15 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 		return nil
 	}
 
+	var mem *Mempool
+
 	// only validate the transaction if it's added to mempool: transactions added to chain are verified
 	// later, when the block is applied to state
 	if mempool {
+		mem = bc.GetMempool(txn)
+
 		// validate the transaction
-		err := bc.validateMempoolTx(txn, tx, hash)
+		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries)
 		if err != nil {
 			Log.Err("transaction is not valid in mempool:", err)
 			return err
@@ -45,7 +50,6 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 	}
 
 	if mempool {
-		mem := bc.GetMempool(txn)
 		if mem.GetEntry(hash) != nil {
 			err := fmt.Errorf("transaction %x already in mempool", hash)
 			Log.Warn(err)
@@ -117,7 +121,7 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 }
 
 // use this method to validate that a transaction in mempool is valid
-func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte) error {
+func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
 	senderAddr := address.FromPubKey(tx.Sender)
 
 	// get sender state
@@ -129,8 +133,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 	// apply all the previous mempool transactions to sender state
 	Log.Dev("sender state before applying all the mempool transactions:", senderState)
-	mem := bc.GetMempool(txn)
-	for _, v := range mem.Entries {
+	for _, v := range previousEntries {
 		if v.TXID == hash {
 			// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
 			break
@@ -160,7 +163,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	Log.Dev("sender state after applying all the mempool transactions:", senderState)
 
 	if senderState.Balance < tx.TotalAmount() {
-		err = fmt.Errorf("transaction %x spends too much money: balance: %d, amount: %d, fee: %d", hash,
+		err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
 			senderState.Balance, tx.TotalAmount(), tx.Fee)
 		Log.Warn(err)
 		return err
