@@ -148,11 +148,17 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			}
 
 			if v.Sender == senderAddr {
-				if vt.TotalAmount() > senderState.Balance {
-					Log.Errf("previous tx entry %x total amount %d > sender balance %v", v.TXID, vt.TotalAmount(), senderState.Balance)
+				totalAmount, err := vt.TotalAmount()
+				if err != nil {
+					Log.Err(err)
 					return err
 				}
-				senderState.Balance -= vt.TotalAmount()
+
+				if totalAmount > senderState.Balance {
+					Log.Errf("previous tx entry %x total amount %d > sender balance %v", v.TXID, totalAmount, senderState.Balance)
+					return err
+				}
+				senderState.Balance -= totalAmount
 				senderState.LastNonce++
 			}
 
@@ -165,9 +171,14 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	}
 	Log.Debug("sender state after applying all the mempool transactions:", senderState)
 
-	if senderState.Balance < tx.TotalAmount() {
+	totalAmount, err := tx.TotalAmount()
+	if err != nil {
+		Log.Err(err)
+		return err
+	}
+	if senderState.Balance < totalAmount {
 		err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
-			senderState.Balance, tx.TotalAmount(), tx.Fee)
+			senderState.Balance, totalAmount, tx.Fee)
 		Log.Warn(err)
 		return err
 	}

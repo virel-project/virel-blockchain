@@ -103,14 +103,20 @@ func (t Transaction) Hash() TXID {
 }
 
 // total amount of the transaction (includes fee)
-func (t Transaction) TotalAmount() uint64 {
+func (t Transaction) TotalAmount() (uint64, error) {
 	var s uint64 = t.Fee
 
 	for _, v := range t.Outputs {
+		prev := s
 		s += v.Amount
+
+		// prevent overflow on outputs
+		if prev > s {
+			return 0, errors.New("overflow on output")
+		}
 	}
 
-	return s
+	return s, nil
 }
 
 // The base overhad of all transactions. A transaction's VSize cannot be smaller than this.
@@ -189,7 +195,8 @@ func (t *Transaction) String() string {
 	o += " Signature: " + hex.EncodeToString(t.Signature[:]) + "\n"
 
 	o += " Nonce: " + util.FormatUint(t.Nonce) + "\n"
-	o += " Total amount: " + util.FormatUint(t.TotalAmount()) + "\n"
+	amount, _ := t.TotalAmount()
+	o += " Total amount: " + util.FormatUint(amount) + "\n"
 	o += " Fee: " + util.FormatUint(t.Fee)
 
 	return o
