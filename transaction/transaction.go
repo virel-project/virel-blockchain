@@ -176,7 +176,15 @@ func (t *Transaction) Prevalidate() error {
 		return fmt.Errorf("invalid signature")
 	}
 
-	// TODO: check if there is something else to prevalidate here
+	// verify that there's no overflow
+	sum := t.Fee
+	for _, v := range t.Outputs {
+		sum2 := sum + v.Amount
+		if sum2 < sum {
+			return errors.New("transaction overflow in block")
+		}
+		sum = sum2
+	}
 
 	return nil
 }
