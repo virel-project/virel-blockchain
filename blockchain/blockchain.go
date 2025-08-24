@@ -1165,7 +1165,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 
 		// set tx height to zero
-		err := bc.SetTxHeight(txn, txhash, bl.Height)
+		err := bc.SetTxHeight(txn, txhash, 0)
 		if err != nil {
 			Log.Err(err)
 			return err
