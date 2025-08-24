@@ -10,6 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/block"
 	"github.com/virel-project/virel-blockchain/checkpoints"
 	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/transaction"
 	"github.com/virel-project/virel-blockchain/util"
 )
 
@@ -47,7 +48,7 @@ func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, e
 }
 
 // Prevalidate contains basic validity check, such as PoW hash and timestamp not in future
-func (bc *Blockchain) PrevalidateBlock(b *block.Block) error {
+func (bc *Blockchain) PrevalidateBlock(b *block.Block, txs []*transaction.Transaction) error {
 	// Generally, try insering the least expensive checks first, most expensive last
 
 	if b.Version != 0 {
@@ -76,6 +77,13 @@ func (bc *Blockchain) PrevalidateBlock(b *block.Block) error {
 				return fmt.Errorf("duplicate OtherChain: %x %d; %x %d", v.Hash, v.NetworkID,
 					v2.Hash, v2.NetworkID)
 			}
+		}
+	}
+
+	for _, tx := range txs {
+		err := tx.Prevalidate()
+		if err != nil {
+			return fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
 

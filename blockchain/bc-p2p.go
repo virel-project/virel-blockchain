@@ -108,7 +108,7 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 
 	bc.queuedBlockDownloaded(hash, bl.Height)
 
-	err = bc.PrevalidateBlock(bl)
+	err = bc.PrevalidateBlock(bl, txs)
 	if err != nil {
 		Log.Warn("invalid block received:", err)
 		return

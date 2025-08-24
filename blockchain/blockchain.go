@@ -942,7 +942,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		prev := tx.Fee
 		totalFee += tx.Fee
 		if totalFee < prev {
-			return errors.New("Invalid TX fees in block")
+			return errors.New("invalid TX fees in block")
 		}
 	}
 

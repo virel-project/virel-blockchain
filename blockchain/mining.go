@@ -292,7 +292,7 @@ func (bc *Blockchain) blockFound(bl *block.Block, powHash [16]byte) ([]stratum.F
 			Ok:         true,
 		})
 		Log.Infof("Found block %x with diff %s sideblocks %v", hash, bl.Difficulty.String(), bl.SideBlocks)
-		err := bc.PrevalidateBlock(bl)
+		err := bc.PrevalidateBlock(bl, nil)
 		if err != nil {
 			Log.Warn(err)
 			return nil, err

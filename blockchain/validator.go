@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/adb"
@@ -150,7 +151,15 @@ func (v *Validator) selectAndPostprocess() {
 func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*transaction.Transaction) {
 	err := v.bc.DB.Update(func(txn adb.Txn) error {
 		for _, tx := range txs {
-			err := v.bc.AddTransaction(txn, tx, tx.Hash(), false)
+			txid := tx.Hash()
+
+			err := v.bc.validateMempoolTx(txn, tx, txid, nil)
+			if err != nil {
+				err2 := fmt.Errorf("invalid transaction in block: %w", err)
+				return err2
+			}
+
+			err = v.bc.AddTransaction(txn, tx, tx.Hash(), false)
 			if err != nil {
 				return err
 			}
