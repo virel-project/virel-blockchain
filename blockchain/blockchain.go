@@ -866,7 +866,11 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		}
 		Log.Dev("sender state before:", senderState)
 
-		totalAmount := tx.TotalAmount()
+		totalAmount, err := tx.TotalAmount()
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
 
 		if senderState.Balance < totalAmount {
 			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount+fee: %d", v,
@@ -935,7 +939,11 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		}
 
 		// apply tx to total fee
+		prev := tx.Fee
 		totalFee += tx.Fee
+		if totalFee < prev {
+			return errors.New("Invalid TX fees in block")
+		}
 	}
 
 	// add block reward to coinbase transaction
@@ -1140,7 +1148,14 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 				Log.Err(err)
 				return err
 			}
-			senderState.Balance += tx.TotalAmount()
+
+			amount, err := tx.TotalAmount()
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
+
+			senderState.Balance += amount
 			senderState.LastNonce--
 			err = bc.SetState(txn, senderAddr, senderState)
 			if err != nil {

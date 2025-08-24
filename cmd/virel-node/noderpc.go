@@ -177,9 +177,19 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		integr := address.FromPubKey(tx.Sender).Integrated()
 
+		amount, err := tx.TotalAmount()
+		if err != nil {
+			Log.Err(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "Invalid outputs in TX",
+			})
+			return
+		}
+
 		c.SuccessResponse(daemonrpc.GetTransactionResponse{
 			Sender:      &integr,
-			TotalAmount: tx.TotalAmount(),
+			TotalAmount: amount,
 			Outputs:     tx.Outputs,
 			Fee:         tx.Fee,
 			Nonce:       tx.Nonce,
@@ -326,15 +336,21 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 						return err
 					}
 					if v.Sender == addr.Addr {
-						totamt := txn.TotalAmount()
-						result.MempoolBalance -= txn.TotalAmount()
+
+						amount, err := txn.TotalAmount()
+						if err != nil {
+							Log.Err(err)
+							return err
+						}
+
+						result.MempoolBalance -= amount
 						result.MempoolNonce++
 						// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
 						// as we consider them more trustworthy (to avoid double sending money by mistake)
-						if totamt > result.Balance {
+						if amount > result.Balance {
 							Log.Warnf("invalid mempool transaction %x", v.TXID)
 						} else {
-							result.Balance -= txn.TotalAmount()
+							result.Balance -= amount
 							result.LastNonce++
 						}
 					}
