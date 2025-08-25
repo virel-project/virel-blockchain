@@ -52,7 +52,7 @@ func main() {
 
 	flag.Parse()
 
-	go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL)
+	go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
 
 	if *version {
 		fmt.Printf("%s-wallet-cli v%v.%v.%v", config.NAME, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)

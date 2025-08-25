@@ -24,9 +24,9 @@ const (
 	StatusError
 )
 
-func RunUpdateChecker(Log *logger.Log, url string) {
+func RunUpdateChecker(Log *logger.Log, url string, major, minor, patch int) {
 	Log.Info("Checking for updates")
-	status, version, err := CheckForUpdate(url)
+	status, version, err := CheckForUpdate(url, major, minor, patch)
 	if err != nil || status == StatusError {
 		Log.Warn("Error checking for updates:", err)
 		return
@@ -53,7 +53,7 @@ type githubReleaseInfo struct {
 }
 
 // CheckForUpdate checks if a newer version is available
-func CheckForUpdate(url string) (Status, string, error) {
+func CheckForUpdate(url string, major, minor, patch int) (Status, string, error) {
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -86,12 +86,12 @@ func CheckForUpdate(url string) (Status, string, error) {
 	}
 
 	remoteVersion := strings.TrimSpace(version[0])
-	status, err := compareVersions(remoteVersion)
+	status, err := compareVersions(remoteVersion, major, minor, patch)
 	return status, remoteVersion, err
 }
 
 // compareVersions compares the remote version with the current version
-func compareVersions(remoteVersion string) (Status, error) {
+func compareVersions(remoteVersion string, major, minor, patch int) (Status, error) {
 	// Parse remote version
 	remoteParts := strings.Split(remoteVersion, ".")
 	if len(remoteParts) != 3 {
@@ -114,15 +114,15 @@ func compareVersions(remoteVersion string) (Status, error) {
 	}
 
 	// Compare versions
-	if remoteMajor > config.VERSION_MAJOR {
+	if remoteMajor > major {
 		return StatusMajorUpdate, nil
 	}
 
-	if remoteMajor == config.VERSION_MAJOR && remoteMinor > config.VERSION_MINOR {
+	if remoteMajor == major && remoteMinor > minor {
 		return StatusMinorUpdate, nil
 	}
 
-	if remoteMajor == config.VERSION_MAJOR && remoteMinor == config.VERSION_MINOR && remotePatch > config.VERSION_PATCH {
+	if remoteMajor == major && remoteMinor == minor && remotePatch > patch {
 		return StatusPatchUpdate, nil
 	}
 
