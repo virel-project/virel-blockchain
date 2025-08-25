@@ -10,6 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/blockchain"
 	"github.com/virel-project/virel-blockchain/config"
 	"github.com/virel-project/virel-blockchain/logger"
+	"github.com/virel-project/virel-blockchain/util/updatechecker"
 )
 
 var Log = logger.New()
@@ -50,6 +51,8 @@ func main() {
 	}
 
 	flag.Parse()
+
+	go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL)
 
 	if *version {
 		fmt.Printf("%s-wallet-cli v%v.%v.%v", config.NAME, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
