@@ -543,10 +543,15 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 						return err
 					}
 
+					st := &daemonrpc.State{
+						Balance:      s.Balance,
+						LastIncoming: s.LastIncoming,
+						LastNonce:    s.LastNonce,
+					}
 					if len(resp.Richest) < COUNT {
 						resp.Richest = append(resp.Richest, daemonrpc.StateInfo{
 							Address: address.Address(k).String(),
-							State:   s,
+							State:   st,
 						})
 						// Sort the slice when we reach the count
 						if len(resp.Richest) == COUNT {
@@ -560,7 +565,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 							// Replace the smallest balance
 							resp.Richest[COUNT-1] = daemonrpc.StateInfo{
 								Address: address.Address(k).String(),
-								State:   s,
+								State:   st,
 							}
 
 							// Re-sort the slice to maintain order

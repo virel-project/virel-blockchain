@@ -3,7 +3,6 @@ package daemonrpc
 import (
 	"github.com/virel-project/virel-blockchain/address"
 	"github.com/virel-project/virel-blockchain/block"
-	"github.com/virel-project/virel-blockchain/blockchain"
 	"github.com/virel-project/virel-blockchain/transaction"
 	"github.com/virel-project/virel-blockchain/util"
 	"github.com/virel-project/virel-blockchain/util/enc"
@@ -104,10 +103,16 @@ type ValidateAddressResponse struct {
 	PaymentId    uint64 `json:"payment_id"`
 }
 
+type State struct {
+	Balance      uint64
+	LastNonce    uint64
+	LastIncoming uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+}
 type StateInfo struct {
 	Address string
-	State   *blockchain.State
+	State   *State
 }
+
 type RichListRequest struct {
 }
 type RichListResponse struct {
