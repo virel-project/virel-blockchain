@@ -87,13 +87,17 @@ func (bc *Blockchain) PrevalidateBlock(b *block.Block, txs []*transaction.Transa
 		}
 	}
 
-	for i, v := range b.SideBlocks {
-		if v.Ancestors == b.Ancestors {
-			return fmt.Errorf("side block has the same height as current block")
-		}
-		for i2, v2 := range b.SideBlocks {
-			if v.BaseHash == v2.BaseHash && i != i2 {
-				return fmt.Errorf("duplicate side block with base hash %s", v.BaseHash)
+	if b.Height != 440 {
+		for i, v := range b.SideBlocks {
+			if v.Ancestors == b.Ancestors {
+				return fmt.Errorf("side block has the same height as current block")
+			}
+			for i2, v2 := range b.SideBlocks {
+				if (v.BaseHash == v2.BaseHash &&
+					v.Nonce == v2.Nonce &&
+					v.NonceExtra == v2.NonceExtra) && i != i2 {
+					return fmt.Errorf("duplicate side block with base hash %s at height %d", v.BaseHash, b.Height)
+				}
 			}
 		}
 	}
