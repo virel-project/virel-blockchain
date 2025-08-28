@@ -20,3 +20,4 @@ var SEED_NODES = []string{"127.0.0.1"}
 
 // HARD-FORKS
 const HARDFORK_V1_HEIGHT = 1
+const HARDFORK_V2_HEIGHT = 10

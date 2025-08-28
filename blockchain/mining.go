@@ -45,10 +45,17 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		return nil, 0, err
 	}
 
+	height := stats.TopHeight + 1
+
+	var version uint8 = 0
+	if height >= config.HARDFORK_V2_HEIGHT {
+		version = 1
+	}
+
 	bl := &block.Block{
 		BlockHeader: block.BlockHeader{
-			Version:    0,
-			Height:     stats.TopHeight + 1,
+			Version:    version,
+			Height:     height,
 			Timestamp:  max(util.Time()+1, prevBl.Timestamp), // we ensure that the timestamp is always sequential
 			Recipient:  addr,
 			Ancestors:  prevBl.Ancestors.AddHash(stats.TopHash),

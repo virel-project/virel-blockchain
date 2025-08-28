@@ -51,8 +51,12 @@ func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, e
 func (bc *Blockchain) PrevalidateBlock(b *block.Block, txs []*transaction.Transaction) error {
 	// Generally, try insering the least expensive checks first, most expensive last
 
-	if b.Version != 0 {
-		return fmt.Errorf("unexpected block version %d", b.Version)
+	var expectedVersion uint8 = 0
+	if b.Height >= config.HARDFORK_V2_HEIGHT {
+		expectedVersion = 1
+	}
+	if b.Version != expectedVersion {
+		return fmt.Errorf("unexpected block version %d at height %d, expected %d", b.Version, b.Height, expectedVersion)
 	}
 
 	if b.Difficulty.IsZero() {

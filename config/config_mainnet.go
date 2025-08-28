@@ -19,4 +19,9 @@ const BLOCK_REWARD_FEE_PERCENT = 10
 var SEED_NODES = []string{"82.153.138.24"}
 
 // HARD-FORKS
+
+// Hardfork V1: transaction version field
 const HARDFORK_V1_HEIGHT = 100_000
+
+// Hardfork V2: Hybrid PoW/PoS
+const HARDFORK_V2_HEIGHT = 0 // TODO
