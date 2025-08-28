@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 
 	"github.com/sasha-s/go-deadlock"
 )

@@ -3,7 +3,7 @@ package rpcserver
 import (
 	"net/http"
 
-	"github.com/virel-project/virel-blockchain/util/ratelimit"
+	"github.com/virel-project/virel-blockchain/v2/util/ratelimit"
 )
 
 type Server struct {

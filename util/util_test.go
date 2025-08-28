@@ -6,7 +6,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/virel-project/virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
 func TestTarget(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/binary"
-	"github.com/virel-project/virel-blockchain/bitcrypto"
-	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 func NewConnection(c net.Conn, outgoing bool) *Connection {

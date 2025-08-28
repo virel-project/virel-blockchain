@@ -7,10 +7,10 @@ import (
 	"runtime/pprof"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/blockchain"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/logger"
-	"github.com/virel-project/virel-blockchain/util/updatechecker"
+	"github.com/virel-project/virel-blockchain/v2/blockchain"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/logger"
+	"github.com/virel-project/virel-blockchain/v2/util/updatechecker"
 )
 
 var Log = logger.New()

@@ -3,12 +3,12 @@ package blockchain
 import (
 	"time"
 
-	"github.com/virel-project/virel-blockchain/adb"
-	"github.com/virel-project/virel-blockchain/block"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/p2p"
-	"github.com/virel-project/virel-blockchain/p2p/packet"
-	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/block"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/p2p"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
+	"github.com/virel-project/virel-blockchain/v2/transaction"
 )
 
 func (bc *Blockchain) pinger() {

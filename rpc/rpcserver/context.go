@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/virel-project/virel-blockchain/rpc"
+	"github.com/virel-project/virel-blockchain/v2/rpc"
 )
 
 type Context struct {

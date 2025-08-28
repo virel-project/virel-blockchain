@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/logger"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/logger"
 )
 
 // Status represents the update check result

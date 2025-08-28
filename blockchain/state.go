@@ -3,7 +3,7 @@ package blockchain
 import (
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/binary"
+	"github.com/virel-project/virel-blockchain/v2/binary"
 )
 
 type State struct {

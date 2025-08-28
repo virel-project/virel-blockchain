@@ -7,13 +7,13 @@ import (
 	"slices"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/adb"
-	"github.com/virel-project/virel-blockchain/address"
-	"github.com/virel-project/virel-blockchain/binary"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/p2p"
-	"github.com/virel-project/virel-blockchain/p2p/packet"
-	"github.com/virel-project/virel-blockchain/transaction"
+	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/p2p"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
+	"github.com/virel-project/virel-blockchain/v2/transaction"
 )
 
 // Adds a transaction to mempool.

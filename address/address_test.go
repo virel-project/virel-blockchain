@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/virel-project/virel-blockchain/address"
-	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/zeebo/blake3"
 )
 

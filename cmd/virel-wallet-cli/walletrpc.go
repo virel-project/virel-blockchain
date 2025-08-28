@@ -5,15 +5,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/address"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/rpc"
-	"github.com/virel-project/virel-blockchain/rpc/rpcserver"
-	"github.com/virel-project/virel-blockchain/rpc/walletrpc"
-	"github.com/virel-project/virel-blockchain/transaction"
-	"github.com/virel-project/virel-blockchain/util"
-	"github.com/virel-project/virel-blockchain/util/ratelimit"
-	"github.com/virel-project/virel-blockchain/wallet"
+	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/rpc"
+	"github.com/virel-project/virel-blockchain/v2/rpc/rpcserver"
+	"github.com/virel-project/virel-blockchain/v2/rpc/walletrpc"
+	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v2/util/ratelimit"
+	"github.com/virel-project/virel-blockchain/v2/wallet"
 )
 
 type RpcServer struct {

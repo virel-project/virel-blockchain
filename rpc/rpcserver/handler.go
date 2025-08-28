@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/rpc"
+	"github.com/virel-project/virel-blockchain/v2/rpc"
 )
 
 const invalidJson = -32700

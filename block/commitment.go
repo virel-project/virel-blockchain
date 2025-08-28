@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/virel-project/virel-blockchain/binary"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/util"
 
 	"github.com/zeebo/blake3"
 )

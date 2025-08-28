@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/virel-project/go-randomvirel"
-	"github.com/virel-project/virel-blockchain/adb"
-	"github.com/virel-project/virel-blockchain/address"
-	"github.com/virel-project/virel-blockchain/block"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/stratum"
-	"github.com/virel-project/virel-blockchain/transaction"
-	"github.com/virel-project/virel-blockchain/util"
-	"github.com/virel-project/virel-blockchain/util/uint128"
+	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/block"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/stratum"
+	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
 func (bc *Blockchain) StartMining(addr address.Address) {

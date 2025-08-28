@@ -3,9 +3,9 @@ package wallet
 import (
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/bitcrypto"
-	"github.com/virel-project/virel-blockchain/bitcrypto/slip10"
-	"github.com/virel-project/virel-blockchain/config"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto/slip10"
+	"github.com/virel-project/virel-blockchain/v2/config"
 
 	"github.com/tyler-smith/go-bip39"
 )

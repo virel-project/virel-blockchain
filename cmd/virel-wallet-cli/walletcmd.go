@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/address"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/transaction"
-	"github.com/virel-project/virel-blockchain/util"
-	"github.com/virel-project/virel-blockchain/wallet"
+	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v2/wallet"
 
 	"github.com/ergochat/readline"
 )

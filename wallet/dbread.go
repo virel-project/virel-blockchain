@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/json"
 
-	"github.com/virel-project/virel-blockchain/binary"
-	"github.com/virel-project/virel-blockchain/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 )
 
 func (w *Wallet) decodeDatabase(data, pass []byte) error {

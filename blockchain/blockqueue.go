@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/adb"
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20

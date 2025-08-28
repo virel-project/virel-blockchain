@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/virel-project/virel-blockchain/config"
-	"github.com/virel-project/virel-blockchain/util"
+	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 func TestReward(t *testing.T) {
