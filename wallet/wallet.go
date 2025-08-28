@@ -216,7 +216,7 @@ func (w *Wallet) SetRpcDaemonAddress(a string) {
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) Transfer(outputs []transaction.Output) (*transaction.Transaction, error) {
+func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*transaction.Transaction, error) {
 	err := w.Refresh()
 	if err != nil {
 		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
@@ -243,6 +243,10 @@ func (w *Wallet) Transfer(outputs []transaction.Output) (*transaction.Transactio
 		Sender:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
 		Outputs: outputs,
+	}
+
+	if hasVersion {
+		txn.Version = 1
 	}
 
 	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE

@@ -73,7 +73,13 @@ func (bc *Blockchain) incomingP2P() {
 func (bc *Blockchain) packetTx(pack p2p.Packet) {
 	tx := &transaction.Transaction{}
 
-	err := tx.Deserialize(pack.Data)
+	var stats *Stats
+	bc.DB.View(func(txn adb.Txn) error {
+		stats = bc.GetStats(txn)
+		return nil
+	})
+
+	err := tx.Deserialize(pack.Data, stats.TopHeight >= config.HARDFORK_V1_HEIGHT)
 	if err != nil {
 		Log.Warn(err)
 		return

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/virel-project/virel-blockchain/address"
+	"github.com/virel-project/virel-blockchain/config"
 	"github.com/virel-project/virel-blockchain/rpc"
 	"github.com/virel-project/virel-blockchain/rpc/rpcserver"
 	"github.com/virel-project/virel-blockchain/rpc/walletrpc"
@@ -233,6 +234,16 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "refresh failed for transfer",
+			})
+			return
+		}
+
 		outs := make([]transaction.Output, len(params.Outputs))
 		for i, v := range params.Outputs {
 			outs[i].Amount = v.Amount
@@ -247,11 +258,11 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 				return
 			}
 		}
-		tx, err := w.Transfer(outs)
+		tx, err := w.Transfer(outs, w.GetHeight() >= config.HARDFORK_V1_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
-				Code:    -1,
+				Code:    -2,
 				Message: "transfer failed",
 			})
 			return
@@ -276,7 +287,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		}
 
 		tx := transaction.Transaction{}
-		err = tx.Deserialize(params.TxBlob)
+		err = tx.Deserialize(params.TxBlob, w.GetHeight() > config.HARDFORK_V1_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{

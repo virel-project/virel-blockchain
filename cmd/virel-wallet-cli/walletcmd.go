@@ -158,7 +158,13 @@ func prompts(w *wallet.Wallet) {
 				Log.Infof("%v receives %v", v.Recipient, util.FormatCoin(v.Amount))
 			}
 
-			txn, err := w.Transfer(outputs)
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.Transfer(outputs, w.GetHeight() >= config.HARDFORK_V1_HEIGHT)
 			if err != nil {
 				Log.Err(err)
 				return

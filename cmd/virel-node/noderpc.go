@@ -240,7 +240,13 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		tx := &transaction.Transaction{}
 
-		err = tx.Deserialize(params.Hex)
+		var stats *blockchain.Stats
+		bc.DB.View(func(txn adb.Txn) error {
+			stats = bc.GetStats(txn)
+			return nil
+		})
+
+		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V1_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
