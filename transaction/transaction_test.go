@@ -28,7 +28,8 @@ func TestTransaction(t *testing.T) {
 	rand.Read(recipient[:])
 
 	tx := transaction.Transaction{
-		Sender: pubk,
+		Version: 1,
+		Sender:  pubk,
 		Outputs: []transaction.Output{
 			{
 				Recipient: recipient,
@@ -51,7 +52,7 @@ func TestTransaction(t *testing.T) {
 	t.Logf("transaction size: %d, data: %x", len(ser), ser)
 
 	tx2 := transaction.Transaction{}
-	err := tx2.Deserialize(ser)
+	err := tx2.Deserialize(ser, true)
 	if err != nil {
 		t.Error(err)
 	}

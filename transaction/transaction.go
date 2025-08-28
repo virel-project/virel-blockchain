@@ -16,6 +16,8 @@ import (
 )
 
 type Transaction struct {
+	Version uint8
+
 	Sender    bitcrypto.Pubkey    // sender's public key
 	Signature bitcrypto.Signature // transaction signature
 
@@ -59,7 +61,11 @@ func (t TXID) String() string {
 }
 
 func (t Transaction) Serialize() []byte {
-	s := binary.NewSer(make([]byte, 120))
+	s := binary.NewSer(make([]byte, 121))
+
+	if t.Version != 0 {
+		s.AddUint8(t.Version)
+	}
 
 	s.AddFixedByteArray(t.Sender[:])
 	s.AddFixedByteArray(t.Signature[:])
@@ -74,8 +80,12 @@ func (t Transaction) Serialize() []byte {
 
 	return s.Output()
 }
-func (t *Transaction) Deserialize(data []byte) error {
+func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 	d := binary.NewDes(data)
+
+	if hasVersion {
+		t.Version = d.ReadUint8()
+	}
 
 	t.Sender = [bitcrypto.PUBKEY_SIZE]byte(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
 	t.Signature = [bitcrypto.SIGNATURE_SIZE]byte(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
@@ -193,6 +203,7 @@ func (t *Transaction) String() string {
 	hash := t.Hash()
 	o := "Transaction " + hex.EncodeToString(hash[:]) + "\n"
 
+	o += fmt.Sprintf(" Version: %d\n", t.Version)
 	o += " VSize: " + util.FormatUint(t.GetVirtualSize()) + "; physical size: " + util.FormatInt(len(t.Serialize())) + "\n"
 	o += " Sender: " + address.FromPubKey(t.Sender).Integrated().String() + "\n"
 	o += " Outputs:\n"
