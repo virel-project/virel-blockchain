@@ -89,7 +89,8 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transactio
 	if des.Error() != nil {
 		return nil, 0, fmt.Errorf("failed to deserialize transaction: %w", des.Error())
 	}
-	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V1_HEIGHT)
+	// TODO: change this after the fork
+	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V1_HEIGHT /* || includedIn == 0 */)
 }
 
 func (bc *Blockchain) SetTx(txn adb.Txn, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
