@@ -124,12 +124,32 @@ func (t *Transaction) Sign(pk bitcrypto.Privkey) error {
 }
 
 // executes partial verification of transaction data, should be used before blockchain AddTransaction
-func (t *Transaction) Prevalidate() error {
+func (t *Transaction) Prevalidate(height uint64) error {
 	// verify VSize
 	vsize := t.GetVirtualSize()
 
 	if vsize > max_tx_size {
 		return fmt.Errorf("invalid vsize: %d > MAX_TX_SIZE", vsize)
+	}
+
+	// verify version
+	if height < config.HARDFORK_V2_HEIGHT {
+		if t.Version != 0 {
+			return fmt.Errorf("invalid version %d, expected 0", t.Version)
+		}
+	} else if height < config.HARDFORK_V3_HEIGHT {
+		if t.Version != 1 {
+			return fmt.Errorf("invalid version %d, expected 1", t.Version)
+		}
+	} else {
+		if t.Version != TX_VERSION_TRANSFER &&
+			t.Version != TX_VERSION_REGISTER_DELEGATE &&
+			t.Version != TX_VERSION_SET_DELEGATE &&
+			t.Version != TX_VERSION_STAKE &&
+			t.Version != TX_VERSION_UNSTAKE {
+			return fmt.Errorf("invalid version %d, expected 1-5", t.Version)
+		}
+
 	}
 
 	// verify sender address

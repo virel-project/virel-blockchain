@@ -72,7 +72,7 @@ func TestTransaction(t *testing.T) {
 		t.Log(tx2.String())
 	}
 
-	err = tx.Prevalidate()
+	err = tx.Prevalidate(config.HARDFORK_V3_HEIGHT)
 
 	if err != nil {
 		t.Error("transaction verification failed:", err)

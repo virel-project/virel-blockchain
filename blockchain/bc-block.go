@@ -85,7 +85,7 @@ func (bc *Blockchain) PrevalidateBlock(b *block.Block, txs []*transaction.Transa
 	}
 
 	for _, tx := range txs {
-		err := tx.Prevalidate()
+		err := tx.Prevalidate(b.Height)
 		if err != nil {
 			return fmt.Errorf("invalid transaction: %w", err)
 		}

@@ -331,7 +331,7 @@ func (b *Block) DeserializeFull(data []byte) ([]*transaction.Transaction, error)
 		sl := d.ReadByteSlice()
 
 		tx := transaction.Transaction{}
-		err := tx.Deserialize(sl, b.Height >= config.HARDFORK_V1_HEIGHT)
+		err := tx.Deserialize(sl, b.Height >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			return nil, err
 		}

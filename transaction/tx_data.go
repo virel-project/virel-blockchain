@@ -10,9 +10,14 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/config"
 )
 
-const TX_VERSION_TRANSFER = 1
-const TX_VERSION_REGISTER_DELEGATE = 2
-const TX_VERSION_SET_DELEGATE = 3
+const (
+	TX_VERSION_INVALID = iota
+	TX_VERSION_TRANSFER
+	TX_VERSION_REGISTER_DELEGATE
+	TX_VERSION_SET_DELEGATE
+	TX_VERSION_STAKE
+	TX_VERSION_UNSTAKE
+)
 
 type TransactionData interface {
 	AssociatedTransactionVersion() uint8

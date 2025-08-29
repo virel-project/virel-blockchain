@@ -79,12 +79,12 @@ func (bc *Blockchain) packetTx(pack p2p.Packet) {
 		return nil
 	})
 
-	err := tx.Deserialize(pack.Data, stats.TopHeight >= config.HARDFORK_V1_HEIGHT)
+	err := tx.Deserialize(pack.Data, stats.TopHeight >= config.HARDFORK_V2_HEIGHT)
 	if err != nil {
 		Log.Warn(err)
 		return
 	}
-	err = tx.Prevalidate()
+	err = tx.Prevalidate(stats.TopHeight)
 	if err != nil {
 		Log.Warn(err)
 		return

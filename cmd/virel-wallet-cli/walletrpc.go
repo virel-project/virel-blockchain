@@ -258,7 +258,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 				return
 			}
 		}
-		tx, err := w.Transfer(outs, w.GetHeight() >= config.HARDFORK_V1_HEIGHT)
+		tx, err := w.Transfer(outs, w.GetHeight() >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -287,7 +287,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		}
 
 		tx := transaction.Transaction{}
-		err = tx.Deserialize(params.TxBlob, w.GetHeight() > config.HARDFORK_V1_HEIGHT)
+		err = tx.Deserialize(params.TxBlob, w.GetHeight() > config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{

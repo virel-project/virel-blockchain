@@ -164,7 +164,7 @@ func prompts(w *wallet.Wallet) {
 				return
 			}
 
-			txn, err := w.Transfer(outputs, w.GetHeight() >= config.HARDFORK_V1_HEIGHT)
+			txn, err := w.Transfer(outputs, w.GetHeight() >= config.HARDFORK_V2_HEIGHT)
 			if err != nil {
 				Log.Err(err)
 				return

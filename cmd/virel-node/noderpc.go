@@ -246,7 +246,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return nil
 		})
 
-		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V1_HEIGHT)
+		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -256,7 +256,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		err = tx.Prevalidate()
+		err = tx.Prevalidate(stats.TopHeight)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
