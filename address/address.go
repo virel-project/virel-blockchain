@@ -34,6 +34,9 @@ func FromPubKey(p bitcrypto.Pubkey) Address {
 	return Address(hash[:SIZE]) // the first SIZE bytes of the hash are the actual address
 }
 func FromString(p string) (Integrated, error) {
+	if p == "burnaddress" {
+		return INVALID_ADDRESS.Integrated(), nil
+	}
 	if strings.HasPrefix(p, config.DELEGATE_ADDRESS_PREFIX) {
 		if len(p) < len(config.DELEGATE_ADDRESS_PREFIX)+1 {
 			return Integrated{}, errors.New("delegate address is too short")
@@ -115,6 +118,9 @@ func (a Integrated) bytes() []byte {
 }
 
 func (a Integrated) String() string {
+	if a.Addr == INVALID_ADDRESS {
+		return "burnaddress"
+	}
 	c := a.Addr[8:]
 	isDelegate := true
 	for _, v := range c {
