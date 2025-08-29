@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
@@ -17,6 +19,11 @@ const SIZE = 22
 
 type Address [SIZE]byte
 
+func NewDelegateAddress(id uint64) (a Address) {
+	binary.LittleEndian.PutUint64(a[:], id)
+	return a
+}
+
 // The zero-value of address is considered invalid
 var INVALID_ADDRESS = Address{}
 
@@ -27,6 +34,22 @@ func FromPubKey(p bitcrypto.Pubkey) Address {
 	return Address(hash[:SIZE]) // the first SIZE bytes of the hash are the actual address
 }
 func FromString(p string) (Integrated, error) {
+	if strings.HasPrefix(p, config.DELEGATE_ADDRESS_PREFIX) {
+		if len(p) < len(config.DELEGATE_ADDRESS_PREFIX)+1 {
+			return Integrated{}, errors.New("delegate address is too short")
+		}
+		p = p[len(config.DELEGATE_ADDRESS_PREFIX):]
+
+		num, err := strconv.ParseUint(p, 10, 64)
+		if err != nil {
+			return Integrated{}, fmt.Errorf("failed to read address prefix: %w", err)
+		}
+
+		integr := Integrated{}
+		binary.LittleEndian.PutUint64(integr.Addr[:], num)
+		return integr, nil
+	}
+
 	if p[0] != config.WALLET_PREFIX[0] || len(p) < 4 {
 		return Integrated{}, errors.New("invalid address prefix")
 	}
@@ -92,6 +115,18 @@ func (a Integrated) bytes() []byte {
 }
 
 func (a Integrated) String() string {
+	c := a.Addr[8:]
+	isDelegate := true
+	for _, v := range c {
+		if v != 0 {
+			isDelegate = false
+			break
+		}
+	}
+	if isDelegate {
+		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(binary.LittleEndian.Uint64(a.Addr[:]), 10)
+	}
+
 	return config.WALLET_PREFIX + big.NewInt(0).SetBytes(a.bytes()).Text(36)
 }
 

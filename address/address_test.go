@@ -6,6 +6,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/zeebo/blake3"
 )
 
@@ -60,5 +61,21 @@ func TestAddress2(t *testing.T) {
 	}
 	if a.String() != b.String() {
 		t.Fatalf("address %v and %v not matching", a, b)
+	}
+}
+
+func TestDelegate(t *testing.T) {
+	d1 := address.NewDelegateAddress(util.RandomUint64())
+	d1s := d1.String()
+
+	d2, err := address.FromString(d1s)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Log(d1, d2)
+
+	if d2.String() != d1s {
+		t.Errorf("delegate addresses do not match: %s %s", d1, d2)
 	}
 }

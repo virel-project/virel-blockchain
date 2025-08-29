@@ -41,3 +41,5 @@ const MAX_SIDE_BLOCKS = 2   // max number of side blocks that can be referenced 
 const MAX_OUTPUTS = 32 // max output count for a transaction
 
 const UPDATE_CHECK_URL = "https://api.github.com/repos/virel-project/virel-blockchain/releases/latest"
+
+const DELEGATE_ADDRESS_PREFIX = "delegate"
