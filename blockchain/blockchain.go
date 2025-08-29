@@ -54,13 +54,14 @@ type Blockchain struct {
 	SyncMut    util.RWMutex
 }
 type Index struct {
-	Info  adb.Index
-	Block adb.Index
-	Topo  adb.Index
-	State adb.Index
-	Tx    adb.Index
-	InTx  adb.Index
-	OutTx adb.Index
+	Info     adb.Index
+	Block    adb.Index
+	Topo     adb.Index
+	State    adb.Index
+	Tx       adb.Index
+	InTx     adb.Index
+	OutTx    adb.Index
+	Delegate adb.Index
 }
 
 func (bc *Blockchain) IsShuttingDown() bool {
@@ -86,13 +87,14 @@ func New(dataDir string) *Blockchain {
 	}
 
 	bc.Index = Index{
-		Info:  bc.DB.Index("info"),
-		Block: bc.DB.Index("block"),
-		Topo:  bc.DB.Index("topo"),
-		State: bc.DB.Index("state"),
-		Tx:    bc.DB.Index("tx"),
-		InTx:  bc.DB.Index("intx"),
-		OutTx: bc.DB.Index("outtx"),
+		Info:     bc.DB.Index("info"),
+		Block:    bc.DB.Index("block"),
+		Topo:     bc.DB.Index("topo"),
+		State:    bc.DB.Index("state"),
+		Tx:       bc.DB.Index("tx"),
+		InTx:     bc.DB.Index("intx"),
+		OutTx:    bc.DB.Index("outtx"),
+		Delegate: bc.DB.Index("delegate"),
 	}
 
 	bc.Validator = bc.NewValidator(runtime.NumCPU())

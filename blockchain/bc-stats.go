@@ -17,6 +17,7 @@ type Stats struct {
 	CumulativeDiff uint128.Uint128
 	Tips           map[util.Hash]*AltchainTip
 	Orphans        map[util.Hash]*Orphan // hash -> orphan
+	StakedAmount   uint64
 }
 
 type AltchainTip struct {
