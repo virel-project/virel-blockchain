@@ -30,11 +30,13 @@ func TestTransaction(t *testing.T) {
 	tx := transaction.Transaction{
 		Version: 1,
 		Sender:  pubk,
-		Outputs: []transaction.Output{
-			{
-				Recipient: recipient,
-				PaymentId: 1337,
-				Amount:    config.COIN,
+		Data: &transaction.Transfer{
+			Outputs: []transaction.Output{
+				{
+					Recipient: recipient,
+					PaymentId: 1337,
+					Amount:    config.COIN,
+				},
 			},
 		},
 		Signature: bitcrypto.Signature{},
@@ -43,16 +45,17 @@ func TestTransaction(t *testing.T) {
 	}
 	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
 
-	tx.Sign(bitcrypto.Privkey(privk))
-
-	tx.Serialize()
+	err := tx.Sign(bitcrypto.Privkey(privk))
+	if err != nil {
+		t.Error(err)
+	}
 
 	ser := tx.Serialize()
 
 	t.Logf("transaction size: %d, data: %x", len(ser), ser)
 
 	tx2 := transaction.Transaction{}
-	err := tx2.Deserialize(ser, true)
+	err = tx2.Deserialize(ser, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -63,6 +66,10 @@ func TestTransaction(t *testing.T) {
 
 	if !slices.Equal(ser, ser2) {
 		t.Error("second serialized transaction differs from original")
+		t.Log("tx 1")
+		t.Log(tx.String())
+		t.Log("tx 2")
+		t.Log(tx2.String())
 	}
 
 	err = tx.Prevalidate()

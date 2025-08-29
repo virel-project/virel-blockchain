@@ -240,9 +240,11 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 	}
 
 	txn := &transaction.Transaction{
-		Sender:  w.dbInfo.PrivateKey.Public(),
-		Nonce:   w.GetMempoolLastNonce() + 1,
-		Outputs: outputs,
+		Sender: w.dbInfo.PrivateKey.Public(),
+		Nonce:  w.GetMempoolLastNonce() + 1,
+		Data: &transaction.Transfer{
+			Outputs: outputs,
+		},
 	}
 
 	if hasVersion {

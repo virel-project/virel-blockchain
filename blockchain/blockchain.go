@@ -899,7 +899,8 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		Log.Dev("sender state after:", senderState)
 
 		// add the funds to recipient
-		for _, out := range tx.Outputs {
+		atsd := tx.Data.AddToState()
+		for _, out := range atsd {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Debug("recipient state not previously known:", err)
@@ -1031,7 +1032,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 					Fee:     tx.Fee,
 					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
 					Sender:  address.FromPubKey(tx.Sender),
-					Outputs: tx.Outputs,
+					Outputs: tx.Data.AddToState(),
 				})
 			}
 		}
@@ -1110,7 +1111,8 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		senderAddr := address.FromPubKey(tx.Sender)
 
 		// decrease recipient balance and LastIncoming
-		for _, out := range tx.Outputs {
+		atsd := tx.Data.AddToState()
+		for _, out := range atsd {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Err(err)

@@ -61,7 +61,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			Fee:     tx.Fee,
 			Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
 			Sender:  address.FromPubKey(tx.Sender),
-			Outputs: tx.Outputs,
+			Outputs: tx.Data.AddToState(),
 		})
 		err = bc.SetMempool(txn, mem)
 		if err != nil {

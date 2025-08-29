@@ -190,7 +190,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		c.SuccessResponse(daemonrpc.GetTransactionResponse{
 			Sender:      &integr,
 			TotalAmount: amount,
-			Outputs:     tx.Outputs,
+			Outputs:     tx.Data.AddToState(),
 			Fee:         tx.Fee,
 			Nonce:       tx.Nonce,
 			Signature:   tx.Signature[:],
