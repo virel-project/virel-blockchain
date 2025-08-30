@@ -170,14 +170,14 @@ func (t *Transaction) Prevalidate(height uint64) error {
 		return fmt.Errorf("invalid signature")
 	}
 
-	// verify that there's no overflow
-	totamt, err := t.TotalAmount()
+	// prevalidate transaction data
+	err := t.Data.Prevalidate(t)
 	if err != nil {
 		return err
 	}
 
-	// prevalidate transaction data
-	err = t.Data.Prevalidate()
+	// verify that there's no overflow
+	totamt, err := t.TotalAmount()
 	if err != nil {
 		return err
 	}

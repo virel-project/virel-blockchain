@@ -215,6 +215,25 @@ func (w *Wallet) SetRpcDaemonAddress(a string) {
 	w.rpc.DaemonAddress = a
 }
 
+func (w *Wallet) checkAndSignTx(tx *transaction.Transaction) error {
+	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
+
+	addr := w.GetAddress().Addr
+
+	var amt uint64
+	for _, v := range tx.Data.StateInputs(tx, addr) {
+		if v.Sender == addr {
+			amt += v.Amount
+		}
+	}
+
+	if amt > w.mempoolBal {
+		return errors.New("transaction spends too much money")
+	}
+
+	return tx.Sign(w.dbInfo.PrivateKey)
+}
+
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*transaction.Transaction, error) {
 	err := w.Refresh()
@@ -251,10 +270,7 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 		txn.Version = 1
 	}
 
-	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
-
-	err = txn.Sign(w.dbInfo.PrivateKey)
-	return txn, err
+	return txn, w.checkAndSignTx(txn)
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
@@ -274,8 +290,8 @@ func (w *Wallet) RegisterDelegate(name string) (*transaction.Transaction, error)
 	}
 
 	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
-	err = txn.Sign(w.dbInfo.PrivateKey)
-	return txn, err
+
+	return txn, w.checkAndSignTx(txn)
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
@@ -294,30 +310,47 @@ func (w *Wallet) SetDelegate(delegateId uint64) (*transaction.Transaction, error
 		},
 	}
 
-	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
-	err = txn.Sign(w.dbInfo.PrivateKey)
-	return txn, err
+	return txn, w.checkAndSignTx(txn)
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) Stake(delegateId uint64) (*transaction.Transaction, error) {
+func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
 	err := w.Refresh()
 	if err != nil {
 		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
 	}
 
 	txn := &transaction.Transaction{
-		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
+		Version: transaction.TX_VERSION_STAKE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
-		Data: &transaction.SetDelegate{
+		Data: &transaction.Stake{
+			Amount:     amount,
 			DelegateId: delegateId,
 		},
 	}
 
-	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
-	err = txn.Sign(w.dbInfo.PrivateKey)
-	return txn, err
+	return txn, w.checkAndSignTx(txn)
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) Unstake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
+	err := w.Refresh()
+	if err != nil {
+		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
+	}
+
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_STAKE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.Stake{
+			Amount:     amount,
+			DelegateId: delegateId,
+		},
+	}
+
+	return txn, w.checkAndSignTx(txn)
 }
 
 func (w *Wallet) SubmitTx(txn *transaction.Transaction) (*daemonrpc.SubmitTransactionResponse, error) {

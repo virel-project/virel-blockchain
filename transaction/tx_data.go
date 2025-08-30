@@ -27,13 +27,13 @@ type TransactionData interface {
 	String() string
 	VSize() uint64
 	TotalAmount() (uint64, error)
-	Prevalidate() error
+	Prevalidate(tx *Transaction) error
 	// The inputs of this transaction.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount() + the transaction fee.
-	StateInputs(tx *Transaction, sender address.Address) []Input
+	StateInputs(tx *Transaction, signer address.Address) []Input
 	// Adds the balances of this transaction data to the blockchain state.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount().
-	StateOutputs(tx *Transaction, sender address.Address) []Output
+	StateOutputs(tx *Transaction, signer address.Address) []Output
 }
 
 // TransactionData: Transfer
@@ -91,7 +91,7 @@ func (t *Transfer) TotalAmount() (uint64, error) {
 
 	return s, nil
 }
-func (t *Transfer) Prevalidate() error {
+func (t *Transfer) Prevalidate(_ *Transaction) error {
 	// verify the number of outputs
 	if len(t.Outputs) == 0 || len(t.Outputs) > config.MAX_OUTPUTS {
 		return fmt.Errorf("invalid output count: %d", len(t.Outputs))
@@ -135,7 +135,7 @@ func (t *RegisterDelegate) TotalAmount() (uint64, error) {
 func (t *RegisterDelegate) VSize() uint64 {
 	return 16 + uint64(len(t.Name))
 }
-func (t *RegisterDelegate) Prevalidate() error {
+func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
 	if len(t.Name) > 16 {
 		return errors.New("RegisterDelegate name is too long")
 	}
@@ -176,7 +176,7 @@ func (t *SetDelegate) TotalAmount() (uint64, error) {
 func (t *SetDelegate) VSize() uint64 {
 	return 4
 }
-func (t *SetDelegate) Prevalidate() error {
+func (t *SetDelegate) Prevalidate(_ *Transaction) error {
 	return nil
 }
 func (t *SetDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
@@ -217,7 +217,7 @@ func (t *Stake) TotalAmount() (uint64, error) {
 func (t *Stake) VSize() uint64 {
 	return 8
 }
-func (t *Stake) Prevalidate() error {
+func (t *Stake) Prevalidate(_ *Transaction) error {
 	return nil
 }
 func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []Input {
@@ -261,18 +261,26 @@ func (t *Unstake) TotalAmount() (uint64, error) {
 func (t *Unstake) VSize() uint64 {
 	return 8
 }
-func (t *Unstake) Prevalidate() error {
+func (t *Unstake) Prevalidate(tx *Transaction) error {
+	if tx.Fee > t.Amount*config.MIN_STAKE_AMOUNT {
+		return fmt.Errorf("transaction fee %s is bigger than the staked amount %d", util.FormatCoin(tx.Fee), t.Amount)
+	}
+
 	return nil
 }
 func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []Input {
 	return []Input{{
 		Sender: address.NewDelegateAddress(t.DelegateId),
-		Amount: t.Amount*config.MIN_STAKE_AMOUNT + tx.Fee,
+		Amount: t.Amount * config.MIN_STAKE_AMOUNT,
 	}}
 }
 func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []Output {
+	if tx.Fee > t.Amount*config.MIN_STAKE_AMOUNT {
+		panic(fmt.Errorf("unstake: fee %s > amount %s", util.FormatCoin(tx.Fee), util.FormatCoin(t.Amount*config.MIN_STAKE_AMOUNT)))
+	}
+
 	return []Output{{
 		Recipient: sender,
-		Amount:    t.Amount * config.MIN_STAKE_AMOUNT,
+		Amount:    t.Amount*config.MIN_STAKE_AMOUNT - tx.Fee,
 	}}
 }
