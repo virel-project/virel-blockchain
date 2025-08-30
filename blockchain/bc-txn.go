@@ -1,10 +1,8 @@
 package blockchain
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
@@ -122,84 +120,107 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 	return nil
 }
 
-// use this method to validate that a transaction in mempool is valid
+// Use this method to validate that a transaction in mempool is valid.
+// previousEntries are expected to be correctly ordered and valid. If they aren't, something is wrong elsewhere.
 func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
 	signer := address.FromPubKey(tx.Signer)
 
-	inputs := tx.Data.StateInputs(tx, signer)
+	// Calculate total transaction amount (outputs + fee)
+	totalAmount, err := tx.TotalAmount()
+	if err != nil {
+		Log.Err(err)
+		return err
+	}
 
+	// Group inputs by sender and calculate total input amounts
+	inputAmounts := make(map[address.Address]uint64)
+	inputs := tx.Data.StateInputs(tx, signer)
+	for _, input := range inputs {
+		inputAmounts[input.Sender] += input.Amount
+	}
+
+	// Verify total inputs match outputs + fee
+	var totalInputs uint64
+	for _, amount := range inputAmounts {
+		totalInputs += amount
+	}
+	if totalInputs != totalAmount {
+		err := fmt.Errorf("transaction %x input sum %d doesn't match output sum %d + fee %d",
+			hash, totalInputs, totalAmount-tx.Fee, tx.Fee)
+		Log.Warn(err)
+		return err
+	}
+
+	// Get initial signer state
 	signerState, err := bc.GetState(txn, signer)
 	if err != nil {
 		Log.Err(err)
 		return err
 	}
 
-	for _, v := range inputs {
-		senderAddr := v.Sender
-		senderState, err := bc.GetState(txn, v.Sender)
-		if err != nil {
-			Log.Err(err)
-			return err
+	// Track expected nonce for signer
+	signerNonce := signerState.LastNonce
+
+	// Process previous entries to update balances and nonces
+	simulatedStates := make(map[address.Address]*State)
+	for _, entry := range previousEntries {
+		if entry.TXID == hash {
+			break
 		}
 
-		// apply all the previous mempool transactions to sender state
-		Log.Dev("sender state before applying all the mempool transactions:", senderState)
-		for _, v := range previousEntries {
-			if v.TXID == hash {
-				// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
-				break
+		// Update expected nonce if entry is from same signer
+		if entry.Signer == signer {
+			signerNonce++
+		}
+
+		// Apply entry to affected sender states
+		for sender := range inputAmounts {
+			if _, exists := simulatedStates[sender]; !exists {
+				senderState, err := bc.GetState(txn, sender)
+				if err != nil {
+					Log.Err(err)
+					return err
+				}
+				simulatedStates[sender] = senderState
 			}
 
-			// apply this transaction if it modifies sender state
-			if slices.ContainsFunc(v.Inputs, func(e transaction.Input) bool { return e.Sender == senderAddr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
-				for _, input := range v.Inputs {
-					if input.Sender == senderAddr {
-						if input.Amount > senderState.Balance {
-							err := fmt.Errorf("previous tx entry %x total amount %d > sender balance %v", v.TXID, input.Amount, senderState.Balance)
-							Log.Errf(err.Error())
-							return err
-						}
-						senderState.Balance -= input.Amount
+			// Apply input deductions
+			for _, input := range entry.Inputs {
+				if input.Sender == sender {
+					if input.Amount > simulatedStates[sender].Balance {
+						err := fmt.Errorf("insufficient balance in transaction %x: need %d, have %d",
+							entry.TXID, input.Amount, simulatedStates[sender].Balance)
+						Log.Err(err)
+						return err
 					}
+					simulatedStates[sender].Balance -= input.Amount
 				}
+			}
 
-				for _, out := range v.Outputs {
-					if out.Recipient == senderAddr {
-						senderState.Balance += out.Amount
-					}
+			// Apply output additions
+			for _, output := range entry.Outputs {
+				if output.Recipient == sender {
+					simulatedStates[sender].Balance += output.Amount
 				}
 			}
 		}
-		Log.Debug("sender state after applying all the mempool transactions:", senderState)
+	}
 
-		totalAmount, err := tx.TotalAmount()
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		if senderState.Balance < totalAmount {
-			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
-				senderState.Balance, totalAmount, tx.Fee)
+	// Validate each sender's balance covers their inputs
+	for sender, amount := range inputAmounts {
+		state := simulatedStates[sender]
+		if state.Balance < amount {
+			err := fmt.Errorf("insufficient balance for sender %s: need %d, have %d",
+				sender, amount, state.Balance)
 			Log.Warn(err)
 			return err
 		}
 	}
 
-	// apply previous entry to validate signer's nonce
-	for _, v := range previousEntries {
-		if v.TXID == hash {
-			// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
-			break
-		}
-
-		if v.Signer == signer {
-			signerState.LastNonce++
-		}
-	}
-
-	if tx.Nonce != signerState.LastNonce+1 {
-		err = fmt.Errorf("transaction %x has unexpected nonce: %d, previous nonce: %d", hash,
-			tx.Nonce, signerState.LastNonce)
+	// Validate signer's nonce
+	if tx.Nonce != signerNonce+1 {
+		err := fmt.Errorf("invalid nonce for transaction %x: expected %d, got %d",
+			hash, signerNonce+1, tx.Nonce)
 		Log.Warn(err)
 		return err
 	}
