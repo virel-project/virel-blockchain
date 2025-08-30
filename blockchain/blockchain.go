@@ -63,6 +63,7 @@ type Index struct {
 	InTx     adb.Index
 	OutTx    adb.Index
 	Delegate adb.Index // Delegate Id -> Delegate
+	StakeSig adb.Index // Block hash -> Stake signature
 }
 
 func (bc *Blockchain) IsShuttingDown() bool {

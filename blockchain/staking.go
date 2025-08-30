@@ -1,9 +1,12 @@
 package blockchain
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
@@ -43,6 +46,26 @@ func (bc *Blockchain) GetStaker(txn adb.Txn, h util.Hash, stats *Stats) (*Delega
 	return delegate, nil
 }
 
+func (bc *Blockchain) SetDelegate(txn adb.Txn, delegate Delegate) error {
+	idb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(idb, delegate.Id)
+	return txn.Put(bc.Index.Delegate, idb, delegate.Serialize())
+}
+func (bc *Blockchain) GetDelegate(txn adb.Txn, id uint64) (*Delegate, error) {
+	idb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(idb, id)
+
+	delegatedata := txn.Get(bc.Index.Delegate, idb)
+	if len(delegatedata) < 1 {
+		return nil, errors.New("no delegate found")
+	}
+	delegate := &Delegate{}
+	err := delegate.Deserialize(delegatedata)
+	if err != nil {
+		return nil, err
+	}
+	return delegate, nil
+}
 func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error)) error {
 	return txn.ForEachInterrupt(bc.Index.Delegate, func(k, v []byte) (bool, error) {
 		d := &Delegate{}
@@ -54,6 +77,22 @@ func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error
 
 		return f(d)
 	})
+}
+
+func (bc *Blockchain) GetStakeSig(txn adb.Txn, hash util.Hash) (*packet.PacketStakeSignature, error) {
+	stakesigdata := txn.Get(bc.Index.StakeSig, hash[:])
+	if len(stakesigdata) < 1 {
+		return nil, errors.New("no stake signature found")
+	}
+	stakesig := &packet.PacketStakeSignature{}
+	err := stakesig.Deserialize(stakesigdata)
+	if err != nil {
+		return nil, err
+	}
+	return stakesig, nil
+}
+func (bc *Blockchain) SetStakeSig(txn adb.Txn, stakesig *packet.PacketStakeSignature) error {
+	return txn.Put(bc.Index.StakeSig, stakesig.Hash[:], stakesig.Serialize())
 }
 
 func hashToCoinIndex(hash [32]byte, stakedSupply uint64) uint64 {

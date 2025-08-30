@@ -61,9 +61,8 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			Ancestors:  prevBl.Ancestors.AddHash(stats.TopHash),
 			SideBlocks: make([]block.Commitment, 0),
 		},
-		Difficulty:     uint128.From64(config.MIN_DIFFICULTY),
-		CumulativeDiff: stats.CumulativeDiff,
-		Transactions:   []transaction.TXID{},
+		Difficulty:   uint128.From64(config.MIN_DIFFICULTY),
+		Transactions: []transaction.TXID{},
 	}
 	_, err = rand.Read(bl.NonceExtra[:])
 	if err != nil {
@@ -151,7 +150,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 	}
 
-	bl.CumulativeDiff = bl.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
+	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 	// TODO: sort mempool transactions by Fee Per Kilobyte, to prioritize the transactions with higher fee
 	// possibly also take in account transaction age in the sorting algorithm

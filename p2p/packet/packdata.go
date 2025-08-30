@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
@@ -79,5 +81,26 @@ func (p *PacketBlockRequest) Deserialize(d []byte) error {
 	} else {
 		p.Count = s.ReadUint8()
 	}
+	return s.Error()
+}
+
+type PacketStakeSignature struct {
+	DelegateId uint64    // the delegate who signed this hash
+	Hash       util.Hash // the block hash
+	Signature  bitcrypto.Signature
+}
+
+func (p PacketStakeSignature) Serialize() []byte {
+	s := binary.NewSer(make([]byte, 0, 32+64+2))
+	s.AddUvarint(p.DelegateId)
+	s.AddFixedByteArray(p.Hash[:])
+	s.AddFixedByteArray(p.Signature[:])
+	return s.Output()
+}
+func (p *PacketStakeSignature) Deserialize(d []byte) error {
+	s := binary.NewDes(d)
+	p.DelegateId = s.ReadUvarint()
+	p.Hash = util.Hash(s.ReadFixedByteArray(32))
+	p.Signature = bitcrypto.Signature(s.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
 	return s.Error()
 }

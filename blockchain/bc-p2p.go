@@ -1,9 +1,12 @@
 package blockchain
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/p2p"
@@ -66,6 +69,9 @@ func (bc *Blockchain) incomingP2P() {
 		case packet.BLOCK_REQUEST:
 			Log.Debug("Received block request packet")
 			go bc.packetBlockRequest(pack)
+		case packet.STAKE_SIGNATURE:
+			Log.Debug("Received stake signature packet")
+			go bc.packetStakeSignature(pack)
 		}
 	}
 }
@@ -210,6 +216,46 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 	}
 }
 
+func (bc *Blockchain) packetStakeSignature(pack p2p.Packet) {
+	st := &packet.PacketStakeSignature{}
+
+	err := st.Deserialize(pack.Data)
+	if err != nil {
+		Log.Warn(err)
+		return
+	}
+
+	var delegate *Delegate
+	err = bc.DB.Update(func(txn adb.Txn) error {
+		_, err = bc.GetStakeSig(txn, st.Hash)
+		if err == nil {
+			return errors.New("stake signature already in database")
+		}
+
+		delegate, err = bc.GetDelegate(txn, st.DelegateId)
+		if err != nil {
+			return fmt.Errorf("failed to get delegate %d: %w", st.DelegateId, err)
+		}
+
+		sigOk := bitcrypto.VerifySignature(delegate.Owner, append(config.STAKE_SIGN_PREFIX, st.Hash[:]...), st.Signature)
+		if !sigOk {
+			return fmt.Errorf("invalid StakeSignature packet: invalid signature")
+		}
+
+		err = bc.SetStakeSig(txn, st)
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		Log.Debug(err)
+		return
+	}
+	bc.BroadcastStakeSig(st)
+}
+
 func (bc *Blockchain) sendBlockToPeer(bl *block.Block, c *p2p.Connection) error {
 	var d []byte
 	err := bc.DB.View(func(txn adb.Txn) (err error) {
@@ -259,6 +305,7 @@ func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 	maxCumDiff := bl.CumulativeDiff.Add(bl.Difficulty.Mul64(config.MINIDAG_ANCESTORS + 2))
 
 	bc.P2P.RLock()
+	defer bc.P2P.RUnlock()
 	for _, v := range bc.P2P.Connections {
 		// only send the block if the peer has a smaller cumulative difficulty
 		go v.PeerData(func(d *p2p.PeerData) {
@@ -270,5 +317,22 @@ func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 			}
 		})
 	}
-	bc.P2P.RUnlock()
+}
+
+// Broadcasts a StakeSignature packet
+func (bc *Blockchain) BroadcastStakeSig(pack *packet.PacketStakeSignature) {
+	Log.Debug("broadcasting stake sig")
+
+	ser := pack.Serialize()
+
+	bc.P2P.RLock()
+	defer bc.P2P.RUnlock()
+	for _, v := range bc.P2P.Connections {
+		go v.PeerData(func(d *p2p.PeerData) {
+			v.SendPacket(&p2p.Packet{
+				Type: packet.STAKE_SIGNATURE,
+				Data: ser,
+			})
+		})
+	}
 }

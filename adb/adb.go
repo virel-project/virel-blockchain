@@ -12,7 +12,7 @@ type Index any
 
 type Txn interface {
 	Get(Index, []byte) []byte
-	Put(Index, []byte, []byte) error
+	Put(idx Index, key []byte, val []byte) error
 	Del(Index, []byte) error
 	ForEach(Index, func(k, v []byte) error) error
 	ForEachInterrupt(Index, func(k, v []byte) (bool, error)) error
