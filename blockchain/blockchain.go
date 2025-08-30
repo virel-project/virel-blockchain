@@ -1111,62 +1111,85 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 	}
 
 	// undo coinbase transaction
-	// TODO: use bl.CoinbaseStateOutputs()
-	{
-		totalReward := bl.Reward() + totalFee
-		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
-		minerReward := totalReward - governanceReward
 
-		Log.Debug("removing block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
+	totalReward := bl.Reward() + totalFee
+	coinbaseOutputs := bl.CoinbaseStateOutputs(totalReward)
 
+	for _, out := range coinbaseOutputs {
 		// undo miner transaction
-		minerState, err := bc.GetState(txn, bl.Recipient)
+		minerState, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
 			err := fmt.Errorf("coinbase reward account unknown: %s", err)
 			Log.Err(err)
 			return err
 		}
-		if minerState.Balance < minerReward {
-			err := fmt.Errorf("balance of coinbase account is too small! balance: %d, block reward: %d",
-				minerState.Balance, minerReward)
+		if minerState.Balance < out.Amount {
+			err := fmt.Errorf("balance of coinbase account is too small: balance %d, block reward %d",
+				minerState.Balance, out.Amount)
 			Log.Err(err)
 			return err
 		}
 		if minerState.LastIncoming == 0 {
-			err = fmt.Errorf("coinbase %s LastIncoming must not be zero in block %x", bl.Recipient, blhash)
+			err = fmt.Errorf("coinbase %s LastIncoming must not be zero in block %x", out.Recipient, blhash)
 			Log.Err(err)
 			return err
 		}
-		minerState.Balance -= minerReward
+		minerState.Balance -= out.Amount
 		minerState.LastIncoming--
-		err = bc.SetState(txn, bl.Recipient, minerState)
+		err = bc.SetState(txn, out.Recipient, minerState)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-		// removing coinbase transaction from incoming tx list is not necessary - since it's never read, and
-		// later overwritten
+		// removing coinbase transaction from incoming tx list is not necessary - since it's never read, and later overwritten
 
-		// undo governance reward
-		governanceState, err := bc.GetState(txn, address.GenesisAddress)
-		if err != nil {
-			err := fmt.Errorf("coinbase reward account unknown: %s", err)
-			Log.Err(err)
-			return err
+		// Reverse each coinbase output
+		if out.DelegateId != 0 {
+			// Reverse the PoS reward distribution
+			delegate, err := bc.GetDelegate(txn, out.DelegateId)
+			if err != nil {
+				return err
+			}
+
+			if len(delegate.Funds) == 0 {
+				return fmt.Errorf("delegate has no funds")
+			}
+
+			totalStake := delegate.TotalAmount() - out.Amount
+			totalSubtracted := uint64(0)
+
+			for i, fund := range delegate.Funds {
+				// Calculate the amount that was added to each fund
+				subtractAmount := fund.Amount * out.Amount / (totalStake + out.Amount)
+
+				// Safety check to prevent underflow
+				if fund.Amount < subtractAmount {
+					return fmt.Errorf("cannot subtract more than available in fund")
+				}
+
+				delegate.Funds[i].Amount -= subtractAmount
+				totalSubtracted += subtractAmount
+			}
+
+			// Handle rounding error (reverse of what was done in ApplyBlockToState)
+			roundingError := out.Amount - totalSubtracted
+			if delegate.Funds[0].Amount < roundingError {
+				return fmt.Errorf("cannot subtract rounding error from first fund")
+			}
+			delegate.Funds[0].Amount -= roundingError
+
+			// Verify the subtraction was correct
+			if delegate.TotalAmount() != totalStake {
+				return fmt.Errorf("staking mismatch after reversal: delegate balance %d, expected %d",
+					delegate.TotalAmount(), totalStake)
+			}
+
+			// Update the delegate in state
+			err = bc.SetDelegate(txn, delegate)
+			if err != nil {
+				return err
+			}
 		}
-		if governanceState.Balance < governanceReward {
-			err := fmt.Errorf("balance of coinbase account is too small! balance: %d, block reward: %d",
-				governanceState.Balance, governanceReward)
-			Log.Err(err)
-			return err
-		}
-		governanceState.Balance -= governanceReward
-		err = bc.SetState(txn, address.GenesisAddress, governanceState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// governance reward transactions aren't saved in incoming tx list
 	}
 
 	// remove transactions in reverse order
@@ -1209,21 +1232,15 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 
 		// increase senders balances
-		for _, inputs := range tx.Data.StateInputs(tx, signerAddr) {
-			senderState, err := bc.GetState(txn, inputs.Sender)
+		for _, inp := range tx.Data.StateInputs(tx, signerAddr) {
+			senderState, err := bc.GetState(txn, inp.Sender)
 			if err != nil {
 				Log.Err(err)
 				return err
 			}
 
-			amount, err := tx.TotalAmount()
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-
-			senderState.Balance += amount
-			err = bc.SetState(txn, inputs.Sender, senderState)
+			senderState.Balance += inp.Amount
+			err = bc.SetState(txn, inp.Sender, senderState)
 			if err != nil {
 				Log.Err(err)
 				return err
