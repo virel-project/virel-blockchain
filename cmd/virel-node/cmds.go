@@ -382,7 +382,9 @@ func prompts(bc *blockchain.Blockchain) {
 				times := []float64{}
 				var sum float64
 
-				for i := 0; i < 100; i++ {
+				const block_time_window = 60 / config.TARGET_BLOCK_TIME * 60 * 4
+
+				for i := 0; i < 4*block_time_window; i++ {
 					bl, err := bc.GetBlock(tx, hash)
 					if err != nil {
 						return err
@@ -403,8 +405,8 @@ func prompts(bc *blockchain.Blockchain) {
 					hash = bl.PrevHash()
 				}
 
-				Log.Info("block times:", times)
-				Log.Info("average block time:", sum/float64(len(times)))
+				Log.Debug("block times:", times)
+				Log.Infof("average block time in the last 4 hours (%d blocks): %.2f", block_time_window, sum/float64(len(times)))
 
 				return nil
 			})
