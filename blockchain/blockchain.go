@@ -928,7 +928,10 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 
 			senderState.Balance -= inp.Amount
 
-			bc.SetState(txn, inp.Sender, senderState)
+			err = bc.SetState(txn, inp.Sender, senderState)
+			if err != nil {
+				return err
+			}
 		}
 
 		// add the funds to recipient
@@ -937,9 +940,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Debug("recipient state not previously known:", err)
-				recState = &State{
-					Balance: 0, LastNonce: 0,
-				}
+				recState = &State{}
 			}
 			Log.Devf("recipient %s state before: %v", out.Recipient, recState)
 
@@ -975,15 +976,18 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		}
 
 		// apply tx to total fee
-		prev := tx.Fee
+		prev := totalFee
 		totalFee += tx.Fee
 		if totalFee < prev {
-			return errors.New("invalid TX fees in block")
+			return errors.New("reward tx fee overflow in block")
 		}
 	}
 
 	// add block reward to coinbase transaction
 	totalReward := bl.Reward() + totalFee
+	if totalReward < bl.Reward() {
+		return errors.New("reward overflow in block")
+	}
 	outputs := bl.CoinbaseStateOutputs(totalReward)
 
 	for _, out := range outputs {
@@ -991,10 +995,11 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		state, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
 			Log.Debugf("coinbase reward account not previously known: %s", err)
+			state = &State{}
 		}
 		state.Balance += out.Amount
 		state.LastIncoming++
-		err = bc.SetState(txn, bl.Recipient, state)
+		err = bc.SetState(txn, out.Recipient, state)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -1011,6 +1016,11 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 			delegate, err := bc.GetDelegate(txn, out.DelegateId)
 			if err != nil {
 				Log.Err(err)
+				return err
+			}
+
+			if len(delegate.Funds) == 0 {
+				err = fmt.Errorf("delegate has no funds")
 				return err
 			}
 
