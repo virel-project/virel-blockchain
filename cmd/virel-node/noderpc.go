@@ -9,9 +9,11 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/rpc"
 	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/rpc/rpcserver"
@@ -533,6 +535,42 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 	})
 
+	rs.Handle("submit_stake_signature", func(c *rpcserver.Context) {
+		params := daemonrpc.SubmitStakeSignatureRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		if len(params.Hash) != 32 || len(params.Signature) != bitcrypto.SIGNATURE_SIZE {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "invalid hash or signature length",
+			})
+		}
+
+		hash := util.Hash(params.Hash)
+		sig := bitcrypto.Signature(params.Signature)
+
+		err = bc.HandleStakeSignature(&packet.PacketStakeSignature{
+			DelegateId: params.DelegateId,
+			Hash:       hash,
+			Signature:  sig,
+		})
+
+		if err != nil {
+			Log.Warn(err)
+			c.SuccessResponse(daemonrpc.SubmitStakeSignatureResponse{
+				Accepted:     false,
+				ErrorMessage: err.Error(),
+			})
+			return
+		}
+
+		c.SuccessResponse(daemonrpc.SubmitStakeSignatureResponse{
+			Accepted: true,
+		})
+	})
 	if !restricted {
 		rs.Handle("get_rich_list", func(c *rpcserver.Context) {
 			const COUNT = 100

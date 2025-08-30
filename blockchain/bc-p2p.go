@@ -225,9 +225,16 @@ func (bc *Blockchain) packetStakeSignature(pack p2p.Packet) {
 		return
 	}
 
+	err = bc.HandleStakeSignature(st)
+	if err != nil {
+		Log.Debug(err)
+	}
+}
+
+func (bc *Blockchain) HandleStakeSignature(st *packet.PacketStakeSignature) error {
 	var delegate *Delegate
-	err = bc.DB.Update(func(txn adb.Txn) error {
-		_, err = bc.GetStakeSig(txn, st.Hash)
+	err := bc.DB.Update(func(txn adb.Txn) error {
+		_, err := bc.GetStakeSig(txn, st.Hash)
 		if err == nil {
 			return errors.New("stake signature already in database")
 		}
@@ -250,10 +257,10 @@ func (bc *Blockchain) packetStakeSignature(pack p2p.Packet) {
 		return nil
 	})
 	if err != nil {
-		Log.Debug(err)
-		return
+		return err
 	}
 	bc.BroadcastStakeSig(st)
+	return nil
 }
 
 func (bc *Blockchain) sendBlockToPeer(bl *block.Block, c *p2p.Connection) error {

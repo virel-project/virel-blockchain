@@ -50,3 +50,8 @@ func (r *RpcClient) GetRichList(p RichListRequest) (*RichListResponse, error) {
 	o := &RichListResponse{}
 	return o, r.Request("get_rich_list", p, &o)
 }
+
+func (r *RpcClient) SubmitStakeSignature(p SubmitStakeSignatureRequest) (*SubmitStakeSignatureResponse, error) {
+	o := &SubmitStakeSignatureResponse{}
+	return o, r.Request("submit_stake_signature", p, &o)
+}

@@ -118,3 +118,13 @@ type RichListRequest struct {
 type RichListResponse struct {
 	Richest []StateInfo
 }
+
+type SubmitStakeSignatureRequest struct {
+	DelegateId uint64  `json:"delegate_id"` // the delegate who signed this hash
+	Hash       enc.Hex `json:"hash"`        // the block hash
+	Signature  enc.Hex `json:"signature"`   // the signature
+}
+type SubmitStakeSignatureResponse struct {
+	Accepted     bool   `json:"accepted"`
+	ErrorMessage string `json:"error_message"`
+}
