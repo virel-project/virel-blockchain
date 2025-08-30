@@ -986,42 +986,66 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 	// TODO: use bl.CoinbaseStateOutputs()
 	{
 		totalReward := bl.Reward() + totalFee
-		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
-		minerReward := totalReward - governanceReward
+		outputs := bl.CoinbaseStateOutputs(totalReward)
 
-		Log.Debug("adding block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
+		for _, out := range outputs {
+			Log.Debug("adding coinbase output", out)
+			state, err := bc.GetState(txn, out.Recipient)
+			if err != nil {
+				Log.Debugf("coinbase reward account not previously known: %s", err)
+			}
+			state.Balance += out.Amount
+			state.LastIncoming++
+			err = bc.SetState(txn, bl.Recipient, state)
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
+			// add block hash to recipient's incoming list
+			err = bc.SetTxTopoInc(txn, bl.Hash(), out.Recipient, state.LastIncoming)
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
 
-		// apply miner reward
-		minerState, err := bc.GetState(txn, bl.Recipient)
-		if err != nil {
-			Log.Debugf("coinbase reward account not previously known: %s", err)
-		}
-		minerState.Balance += minerReward
-		minerState.LastIncoming++
-		err = bc.SetState(txn, bl.Recipient, minerState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// add block hash to recipient's incoming list
-		err = bc.SetTxTopoInc(txn, bl.Hash(), bl.Recipient, minerState.LastIncoming)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
+			if out.DelegateId != 0 {
+				// special payout for PoS reward
+				delegate, err := bc.GetDelegate(txn, out.DelegateId)
+				if err != nil {
+					Log.Err(err)
+					return err
+				}
 
-		// apply governance reward
-		governanceState, err := bc.GetState(txn, address.GenesisAddress)
-		if err != nil {
-			Log.Debugf("governance reward account not previously known: %s", err)
+				totalStake := delegate.TotalAmount()
+				totalAdded := uint64(0)
+
+				for _, fund := range delegate.Funds {
+					addAmount := fund.Amount * out.Amount / totalStake
+
+					Log.Debugf("adding %s to staker %s", util.FormatCoin(addAmount), fund.Owner)
+
+					fund.Amount += addAmount
+					totalAdded += addAmount
+				}
+
+				roundingError := out.Amount - totalAdded
+				Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
+
+				delegate.Funds[0].Amount += roundingError
+
+				if delegate.TotalAmount() != totalStake+out.Amount {
+					err = fmt.Errorf("staking mismatch: delegate balance %d, expected %d", delegate.TotalAmount(), totalStake+out.Amount)
+					Log.Err(err)
+					return err
+				}
+
+				err = bc.SetDelegate(txn, delegate)
+				if err != nil {
+					Log.Err(err)
+					return err
+				}
+			}
 		}
-		governanceState.Balance += governanceReward
-		err = bc.SetState(txn, address.GenesisAddress, governanceState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// governance reward transactions aren't saved in incoming tx list
 	}
 
 	// update some stats

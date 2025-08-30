@@ -43,5 +43,5 @@ const MAX_OUTPUTS = 32 // max output count for a transaction
 const UPDATE_CHECK_URL = "https://api.github.com/repos/virel-project/virel-blockchain/releases/latest"
 
 const DELEGATE_ADDRESS_PREFIX = "delegate"
-const MIN_STAKE_AMOUNT = COIN
-const REGISTER_DELEGATE_BURN = 1000 * COIN
+const MIN_STAKE_AMOUNT = 100 * COIN
+const REGISTER_DELEGATE_BURN = 5_000 * COIN

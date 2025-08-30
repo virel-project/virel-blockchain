@@ -368,9 +368,7 @@ type CoinbaseOutput struct {
 	DelegateId uint64 // if zero, this is not a PoS output
 }
 
-func (b *Block) CoinbaseStateOutputs() []CoinbaseOutput {
-	totalReward := b.Reward()
-
+func (b *Block) CoinbaseStateOutputs(totalReward uint64) []CoinbaseOutput {
 	if b.Version == 0 {
 		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
 		powReward := totalReward - governanceReward

@@ -215,24 +215,27 @@ func (t *Stake) String() string {
 	return fmt.Sprintf("Stake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
 }
 func (t *Stake) TotalAmount() (uint64, error) {
-	return t.Amount * config.MIN_STAKE_AMOUNT, nil
+	return t.Amount, nil
 }
 func (t *Stake) VSize() uint64 {
 	return 8
 }
 func (t *Stake) Prevalidate(_ *Transaction) error {
+	if t.Amount < config.MIN_STAKE_AMOUNT {
+		return fmt.Errorf("could not stake %s: must stake at least %s", util.FormatCoin(t.Amount), util.FormatCoin(config.MIN_STAKE_AMOUNT))
+	}
 	return nil
 }
 func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []Input {
 	return []Input{{
 		Sender: address.FromPubKey(tx.Signer),
-		Amount: t.Amount*config.MIN_STAKE_AMOUNT + tx.Fee,
+		Amount: t.Amount + tx.Fee,
 	}}
 }
 func (t *Stake) StateOutputs(tx *Transaction, sender address.Address) []Output {
 	return []Output{{
 		Recipient: address.NewDelegateAddress(t.DelegateId),
-		Amount:    t.Amount * config.MIN_STAKE_AMOUNT,
+		Amount:    t.Amount,
 	}}
 }
 
@@ -259,14 +262,14 @@ func (t *Unstake) String() string {
 	return fmt.Sprintf("Unstake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
 }
 func (t *Unstake) TotalAmount() (uint64, error) {
-	return t.Amount * config.MIN_STAKE_AMOUNT, nil
+	return t.Amount, nil
 }
 func (t *Unstake) VSize() uint64 {
 	return 8
 }
 func (t *Unstake) Prevalidate(tx *Transaction) error {
-	if tx.Fee > t.Amount*config.MIN_STAKE_AMOUNT {
-		return fmt.Errorf("transaction fee %s is bigger than the staked amount %d", util.FormatCoin(tx.Fee), t.Amount)
+	if tx.Fee > t.Amount {
+		return fmt.Errorf("transaction fee %s is bigger than the staked amount %s", util.FormatCoin(tx.Fee), util.FormatCoin(t.Amount))
 	}
 
 	return nil
@@ -274,16 +277,16 @@ func (t *Unstake) Prevalidate(tx *Transaction) error {
 func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []Input {
 	return []Input{{
 		Sender: address.NewDelegateAddress(t.DelegateId),
-		Amount: t.Amount * config.MIN_STAKE_AMOUNT,
+		Amount: t.Amount,
 	}}
 }
 func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	if tx.Fee > t.Amount*config.MIN_STAKE_AMOUNT {
-		panic(fmt.Errorf("unstake: fee %s > amount %s", util.FormatCoin(tx.Fee), util.FormatCoin(t.Amount*config.MIN_STAKE_AMOUNT)))
+	if tx.Fee > t.Amount {
+		panic(fmt.Errorf("unstake: fee %s > amount %s", util.FormatCoin(tx.Fee), util.FormatCoin(t.Amount)))
 	}
 
 	return []Output{{
 		Recipient: sender,
-		Amount:    t.Amount*config.MIN_STAKE_AMOUNT - tx.Fee,
+		Amount:    t.Amount - tx.Fee,
 	}}
 }

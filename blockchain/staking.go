@@ -46,7 +46,7 @@ func (bc *Blockchain) GetStaker(txn adb.Txn, h util.Hash, stats *Stats) (*Delega
 	return delegate, nil
 }
 
-func (bc *Blockchain) SetDelegate(txn adb.Txn, delegate Delegate) error {
+func (bc *Blockchain) SetDelegate(txn adb.Txn, delegate *Delegate) error {
 	idb := make([]byte, 8)
 	binary.LittleEndian.PutUint64(idb, delegate.Id)
 	return txn.Put(bc.Index.Delegate, idb, delegate.Serialize())
