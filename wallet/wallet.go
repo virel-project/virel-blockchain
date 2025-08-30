@@ -240,7 +240,7 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 	}
 
 	txn := &transaction.Transaction{
-		Sender: w.dbInfo.PrivateKey.Public(),
+		Signer: w.dbInfo.PrivateKey.Public(),
 		Nonce:  w.GetMempoolLastNonce() + 1,
 		Data: &transaction.Transfer{
 			Outputs: outputs,
@@ -254,7 +254,69 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
 
 	err = txn.Sign(w.dbInfo.PrivateKey)
+	return txn, err
+}
 
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) RegisterDelegate(name string) (*transaction.Transaction, error) {
+	err := w.Refresh()
+	if err != nil {
+		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
+	}
+
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.RegisterDelegate{
+			Name: []byte(name),
+		},
+	}
+
+	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
+	err = txn.Sign(w.dbInfo.PrivateKey)
+	return txn, err
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) SetDelegate(delegateId uint64) (*transaction.Transaction, error) {
+	err := w.Refresh()
+	if err != nil {
+		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
+	}
+
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_SET_DELEGATE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.SetDelegate{
+			DelegateId: delegateId,
+		},
+	}
+
+	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
+	err = txn.Sign(w.dbInfo.PrivateKey)
+	return txn, err
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) Stake(delegateId uint64) (*transaction.Transaction, error) {
+	err := w.Refresh()
+	if err != nil {
+		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
+	}
+
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.SetDelegate{
+			DelegateId: delegateId,
+		},
+	}
+
+	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
+	err = txn.Sign(w.dbInfo.PrivateKey)
 	return txn, err
 }
 

@@ -8,6 +8,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 const (
@@ -27,9 +28,12 @@ type TransactionData interface {
 	VSize() uint64
 	TotalAmount() (uint64, error)
 	Prevalidate() error
+	// The inputs of this transaction.
+	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount() + the transaction fee.
+	StateInputs(tx *Transaction, sender address.Address) []Input
 	// Adds the balances of this transaction data to the blockchain state.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount().
-	AddToState() []Output
+	StateOutputs(tx *Transaction, sender address.Address) []Output
 }
 
 // TransactionData: Transfer
@@ -95,31 +99,15 @@ func (t *Transfer) Prevalidate() error {
 
 	return nil
 }
-func (t *Transfer) AddToState() []Output {
+func (t *Transfer) StateInputs(tx *Transaction, sender address.Address) []Input {
+	totamt, _ := t.TotalAmount()
+	return []Input{{
+		Amount: totamt + tx.Fee,
+		Sender: sender,
+	}}
+}
+func (t *Transfer) StateOutputs(tx *Transaction, sender address.Address) []Output {
 	return t.Outputs
-}
-
-type Output struct {
-	Recipient address.Address `json:"recipient"`  // recipient's address
-	PaymentId uint64          `json:"payment_id"` // subaddress id
-	Amount    uint64          `json:"amount"`     // amount excludes the fee
-}
-
-func (o Output) Serialize(b *binary.Ser) {
-	b.AddFixedByteArray(o.Recipient[:])
-	b.AddUvarint(o.PaymentId)
-	b.AddUvarint(o.Amount)
-}
-func (o *Output) Deserialize(d *binary.Des) error {
-	o.Recipient = address.Address(d.ReadFixedByteArray(address.SIZE))
-	o.PaymentId = d.ReadUvarint()
-	o.Amount = d.ReadUvarint()
-
-	return d.Error()
-}
-
-func (o Output) String() string {
-	return fmt.Sprintf("amount: %d recipient: %v subaddr: %d", o.Amount, o.Recipient, o.PaymentId)
 }
 
 // TransactionData: RegisterDelegate
@@ -153,8 +141,13 @@ func (t *RegisterDelegate) Prevalidate() error {
 	}
 	return nil
 }
-
-func (t *RegisterDelegate) AddToState() []Output {
+func (t *RegisterDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
+	return []Input{{
+		Amount: tx.Fee,
+		Sender: sender,
+	}}
+}
+func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address) []Output {
 	return make([]Output, 0)
 }
 
@@ -186,6 +179,100 @@ func (t *SetDelegate) VSize() uint64 {
 func (t *SetDelegate) Prevalidate() error {
 	return nil
 }
-func (t *SetDelegate) AddToState() []Output {
+func (t *SetDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
+	return []Input{{
+		Amount: tx.Fee,
+		Sender: sender,
+	}}
+}
+func (t *SetDelegate) StateOutputs(tx *Transaction, sender address.Address) []Output {
 	return make([]Output, 0)
+}
+
+// TransactionData: Stake
+
+type Stake struct {
+	Amount     uint64
+	DelegateId uint64
+}
+
+func (t *Stake) AssociatedTransactionVersion() uint8 {
+	return TX_VERSION_STAKE
+}
+func (t *Stake) Serialize(s *binary.Ser) {
+	s.AddUvarint(t.Amount)
+	s.AddUvarint(t.DelegateId)
+}
+func (t *Stake) Deserialize(d *binary.Des) error {
+	t.Amount = d.ReadUvarint()
+	t.DelegateId = d.ReadUvarint()
+	return d.Error()
+}
+func (t *Stake) String() string {
+	return fmt.Sprintf("Stake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
+}
+func (t *Stake) TotalAmount() (uint64, error) {
+	return t.Amount * config.MIN_STAKE_AMOUNT, nil
+}
+func (t *Stake) VSize() uint64 {
+	return 8
+}
+func (t *Stake) Prevalidate() error {
+	return nil
+}
+func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []Input {
+	return []Input{{
+		Sender: address.FromPubKey(tx.Signer),
+		Amount: t.Amount*config.MIN_STAKE_AMOUNT + tx.Fee,
+	}}
+}
+func (t *Stake) StateOutputs(tx *Transaction, sender address.Address) []Output {
+	return []Output{{
+		Recipient: address.NewDelegateAddress(t.DelegateId),
+		Amount:    t.Amount * config.MIN_STAKE_AMOUNT,
+	}}
+}
+
+// TransactionData: Unstake
+
+type Unstake struct {
+	Amount     uint64
+	DelegateId uint64
+}
+
+func (t *Unstake) AssociatedTransactionVersion() uint8 {
+	return TX_VERSION_UNSTAKE
+}
+func (t *Unstake) Serialize(s *binary.Ser) {
+	s.AddUvarint(t.Amount)
+	s.AddUvarint(t.DelegateId)
+}
+func (t *Unstake) Deserialize(d *binary.Des) error {
+	t.Amount = d.ReadUvarint()
+	t.DelegateId = d.ReadUvarint()
+	return d.Error()
+}
+func (t *Unstake) String() string {
+	return fmt.Sprintf("Unstake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
+}
+func (t *Unstake) TotalAmount() (uint64, error) {
+	return t.Amount * config.MIN_STAKE_AMOUNT, nil
+}
+func (t *Unstake) VSize() uint64 {
+	return 8
+}
+func (t *Unstake) Prevalidate() error {
+	return nil
+}
+func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []Input {
+	return []Input{{
+		Sender: address.NewDelegateAddress(t.DelegateId),
+		Amount: t.Amount*config.MIN_STAKE_AMOUNT + tx.Fee,
+	}}
+}
+func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []Output {
+	return []Output{{
+		Recipient: sender,
+		Amount:    t.Amount * config.MIN_STAKE_AMOUNT,
+	}}
 }

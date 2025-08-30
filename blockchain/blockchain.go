@@ -881,50 +881,58 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 			Log.Err(err)
 			return err
 		}
-		senderAddr := address.FromPubKey(tx.Sender)
+		signerAddr := address.FromPubKey(tx.Signer)
 
 		Log.Debugf("Applying transaction %x to mainchain", v)
 
 		// check sender state
-		senderState, err := bc.GetState(txn, senderAddr)
+		signerState, err := bc.GetState(txn, signerAddr)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-		Log.Dev("sender state before:", senderState)
+		Log.Dev("signer state before:", signerState)
 
-		totalAmount, err := tx.TotalAmount()
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
-		if senderState.Balance < totalAmount {
-			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount+fee: %d", v,
-				senderState.Balance, totalAmount)
-			Log.Warn(err)
-			return err
-		}
-		if tx.Nonce != senderState.LastNonce+1 {
+		if tx.Nonce != signerState.LastNonce+1 {
 			err = fmt.Errorf("transaction %s has unexpected nonce: %d, previous nonce: %d", v,
-				tx.Nonce, senderState.LastNonce)
+				tx.Nonce, signerState.LastNonce)
 			Log.Warn(err)
 			return err
 		}
 
-		// apply sender state
-		senderState.Balance -= totalAmount
-		senderState.LastNonce++
-		err = bc.SetState(txn, senderAddr, senderState)
+		// apply signer state
+		signerState.LastNonce++
+		err = bc.SetState(txn, signerAddr, signerState)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
+		Log.Dev("signer state after:", signerState)
 
-		Log.Dev("sender state after:", senderState)
+		// apply inputs state
+		for _, inp := range tx.Data.StateInputs(tx, signerAddr) {
+			senderState, err := bc.GetState(txn, inp.Sender)
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
+
+			Log.Dev("sender state before:", senderState)
+
+			if senderState.Balance < inp.Amount {
+				err = fmt.Errorf("transaction %s spends too much money: sender %s balance: %d, amount: %d",
+					v, inp.Sender, senderState.Balance, inp.Amount)
+				Log.Warn(err)
+				return err
+			}
+
+			senderState.Balance -= inp.Amount
+
+			bc.SetState(txn, inp.Sender, senderState)
+		}
 
 		// add the funds to recipient
-		atsd := tx.Data.AddToState()
+		atsd := tx.Data.StateOutputs(tx, signerAddr)
 		for _, out := range atsd {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
@@ -954,7 +962,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		}
 
 		// add tx hash to sender's outgoing list
-		err = bc.SetTxTopoOut(txn, v, senderAddr, senderState.LastNonce)
+		err = bc.SetTxTopoOut(txn, v, signerAddr, signerState.LastNonce)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -975,6 +983,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 	}
 
 	// add block reward to coinbase transaction
+	// TODO: use bl.CoinbaseStateOutputs()
 	{
 		totalReward := bl.Reward() + totalFee
 		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
@@ -1051,13 +1060,15 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			}
 			// add removed transactions back to mempool
 			if memp.GetEntry(v) == nil {
+				signerAddr := address.FromPubKey(tx.Signer)
 				memp.Entries = append(memp.Entries, &MempoolEntry{
 					TXID:    v,
 					Size:    tx.GetVirtualSize(),
 					Fee:     tx.Fee,
 					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-					Sender:  address.FromPubKey(tx.Sender),
-					Outputs: tx.Data.AddToState(),
+					Signer:  signerAddr,
+					Inputs:  tx.Data.StateInputs(tx, signerAddr),
+					Outputs: tx.Data.StateOutputs(tx, signerAddr),
 				})
 			}
 		}
@@ -1069,6 +1080,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 	}
 
 	// undo coinbase transaction
+	// TODO: use bl.CoinbaseStateOutputs()
 	{
 		totalReward := bl.Reward() + totalFee
 		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
@@ -1133,10 +1145,10 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 
 		Log.Devf("removing transaction %x (index %d) from state", txhash, i)
 
-		senderAddr := address.FromPubKey(tx.Sender)
+		signerAddr := address.FromPubKey(tx.Signer)
 
 		// decrease recipient balance and LastIncoming
-		atsd := tx.Data.AddToState()
+		atsd := tx.Data.StateOutputs(tx, signerAddr)
 		for _, out := range atsd {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
@@ -1165,15 +1177,10 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			}
 		}
 
-		// increase sender balance and decrease nonce
-		{
-			senderState, err := bc.GetState(txn, senderAddr)
+		// increase senders balances
+		for _, inputs := range tx.Data.StateInputs(tx, signerAddr) {
+			senderState, err := bc.GetState(txn, inputs.Sender)
 			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			if senderState.LastNonce == 0 {
-				err = fmt.Errorf("sender %s last nonce must not be zero in tx %x", senderAddr, txhash)
 				Log.Err(err)
 				return err
 			}
@@ -1185,16 +1192,33 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			}
 
 			senderState.Balance += amount
-			senderState.LastNonce--
-			err = bc.SetState(txn, senderAddr, senderState)
+			err = bc.SetState(txn, inputs.Sender, senderState)
 			if err != nil {
 				Log.Err(err)
 				return err
 			}
 		}
 
+		// decrease signer nonce
+		signerState, err := bc.GetState(txn, signerAddr)
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+		if signerState.LastNonce == 0 {
+			err = fmt.Errorf("sender %s last nonce must not be zero in tx %x", signerAddr, txhash)
+			Log.Err(err)
+			return err
+		}
+		signerState.LastNonce--
+		err = bc.SetState(txn, signerAddr, signerState)
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+
 		// set tx height to zero
-		err := bc.SetTxHeight(txn, txhash, 0)
+		err = bc.SetTxHeight(txn, txhash, 0)
 		if err != nil {
 			Log.Err(err)
 			return err

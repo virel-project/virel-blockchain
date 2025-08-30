@@ -18,7 +18,7 @@ import (
 type Transaction struct {
 	Version uint8
 
-	Sender    bitcrypto.Pubkey    // sender's public key
+	Signer    bitcrypto.Pubkey    // sender's public key
 	Signature bitcrypto.Signature // transaction signature
 
 	Data TransactionData
@@ -40,7 +40,7 @@ func (t Transaction) Serialize() []byte {
 		s.AddUint8(t.Data.AssociatedTransactionVersion())
 	}
 
-	s.AddFixedByteArray(t.Sender[:])
+	s.AddFixedByteArray(t.Signer[:])
 	s.AddFixedByteArray(t.Signature[:])
 
 	t.Data.Serialize(&s)
@@ -56,7 +56,7 @@ func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 	if hasVersion {
 		t.Version = d.ReadUint8()
 	}
-	t.Sender = [bitcrypto.PUBKEY_SIZE]byte(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
+	t.Signer = [bitcrypto.PUBKEY_SIZE]byte(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
 	t.Signature = [bitcrypto.SIGNATURE_SIZE]byte(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
 
 	switch t.Version {
@@ -153,7 +153,7 @@ func (t *Transaction) Prevalidate(height uint64) error {
 	}
 
 	// verify sender address
-	senderAddr := address.FromPubKey(t.Sender)
+	senderAddr := address.FromPubKey(t.Signer)
 	if senderAddr == address.INVALID_ADDRESS {
 		return errors.New("invalid sender public key")
 	}
@@ -165,7 +165,7 @@ func (t *Transaction) Prevalidate(height uint64) error {
 	}
 
 	// verify signature
-	sigValid := bitcrypto.VerifySignature(t.Sender, t.SignatureData(), t.Signature)
+	sigValid := bitcrypto.VerifySignature(t.Signer, t.SignatureData(), t.Signature)
 	if !sigValid {
 		return fmt.Errorf("invalid signature")
 	}
@@ -182,7 +182,7 @@ func (t *Transaction) Prevalidate(height uint64) error {
 		return err
 	}
 
-	atsd := t.Data.AddToState()
+	atsd := t.Data.StateOutputs(t, senderAddr)
 	stateSum := t.Fee
 	for _, v := range atsd {
 		stateSum += v.Amount
@@ -198,11 +198,23 @@ func (t *Transaction) String() string {
 	hash := t.Hash()
 	o := "Transaction " + hex.EncodeToString(hash[:]) + "\n"
 
+	signer := address.FromPubKey(t.Signer)
+
 	o += fmt.Sprintf(" Version: %d\n", t.Version)
 	o += " VSize: " + util.FormatUint(t.GetVirtualSize()) + "; physical size: " + util.FormatInt(len(t.Serialize())) + "\n"
-	o += " Sender: " + address.FromPubKey(t.Sender).Integrated().String() + "\n"
+	o += " Signer: " + signer.String() + "\n"
 
 	o += t.Data.String()
+
+	o += " Inputs:\n"
+	for _, v := range t.Data.StateInputs(t, signer) {
+		o += " - " + v.String() + "\n"
+	}
+
+	o += " Outputs:\n"
+	for _, v := range t.Data.StateOutputs(t, signer) {
+		o += " - " + v.String() + "\n"
+	}
 
 	o += " Signature: " + hex.EncodeToString(t.Signature[:]) + "\n"
 

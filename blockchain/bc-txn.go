@@ -55,13 +55,15 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			Log.Warn(err)
 			return nil
 		}
+		signerAddr := address.FromPubKey(tx.Signer)
 		mem.Entries = append(mem.Entries, &MempoolEntry{
 			TXID:    hash,
 			Size:    tx.GetVirtualSize(),
 			Fee:     tx.Fee,
 			Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-			Sender:  address.FromPubKey(tx.Sender),
-			Outputs: tx.Data.AddToState(),
+			Signer:  signerAddr,
+			Inputs:  tx.Data.StateInputs(tx, signerAddr),
+			Outputs: tx.Data.StateOutputs(tx, signerAddr),
 		})
 		err = bc.SetMempool(txn, mem)
 		if err != nil {
@@ -122,70 +124,82 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 
 // use this method to validate that a transaction in mempool is valid
 func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
-	senderAddr := address.FromPubKey(tx.Sender)
+	signer := address.FromPubKey(tx.Signer)
 
-	// get sender state
-	senderState, err := bc.GetState(txn, senderAddr)
+	inputs := tx.Data.StateInputs(tx, signer)
+
+	signerState, err := bc.GetState(txn, signer)
 	if err != nil {
 		Log.Err(err)
 		return err
 	}
 
-	// apply all the previous mempool transactions to sender state
-	Log.Dev("sender state before applying all the mempool transactions:", senderState)
+	for _, v := range inputs {
+		senderAddr := v.Sender
+		senderState, err := bc.GetState(txn, v.Sender)
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+
+		// apply all the previous mempool transactions to sender state
+		Log.Dev("sender state before applying all the mempool transactions:", senderState)
+		for _, v := range previousEntries {
+			if v.TXID == hash {
+				// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
+				break
+			}
+
+			// apply this transaction if it modifies sender state
+			if slices.ContainsFunc(v.Inputs, func(e transaction.Input) bool { return e.Sender == senderAddr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
+				for _, input := range v.Inputs {
+					if input.Sender == senderAddr {
+						if input.Amount > senderState.Balance {
+							err := fmt.Errorf("previous tx entry %x total amount %d > sender balance %v", v.TXID, input.Amount, senderState.Balance)
+							Log.Errf(err.Error())
+							return err
+						}
+						senderState.Balance -= input.Amount
+					}
+				}
+
+				for _, out := range v.Outputs {
+					if out.Recipient == senderAddr {
+						senderState.Balance += out.Amount
+					}
+				}
+			}
+		}
+		Log.Debug("sender state after applying all the mempool transactions:", senderState)
+
+		totalAmount, err := tx.TotalAmount()
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+		if senderState.Balance < totalAmount {
+			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
+				senderState.Balance, totalAmount, tx.Fee)
+			Log.Warn(err)
+			return err
+		}
+	}
+
+	// apply previous entry to validate signer's nonce
 	for _, v := range previousEntries {
 		if v.TXID == hash {
 			// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
 			break
 		}
 
-		// apply this transaction if it modifies sender state
-		if v.Sender == senderAddr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
-			vt, _, err := bc.GetTx(txn, v.TXID)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-
-			if v.Sender == senderAddr {
-				totalAmount, err := vt.TotalAmount()
-				if err != nil {
-					Log.Err(err)
-					return err
-				}
-
-				if totalAmount > senderState.Balance {
-					err := fmt.Errorf("previous tx entry %x total amount %d > sender balance %v", v.TXID, totalAmount, senderState.Balance)
-					Log.Errf(err.Error())
-					return err
-				}
-				senderState.Balance -= totalAmount
-				senderState.LastNonce++
-			}
-
-			for _, out := range v.Outputs {
-				if out.Recipient == senderAddr {
-					senderState.Balance += out.Amount
-				}
-			}
+		if v.Signer == signer {
+			signerState.LastNonce++
 		}
 	}
-	Log.Debug("sender state after applying all the mempool transactions:", senderState)
 
-	totalAmount, err := tx.TotalAmount()
-	if err != nil {
-		Log.Err(err)
-		return err
-	}
-	if senderState.Balance < totalAmount {
-		err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
-			senderState.Balance, totalAmount, tx.Fee)
-		Log.Warn(err)
-		return err
-	}
-	if tx.Nonce != senderState.LastNonce+1 {
+	if tx.Nonce != signerState.LastNonce+1 {
 		err = fmt.Errorf("transaction %x has unexpected nonce: %d, previous nonce: %d", hash,
-			tx.Nonce, senderState.LastNonce)
+			tx.Nonce, signerState.LastNonce)
 		Log.Warn(err)
 		return err
 	}

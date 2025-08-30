@@ -368,7 +368,7 @@ type CoinbaseOutput struct {
 	DelegateId uint64 // if zero, this is not a PoS output
 }
 
-func (b *Block) CoinbaseOutputs() []CoinbaseOutput {
+func (b *Block) CoinbaseStateOutputs() []CoinbaseOutput {
 	totalReward := b.Reward()
 
 	if b.Version == 0 {

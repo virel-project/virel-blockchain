@@ -159,8 +159,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT / 100
 
 			c.SuccessResponse(daemonrpc.GetTransactionResponse{
-				Sender:      nil,
+				Signer:      nil,
 				TotalAmount: bl.Reward(),
+				Inputs:      []transaction.Input{},
 				Outputs: []transaction.Output{
 					{
 						Amount:    bl.Reward() - rewardFee,
@@ -177,7 +178,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		integr := address.FromPubKey(tx.Sender).Integrated()
+		signer := address.FromPubKey(tx.Signer).Integrated()
 
 		amount, err := tx.TotalAmount()
 		if err != nil {
@@ -190,9 +191,10 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		c.SuccessResponse(daemonrpc.GetTransactionResponse{
-			Sender:      &integr,
+			Signer:      &signer,
 			TotalAmount: amount,
-			Outputs:     tx.Data.AddToState(),
+			Inputs:      tx.Data.StateInputs(tx, signer.Addr),
+			Outputs:     tx.Data.StateOutputs(tx, signer.Addr),
 			Fee:         tx.Fee,
 			Nonce:       tx.Nonce,
 			Signature:   tx.Signature[:],
@@ -336,30 +338,21 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			for _, v := range mem.Entries {
-				if v.Sender == addr.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
+				if slices.ContainsFunc(v.Inputs, func(e transaction.Input) bool { return e.Sender == addr.Addr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
 					Log.Devf("adding txn %x", v.TXID)
-					txn, _, err := bc.GetTx(txn, v.TXID)
-					if err != nil {
-						Log.Err(err)
-						return err
-					}
-					if v.Sender == addr.Addr {
 
-						amount, err := txn.TotalAmount()
-						if err != nil {
-							Log.Err(err)
-							return err
-						}
-
-						result.MempoolBalance -= amount
-						result.MempoolNonce++
-						// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
-						// as we consider them more trustworthy (to avoid double sending money by mistake)
-						if amount > result.Balance {
-							Log.Warnf("invalid mempool transaction %x", v.TXID)
-						} else {
-							result.Balance -= amount
-							result.LastNonce++
+					for _, inp := range v.Inputs {
+						if inp.Sender == addr.Addr {
+							result.MempoolBalance -= inp.Amount
+							result.MempoolNonce++
+							// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
+							// as we consider them more trustworthy (to avoid double sending money by mistake)
+							if inp.Amount > result.Balance {
+								Log.Warnf("invalid mempool transaction %x", v.TXID)
+							} else {
+								result.Balance -= inp.Amount
+								result.LastNonce++
+							}
 						}
 					}
 

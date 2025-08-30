@@ -80,7 +80,8 @@ type MempoolEntry struct {
 	Size    uint64
 	Fee     uint64
 	Expires int64
-	Sender  address.Address
+	Signer  address.Address
+	Inputs  []transaction.Input
 	Outputs []transaction.Output
 }
 

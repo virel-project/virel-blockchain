@@ -29,7 +29,7 @@ func TestTransaction(t *testing.T) {
 
 	tx := transaction.Transaction{
 		Version: 1,
-		Sender:  pubk,
+		Signer:  pubk,
 		Data: &transaction.Transfer{
 			Outputs: []transaction.Output{
 				{

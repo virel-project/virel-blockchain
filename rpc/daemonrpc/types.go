@@ -13,7 +13,8 @@ type GetTransactionRequest struct {
 }
 
 type GetTransactionResponse struct {
-	Sender      *address.Integrated  `json:"sender"`
+	Signer      *address.Integrated  `json:"sender"`
+	Inputs      []transaction.Input  `json:"inputs"`
 	Outputs     []transaction.Output `json:"outputs"`
 	TotalAmount uint64               `json:"total_amount"`
 	Fee         uint64               `json:"fee"`
