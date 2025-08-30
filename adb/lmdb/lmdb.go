@@ -217,6 +217,37 @@ func (t *Txn) ForEach(d adb.Index, f func(k, v []byte) error) error {
 
 	return nil
 }
+func (t *Txn) ForEachInterrupt(d adb.Index, f func(k, v []byte) (bool, error)) error {
+	dbi := d.(lmdb.DBI)
+	cursor, err := t.txn.OpenCursor(dbi)
+	if err != nil {
+		return err
+	}
+
+	defer cursor.Close()
+
+	// Iterate through all key-value pairs
+	for {
+		key, value, err := cursor.Get(nil, nil, lmdb.Next)
+		if lmdb.IsNotFound(err) {
+			// End of iteration
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("cursor get: %w", err)
+		}
+
+		interrupt, err := f(key, value)
+		if err != nil {
+			return err
+		}
+		if interrupt {
+			break
+		}
+	}
+
+	return nil
+}
 
 func (t *Txn) Entries(d adb.Index) (uint64, error) {
 	dbi := d.(lmdb.DBI)

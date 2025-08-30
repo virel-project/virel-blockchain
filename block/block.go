@@ -8,6 +8,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
@@ -28,6 +29,17 @@ type BlockHeader struct {
 	Recipient   address.Address `json:"recipient"`   // recipient of block's coinbase reward
 	Ancestors   Ancestors       `json:"prev_hash"`   // previous block hash
 	SideBlocks  []Commitment    `json:"side_blocks"` // list of block previous side blocks (most recent block first)
+
+	// Proof-of-Stake data
+
+	// Id of the delegate staker
+	DelegateId uint64
+	// Signature of the stake
+	StakeSignature bitcrypto.Signature
+}
+
+func (b BlockHeader) BlockStakedHash() util.Hash {
+	return b.Ancestors[len(b.Ancestors)-1]
 }
 
 func (b BlockHeader) PrevHash() util.Hash {
@@ -157,6 +169,11 @@ func (b BlockHeader) Serialize() []byte {
 		s.AddFixedByteArray(v.Serialize())
 	}
 
+	if b.Version > 0 {
+		s.AddUvarint(b.DelegateId)
+		s.AddFixedByteArray(b.StakeSignature[:])
+	}
+
 	return s.Output()
 }
 func (b *BlockHeader) Deserialize(data []byte) ([]byte, error) {
@@ -208,6 +225,11 @@ func (b *BlockHeader) Deserialize(data []byte) ([]byte, error) {
 		}
 	}
 
+	if b.Version > 0 {
+		b.DelegateId = d.ReadUvarint()
+		b.StakeSignature = bitcrypto.Signature(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
+	}
+
 	return d.RemainingData(), d.Error()
 }
 
@@ -255,18 +277,13 @@ func (b *Block) Deserialize(data []byte) error {
 	// read difficulty
 	diff := make([]byte, 16)
 	copy(diff, d.ReadByteSlice())
-	b.Difficulty = Uint128{
-		Hi: binary.LittleEndian.Uint64(diff[8:]),
-		Lo: binary.LittleEndian.Uint64(diff[:8]),
-	}
+	// Note: This is not a correct Little-Endian decoding. Will keep as-is for compatibility.
+	b.Difficulty = uint128.FromBytes(diff)
 	// read cumulative difficulty
 	diff = make([]byte, 16)
 	copy(diff, d.ReadByteSlice())
-	b.CumulativeDiff = Uint128{
-		Hi: binary.LittleEndian.Uint64(diff[8:]),
-		Lo: binary.LittleEndian.Uint64(diff[:8]),
-	}
-
+	// Note: This is not a correct Little-Endian decoding. Will keep as-is for compatibility.
+	b.CumulativeDiff = uint128.FromBytes(diff)
 	if d.Error() != nil {
 		return d.Error()
 	}
@@ -345,11 +362,81 @@ func (b *Block) DeserializeFull(data []byte) ([]*transaction.Transaction, error)
 	return txs, d.Error()
 }
 
-func (b Block) Hash() util.Hash {
+type CoinbaseOutput struct {
+	Recipient  address.Address
+	Amount     uint64
+	DelegateId uint64 // if zero, this is not a PoS output
+}
+
+func (b *Block) CoinbaseOutputs() []CoinbaseOutput {
+	totalReward := b.Reward()
+
+	if b.Version == 0 {
+		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
+		powReward := totalReward - governanceReward
+
+		return []CoinbaseOutput{{
+			Recipient: address.GenesisAddress,
+			Amount:    governanceReward,
+		}, {
+			Recipient: b.Recipient,
+			Amount:    powReward,
+		}}
+	} else {
+		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
+		communityReward := totalReward - governanceReward
+
+		if b.StakeSignature == bitcrypto.BlankSignature {
+			// for blocks without a valid stake signature, apply 10% burn to PoW reward and burn all the PoS reward.
+			powReward := communityReward / 2
+			powReward = powReward * 9 / 10
+			burnReward := communityReward - powReward
+
+			return []CoinbaseOutput{{
+				Recipient: address.GenesisAddress,
+				Amount:    governanceReward,
+			}, {
+				Recipient: b.Recipient,
+				Amount:    powReward,
+			}, {
+				Recipient: address.INVALID_ADDRESS,
+				Amount:    burnReward,
+			}}
+		} else {
+			posReward := communityReward / 2
+			powReward := communityReward - posReward
+
+			return []CoinbaseOutput{{
+				Recipient: address.GenesisAddress,
+				Amount:    governanceReward,
+			}, {
+				Recipient: b.Recipient,
+				Amount:    powReward,
+			}, {
+				Recipient:  b.Recipient,
+				Amount:     powReward,
+				DelegateId: b.DelegateId,
+			}}
+		}
+
+	}
+}
+
+func (bl *Block) ContributionToCumulativeDiff() uint128.Uint128 {
+	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
+
+	if bl.Version > 0 && bl.StakeSignature == bitcrypto.BlankSignature {
+		// blocks that are not staked only have 50% contribution to cumulative difficulty
+		return bl.Difficulty.Add(sideDiff).Div64(2)
+	}
+	return bl.Difficulty.Add(sideDiff)
+}
+
+func (b *Block) Hash() util.Hash {
 	return blake3.Sum256(b.Serialize()[:])
 }
 
-func (b Block) ValidPowHash(hash [16]byte) bool {
+func (b *Block) ValidPowHash(hash [16]byte) bool {
 	val := uint128.FromBytes(hash[:])
 	return val.Cmp(uint128.Max.Div(b.Difficulty)) <= 0
 }

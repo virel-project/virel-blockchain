@@ -14,6 +14,8 @@ type Pubkey [PUBKEY_SIZE]byte
 type Privkey [PRIVKEY_SIZE]byte
 type Signature [SIGNATURE_SIZE]byte
 
+var BlankSignature = Signature{}
+
 func (p Privkey) Public() Pubkey {
 	return Pubkey(p[32:])
 }

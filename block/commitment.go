@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/util"
 
@@ -18,6 +19,7 @@ func (b Block) BaseHash() util.Hash {
 	b.Timestamp = 0
 	b.Nonce = 0
 	b.NonceExtra = [16]byte{}
+	b.StakeSignature = bitcrypto.Signature{}
 	if len(b.OtherChains) != 0 {
 		b.OtherChains = make([]HashingID, 0)
 	}

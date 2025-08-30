@@ -75,8 +75,6 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		return nil, 0, err
 	}
 
-	bl.CumulativeDiff = bl.CumulativeDiff.Add(bl.Difficulty)
-
 	for _, v := range stats.Tips {
 		if len(bl.SideBlocks) == config.MAX_SIDE_BLOCKS {
 			Log.Debug("max side blocks reached, breaking")
@@ -153,8 +151,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 	}
 
-	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
-	bl.CumulativeDiff = bl.CumulativeDiff.Add(sideDiff)
+	bl.CumulativeDiff = bl.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 	// TODO: sort mempool transactions by Fee Per Kilobyte, to prioritize the transactions with higher fee
 	// possibly also take in account transaction age in the sorting algorithm

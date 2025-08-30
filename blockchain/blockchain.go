@@ -12,6 +12,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/logger"
@@ -61,7 +62,7 @@ type Index struct {
 	Tx       adb.Index
 	InTx     adb.Index
 	OutTx    adb.Index
-	Delegate adb.Index
+	Delegate adb.Index // Delegate Id -> Delegate
 }
 
 func (bc *Blockchain) IsShuttingDown() bool {
@@ -372,8 +373,6 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 	}
 
 	// validate block's SideBlocks
-	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
-	newCumDiff := prevBl.CumulativeDiff.Add(bl.Difficulty).Add(sideDiff)
 	// since SideBlocks's Ancestors are derived from height, we don't have to check them here
 	for _, side := range bl.SideBlocks {
 
@@ -433,9 +432,34 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 		}
 	}
 
+	newCumDiff := prevBl.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 	if !bl.CumulativeDiff.Equals(newCumDiff) {
 		return fmt.Errorf("block has invalid cumulative diff: %s, expected: %s", bl.CumulativeDiff,
 			newCumDiff)
+	}
+
+	// Verify if the signature is valid. If it is blank, this block is not considered staked.
+	if bl.Version > 0 && bl.StakeSignature != bitcrypto.BlankSignature {
+		stakedhash := bl.BlockStakedHash()
+		stats := bc.GetStats(tx)
+
+		// signature is always invalid if the network has nothing at stake
+		if stats.StakedAmount == 0 {
+			return fmt.Errorf("invalid stake signature: the network has not staked any coins")
+		}
+
+		delegate, err := bc.GetStaker(tx, stakedhash, stats)
+		if err != nil {
+			return fmt.Errorf("failed to get delegate: %w", err)
+		}
+
+		if delegate.Id != bl.DelegateId {
+			return fmt.Errorf("block DelegateId is invalid: expected %d, got %d", delegate.Id, bl.DelegateId)
+		}
+
+		if !bitcrypto.VerifySignature(delegate.Owner, append(config.STAKE_SIGN_PREFIX, stakedhash[:]...), bl.StakeSignature) {
+			return errors.New("invalid stake signature")
+		}
 	}
 
 	return nil
@@ -1279,9 +1303,7 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 
 			// Here we don't fully validate the block, as we don't know the current state. Instead we only
 			// update the cumulative difficulty, as it's needed for the tips
-			cdiff := prev.CumulativeDiff.Add(bl.Difficulty)
-			sideDiff := bl.Difficulty.Mul64(uint64(len(bl.SideBlocks)) * 2).Div64(3)
-			cdiff = cdiff.Add(sideDiff)
+			cdiff := prev.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 			if !cdiff.Equals(bl.CumulativeDiff) {
 				Log.Devf("deorphanBlock: block cumulative difficulty updated: %s -> %s", bl.CumulativeDiff,

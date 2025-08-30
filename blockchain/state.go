@@ -6,6 +6,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 )
 
 type State struct {
@@ -54,9 +55,21 @@ func (x State) String() string {
 
 type Delegate struct {
 	Id    uint64 // delegate identifier, starting from 1
-	Owner address.Address
+	Owner bitcrypto.Pubkey
 
 	Funds []*DelegatedFund
+}
+
+func (d *Delegate) TotalAmount() (t uint64) {
+	oldt := t
+	for _, v := range d.Funds {
+		t += v.Amount
+		if oldt > t {
+			panic("Delegate TotalAmount overflow")
+		}
+		oldt = t
+	}
+	return
 }
 
 type DelegatedFund struct {
@@ -90,7 +103,7 @@ func (g *Delegate) Deserialize(b []byte) error {
 	}
 
 	g.Id = d.ReadUvarint()
-	g.Owner = address.Address(d.ReadFixedByteArray(address.SIZE))
+	g.Owner = bitcrypto.Pubkey(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
 
 	numFunds := d.ReadUvarint()
 	if numFunds > uint64(len(d.RemainingData())/20) {
