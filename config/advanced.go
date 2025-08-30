@@ -31,8 +31,6 @@ const PARALLEL_BLOCKS_DOWNLOAD = 50
 
 const VERSION = VERSION_MAJOR<<32 + VERSION_MINOR<<16 + VERSION_PATCH
 
-const MIN_STAKE_AMOUNT = COIN
-
 // fork coins should not change this if they want to be easily merge mined
 const HD_COIN_TYPE = 6310
 

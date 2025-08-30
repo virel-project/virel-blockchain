@@ -143,12 +143,15 @@ func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
 }
 func (t *RegisterDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
 	return []Input{{
-		Amount: tx.Fee,
+		Amount: tx.Fee + config.REGISTER_DELEGATE_BURN,
 		Sender: sender,
 	}}
 }
 func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	return make([]Output, 0)
+	return []Output{{
+		Amount:    config.REGISTER_DELEGATE_BURN,
+		Recipient: address.INVALID_ADDRESS,
+	}}
 }
 
 // TransactionData: SetDelegate

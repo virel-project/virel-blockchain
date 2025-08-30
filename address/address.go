@@ -20,7 +20,8 @@ const SIZE = 22
 type Address [SIZE]byte
 
 func NewDelegateAddress(id uint64) (a Address) {
-	binary.LittleEndian.PutUint64(a[:], id)
+	// we use BigEndian to allow lexicographical sorting
+	binary.BigEndian.PutUint64(a[len(a)-8:], id)
 	return a
 }
 
@@ -48,9 +49,7 @@ func FromString(p string) (Integrated, error) {
 			return Integrated{}, fmt.Errorf("failed to read address prefix: %w", err)
 		}
 
-		integr := Integrated{}
-		binary.LittleEndian.PutUint64(integr.Addr[:], num)
-		return integr, nil
+		return NewDelegateAddress(num).Integrated(), nil
 	}
 
 	if p[0] != config.WALLET_PREFIX[0] || len(p) < 4 {
@@ -121,7 +120,7 @@ func (a Integrated) String() string {
 	if a.Addr == INVALID_ADDRESS {
 		return "burnaddress"
 	}
-	c := a.Addr[8:]
+	c := a.Addr[:len(a.Addr)-8]
 	isDelegate := true
 	for _, v := range c {
 		if v != 0 {
@@ -130,7 +129,7 @@ func (a Integrated) String() string {
 		}
 	}
 	if isDelegate {
-		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(binary.LittleEndian.Uint64(a.Addr[:]), 10)
+		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(binary.BigEndian.Uint64(a.Addr[:]), 10)
 	}
 
 	return config.WALLET_PREFIX + big.NewInt(0).SetBytes(a.bytes()).Text(36)
