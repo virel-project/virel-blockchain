@@ -32,14 +32,15 @@ func (o Output) String() string {
 type StateInputType uint8
 
 const (
-	IN_NORMAL StateInputType = iota
-	IN_UNSTAKE
+	IN_NORMAL  StateInputType = iota
+	IN_UNSTAKE                // This input comes from a delegate for unstaking
 )
 
 type StateInput struct {
-	Amount uint64
-	Sender address.Address
-	Type   StateInputType
+	Amount    uint64          `json:"amount"`
+	Sender    address.Address `json:"sender"`
+	Type      StateInputType  `json:"type"`
+	ExtraData uint64          `json:"extra_data"`
 }
 
 func (o StateInput) String() string {
@@ -54,17 +55,15 @@ const (
 	OUT_COINBASE_POW
 	OUT_COINBASE_POS
 	OUT_COINBASE_BURN
-	OUT_REGISTER_DELEGATE
-	OUT_SET_DELEGATE
-	OUT_STAKE
+	OUT_STAKE // This output goes to a delegate for staking
 )
 
 type StateOutput struct {
-	Type      StateOutputType //
-	Amount    uint64          // amount excludes the fee
-	Recipient address.Address // recipient's address
-	PaymentId uint64          // subaddress id
-	ExtraData uint64
+	Type      StateOutputType `json:"type"`       //
+	Amount    uint64          `json:"amount"`     // amount excludes the fee
+	Recipient address.Address `json:"recipient"`  // recipient's address
+	PaymentId uint64          `json:"payment_id"` // subaddress id
+	ExtraData uint64          `json:"extra_data"`
 }
 
 func (o StateOutput) String() string {

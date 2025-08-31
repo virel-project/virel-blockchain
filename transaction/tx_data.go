@@ -152,12 +152,14 @@ func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
 }
 func (t *RegisterDelegate) StateInputs(tx *Transaction, sender address.Address) []StateInput {
 	return []StateInput{{
+		Type:   IN_NORMAL,
 		Amount: tx.Fee + config.REGISTER_DELEGATE_BURN,
 		Sender: sender,
 	}}
 }
 func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
 	return []StateOutput{{
+		Type:      OUT_NORMAL,
 		Amount:    config.REGISTER_DELEGATE_BURN,
 		Recipient: address.INVALID_ADDRESS,
 	}}
@@ -193,6 +195,7 @@ func (t *SetDelegate) Prevalidate(_ *Transaction) error {
 }
 func (t *SetDelegate) StateInputs(tx *Transaction, sender address.Address) []StateInput {
 	return []StateInput{{
+		Type:   IN_NORMAL,
 		Amount: tx.Fee,
 		Sender: sender,
 	}}
@@ -237,14 +240,17 @@ func (t *Stake) Prevalidate(_ *Transaction) error {
 }
 func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []StateInput {
 	return []StateInput{{
+		Type:   IN_NORMAL,
 		Sender: address.FromPubKey(tx.Signer),
 		Amount: t.Amount + tx.Fee,
 	}}
 }
 func (t *Stake) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
 	return []StateOutput{{
+		Type:      OUT_STAKE,
 		Recipient: address.NewDelegateAddress(t.DelegateId),
 		Amount:    t.Amount,
+		ExtraData: t.DelegateId,
 	}}
 }
 
@@ -285,8 +291,10 @@ func (t *Unstake) Prevalidate(tx *Transaction) error {
 }
 func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []StateInput {
 	return []StateInput{{
-		Sender: address.NewDelegateAddress(t.DelegateId),
-		Amount: t.Amount,
+		Type:      IN_UNSTAKE,
+		Sender:    address.NewDelegateAddress(t.DelegateId),
+		Amount:    t.Amount,
+		ExtraData: t.DelegateId,
 	}}
 }
 func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
@@ -295,6 +303,7 @@ func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []StateO
 	}
 
 	return []StateOutput{{
+		Type:      OUT_NORMAL,
 		Recipient: sender,
 		Amount:    t.Amount - tx.Fee,
 	}}
