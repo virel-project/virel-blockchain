@@ -30,10 +30,10 @@ type TransactionData interface {
 	Prevalidate(tx *Transaction) error
 	// The inputs of this transaction.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount() + the transaction fee.
-	StateInputs(tx *Transaction, signer address.Address) []Input
+	StateInputs(tx *Transaction, signer address.Address) []StateInput
 	// Adds the balances of this transaction data to the blockchain state.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount().
-	StateOutputs(tx *Transaction, signer address.Address) []Output
+	StateOutputs(tx *Transaction, signer address.Address) []StateOutput
 }
 
 // TransactionData: Transfer
@@ -99,15 +99,24 @@ func (t *Transfer) Prevalidate(_ *Transaction) error {
 
 	return nil
 }
-func (t *Transfer) StateInputs(tx *Transaction, sender address.Address) []Input {
+func (t *Transfer) StateInputs(tx *Transaction, sender address.Address) []StateInput {
 	totamt, _ := t.TotalAmount()
-	return []Input{{
+	return []StateInput{{
 		Amount: totamt + tx.Fee,
 		Sender: sender,
 	}}
 }
-func (t *Transfer) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	return t.Outputs
+func (t *Transfer) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
+	o := make([]StateOutput, len(t.Outputs))
+	for i, v := range t.Outputs {
+		o[i] = StateOutput{
+			Recipient: v.Recipient,
+			PaymentId: v.PaymentId,
+			Amount:    v.Amount,
+			Type:      OUT_NORMAL,
+		}
+	}
+	return o
 }
 
 // TransactionData: RegisterDelegate
@@ -141,14 +150,14 @@ func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
 	}
 	return nil
 }
-func (t *RegisterDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
-	return []Input{{
+func (t *RegisterDelegate) StateInputs(tx *Transaction, sender address.Address) []StateInput {
+	return []StateInput{{
 		Amount: tx.Fee + config.REGISTER_DELEGATE_BURN,
 		Sender: sender,
 	}}
 }
-func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	return []Output{{
+func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
+	return []StateOutput{{
 		Amount:    config.REGISTER_DELEGATE_BURN,
 		Recipient: address.INVALID_ADDRESS,
 	}}
@@ -182,14 +191,14 @@ func (t *SetDelegate) VSize() uint64 {
 func (t *SetDelegate) Prevalidate(_ *Transaction) error {
 	return nil
 }
-func (t *SetDelegate) StateInputs(tx *Transaction, sender address.Address) []Input {
-	return []Input{{
+func (t *SetDelegate) StateInputs(tx *Transaction, sender address.Address) []StateInput {
+	return []StateInput{{
 		Amount: tx.Fee,
 		Sender: sender,
 	}}
 }
-func (t *SetDelegate) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	return make([]Output, 0)
+func (t *SetDelegate) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
+	return make([]StateOutput, 0)
 }
 
 // TransactionData: Stake
@@ -226,14 +235,14 @@ func (t *Stake) Prevalidate(_ *Transaction) error {
 	}
 	return nil
 }
-func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []Input {
-	return []Input{{
+func (t *Stake) StateInputs(tx *Transaction, sender address.Address) []StateInput {
+	return []StateInput{{
 		Sender: address.FromPubKey(tx.Signer),
 		Amount: t.Amount + tx.Fee,
 	}}
 }
-func (t *Stake) StateOutputs(tx *Transaction, sender address.Address) []Output {
-	return []Output{{
+func (t *Stake) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
+	return []StateOutput{{
 		Recipient: address.NewDelegateAddress(t.DelegateId),
 		Amount:    t.Amount,
 	}}
@@ -274,18 +283,18 @@ func (t *Unstake) Prevalidate(tx *Transaction) error {
 
 	return nil
 }
-func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []Input {
-	return []Input{{
+func (t *Unstake) StateInputs(tx *Transaction, sender address.Address) []StateInput {
+	return []StateInput{{
 		Sender: address.NewDelegateAddress(t.DelegateId),
 		Amount: t.Amount,
 	}}
 }
-func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []Output {
+func (t *Unstake) StateOutputs(tx *Transaction, sender address.Address) []StateOutput {
 	if tx.Fee > t.Amount {
 		panic(fmt.Errorf("unstake: fee %s > amount %s", util.FormatCoin(tx.Fee), util.FormatCoin(t.Amount)))
 	}
 
-	return []Output{{
+	return []StateOutput{{
 		Recipient: sender,
 		Amount:    t.Amount - tx.Fee,
 	}}

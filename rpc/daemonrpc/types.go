@@ -13,16 +13,16 @@ type GetTransactionRequest struct {
 }
 
 type GetTransactionResponse struct {
-	Signer      *address.Integrated  `json:"sender"`
-	Inputs      []transaction.Input  `json:"inputs"`
-	Outputs     []transaction.Output `json:"outputs"`
-	TotalAmount uint64               `json:"total_amount"`
-	Fee         uint64               `json:"fee"`
-	Nonce       uint64               `json:"nonce"`
-	Signature   enc.Hex              `json:"signature"`
-	Height      uint64               `json:"height"`
-	Coinbase    bool                 `json:"coinbase"`
-	VirtualSize uint64               `json:"virtual_size"`
+	Signer      *address.Integrated       `json:"sender"`
+	Inputs      []transaction.StateInput  `json:"inputs"`
+	Outputs     []transaction.StateOutput `json:"outputs"`
+	TotalAmount uint64                    `json:"total_amount"`
+	Fee         uint64                    `json:"fee"`
+	Nonce       uint64                    `json:"nonce"`
+	Signature   enc.Hex                   `json:"signature"`
+	Height      uint64                    `json:"height"`
+	Coinbase    bool                      `json:"coinbase"`
+	VirtualSize uint64                    `json:"virtual_size"`
 }
 
 type GetInfoRequest struct {
@@ -105,9 +105,11 @@ type ValidateAddressResponse struct {
 }
 
 type State struct {
-	Balance      uint64
-	LastNonce    uint64
-	LastIncoming uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	Balance        uint64
+	LastNonce      uint64
+	LastIncoming   uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	DelegateId     uint64
+	DelegateAmount uint64
 }
 type StateInfo struct {
 	Address string

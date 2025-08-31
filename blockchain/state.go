@@ -23,7 +23,7 @@ func (x State) Serialize() []byte {
 	s.AddUvarint(x.Balance)
 	s.AddUvarint(x.LastNonce)
 	s.AddUvarint(x.LastIncoming)
-	s.AddUint8(1)
+	s.AddUint8(1) // version
 	s.AddUvarint(x.DelegateId)
 	s.AddUvarint(x.DelegateAmount)
 

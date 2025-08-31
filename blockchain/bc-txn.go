@@ -54,6 +54,15 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			return nil
 		}
 		signerAddr := address.FromPubKey(tx.Signer)
+		sout := tx.Data.StateOutputs(tx, signerAddr)
+		out := make([]transaction.Output, len(sout))
+		for i, v := range sout {
+			out[i] = transaction.Output{
+				Recipient: v.Recipient,
+				PaymentId: v.PaymentId,
+				Amount:    v.Amount,
+			}
+		}
 		mem.Entries = append(mem.Entries, &MempoolEntry{
 			TXID:    hash,
 			Size:    tx.GetVirtualSize(),
@@ -61,7 +70,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
 			Signer:  signerAddr,
 			Inputs:  tx.Data.StateInputs(tx, signerAddr),
-			Outputs: tx.Data.StateOutputs(tx, signerAddr),
+			Outputs: out,
 		})
 		err = bc.SetMempool(txn, mem)
 		if err != nil {

@@ -368,17 +368,19 @@ type CoinbaseOutput struct {
 	DelegateId uint64 // if zero, this is not a PoS output
 }
 
-func (b *Block) CoinbaseStateOutputs(totalReward uint64) []CoinbaseOutput {
+func (b *Block) CoinbaseStateOutputs(totalReward uint64) []transaction.StateOutput {
 	if b.Version == 0 {
 		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
 		powReward := totalReward - governanceReward
 
-		return []CoinbaseOutput{{
+		return []transaction.StateOutput{{
 			Recipient: address.GenesisAddress,
 			Amount:    governanceReward,
+			Type:      transaction.OUT_COINBASE_DEV,
 		}, {
 			Recipient: b.Recipient,
 			Amount:    powReward,
+			Type:      transaction.OUT_COINBASE_POW,
 		}}
 	} else {
 		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
@@ -390,30 +392,35 @@ func (b *Block) CoinbaseStateOutputs(totalReward uint64) []CoinbaseOutput {
 			powReward = powReward * 9 / 10
 			burnReward := communityReward - powReward
 
-			return []CoinbaseOutput{{
+			return []transaction.StateOutput{{
 				Recipient: address.GenesisAddress,
 				Amount:    governanceReward,
+				Type:      transaction.OUT_COINBASE_DEV,
 			}, {
 				Recipient: b.Recipient,
 				Amount:    powReward,
+				Type:      transaction.OUT_COINBASE_POW,
 			}, {
 				Recipient: address.INVALID_ADDRESS,
 				Amount:    burnReward,
+				Type:      transaction.OUT_COINBASE_BURN,
 			}}
 		} else {
 			posReward := communityReward / 2
 			powReward := communityReward - posReward
 
-			return []CoinbaseOutput{{
+			return []transaction.StateOutput{{
 				Recipient: address.GenesisAddress,
 				Amount:    governanceReward,
+				Type:      transaction.OUT_COINBASE_DEV,
 			}, {
 				Recipient: b.Recipient,
 				Amount:    powReward,
+				Type:      transaction.OUT_COINBASE_POW,
 			}, {
-				Recipient:  b.Recipient,
-				Amount:     powReward,
-				DelegateId: b.DelegateId,
+				Recipient: b.Recipient,
+				Amount:    powReward,
+				Type:      transaction.OUT_COINBASE_POS,
 			}}
 		}
 

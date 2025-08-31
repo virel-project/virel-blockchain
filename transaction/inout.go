@@ -29,20 +29,44 @@ func (o Output) String() string {
 	return fmt.Sprintf("amount: %d recipient: %v subaddr: %d", o.Amount, o.Recipient, o.PaymentId)
 }
 
-type Input struct {
-	Amount uint64          `json:"amount"`
-	Sender address.Address `json:"recipient"`
+type StateInputType uint8
+
+const (
+	IN_NORMAL StateInputType = iota
+	IN_UNSTAKE
+)
+
+type StateInput struct {
+	Amount uint64
+	Sender address.Address
+	Type   StateInputType
 }
 
-func (o Input) Serialize(b *binary.Ser) {
-	b.AddFixedByteArray(o.Sender[:])
-	b.AddUvarint(o.Amount)
-}
-func (o *Input) Deserialize(d *binary.Des) error {
-	o.Sender = address.Address(d.ReadFixedByteArray(address.SIZE))
-	o.Amount = d.ReadUvarint()
-	return d.Error()
-}
-func (o Input) String() string {
+func (o StateInput) String() string {
 	return fmt.Sprintf("amount: %d sender: %v", o.Amount, o.Sender)
+}
+
+type StateOutputType uint8
+
+const (
+	OUT_NORMAL StateOutputType = iota
+	OUT_COINBASE_DEV
+	OUT_COINBASE_POW
+	OUT_COINBASE_POS
+	OUT_COINBASE_BURN
+	OUT_REGISTER_DELEGATE
+	OUT_SET_DELEGATE
+	OUT_STAKE
+)
+
+type StateOutput struct {
+	Type      StateOutputType //
+	Amount    uint64          // amount excludes the fee
+	Recipient address.Address // recipient's address
+	PaymentId uint64          // subaddress id
+	ExtraData uint64
+}
+
+func (o StateOutput) String() string {
+	return fmt.Sprintf("type: %d amount: %d recipient: %v payid: %d extradata: %d", o.Type, o.Amount, o.Recipient, o.PaymentId, o.ExtraData)
 }

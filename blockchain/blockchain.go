@@ -949,6 +949,10 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 
 			Log.Devf("recipient %s state after: %v", out.Recipient, recState)
 
+			if out.PaymentId != 0 {
+
+			}
+
 			// add tx hash to recipient's incoming list
 			err = bc.SetTxTopoInc(txn, v, out.Recipient, recState.LastIncoming)
 			if err != nil {
@@ -1011,9 +1015,14 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 			return err
 		}
 
-		if out.DelegateId != 0 {
-			// special payout for PoS reward
-			delegate, err := bc.GetDelegate(txn, out.DelegateId)
+		// special payout for PoS reward
+		if out.Type == transaction.OUT_COINBASE_POS {
+			if out.ExtraData == 0 {
+				err = fmt.Errorf("invalid delegate id %d", out.ExtraData)
+				Log.Err(err)
+				return err
+			}
+			delegate, err := bc.GetDelegate(txn, out.ExtraData)
 			if err != nil {
 				Log.Err(err)
 				return err
@@ -1092,6 +1101,15 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			// add removed transactions back to mempool
 			if memp.GetEntry(v) == nil {
 				signerAddr := address.FromPubKey(tx.Signer)
+				sout := tx.Data.StateOutputs(tx, signerAddr)
+				out := make([]transaction.Output, len(sout))
+				for i, v := range sout {
+					out[i] = transaction.Output{
+						Recipient: v.Recipient,
+						PaymentId: v.PaymentId,
+						Amount:    v.Amount,
+					}
+				}
 				memp.Entries = append(memp.Entries, &MempoolEntry{
 					TXID:    v,
 					Size:    tx.GetVirtualSize(),
@@ -1099,7 +1117,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
 					Signer:  signerAddr,
 					Inputs:  tx.Data.StateInputs(tx, signerAddr),
-					Outputs: tx.Data.StateOutputs(tx, signerAddr),
+					Outputs: out,
 				})
 			}
 		}
@@ -1144,9 +1162,14 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		// removing coinbase transaction from incoming tx list is not necessary - since it's never read, and later overwritten
 
 		// Reverse each coinbase output
-		if out.DelegateId != 0 {
+		if out.Type == transaction.OUT_COINBASE_POS {
+			if out.ExtraData == 0 {
+				err = fmt.Errorf("invalid delegate id %d", out.ExtraData)
+				Log.Err(err)
+				return err
+			}
 			// Reverse the PoS reward distribution
-			delegate, err := bc.GetDelegate(txn, out.DelegateId)
+			delegate, err := bc.GetDelegate(txn, out.ExtraData)
 			if err != nil {
 				return err
 			}

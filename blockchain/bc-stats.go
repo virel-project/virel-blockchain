@@ -81,7 +81,7 @@ type MempoolEntry struct {
 	Fee     uint64
 	Expires int64
 	Signer  address.Address
-	Inputs  []transaction.Input
+	Inputs  []transaction.StateInput
 	Outputs []transaction.Output
 }
 

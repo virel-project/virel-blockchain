@@ -156,24 +156,29 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return
 			}
 
-			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT / 100
+			reward := bl.Reward()
+
+			cout := bl.CoinbaseStateOutputs(reward)
+			out := make([]transaction.StateOutput, len(cout))
+			for i, v := range cout {
+				out[i] = transaction.StateOutput{
+					Recipient: v.Recipient,
+					PaymentId: 0,
+					Amount:    v.Amount,
+					Type:      v.Type,
+				}
+			}
 
 			c.SuccessResponse(daemonrpc.GetTransactionResponse{
 				Signer:      nil,
-				TotalAmount: bl.Reward(),
-				Inputs:      []transaction.Input{},
-				Outputs: []transaction.Output{
-					{
-						Amount:    bl.Reward() - rewardFee,
-						Recipient: bl.Recipient,
-						PaymentId: 0,
-					},
-				},
-				Fee:       rewardFee,
-				Nonce:     0,
-				Signature: nil,
-				Height:    bl.Height,
-				Coinbase:  true,
+				TotalAmount: reward,
+				Inputs:      []transaction.StateInput{},
+				Outputs:     out,
+				Fee:         0,
+				Nonce:       0,
+				Signature:   nil,
+				Height:      bl.Height,
+				Coinbase:    true,
 			})
 			return
 		}
@@ -338,7 +343,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			for _, v := range mem.Entries {
-				if slices.ContainsFunc(v.Inputs, func(e transaction.Input) bool { return e.Sender == addr.Addr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
+				if slices.ContainsFunc(v.Inputs, func(e transaction.StateInput) bool { return e.Sender == addr.Addr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
 					Log.Devf("adding txn %x", v.TXID)
 
 					for _, inp := range v.Inputs {
