@@ -158,7 +158,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 			reward := bl.Reward()
 
-			cout := bl.CoinbaseStateOutputs(reward)
+			cout := bl.CoinbaseTransaction(reward)
 			out := make([]transaction.StateOutput, len(cout))
 			for i, v := range cout {
 				out[i] = transaction.StateOutput{
