@@ -862,6 +862,9 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 
 // Validates a block, and then adds it to the state
 func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte) error {
+	stats := bc.GetStats(txn)
+	defer bc.SetStats(txn, stats)
+
 	// remove transactions from mempool
 	pool := bc.GetMempool(txn)
 	for _, t := range bl.Transactions {
@@ -936,6 +939,12 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 				return fmt.Errorf("transaction %s nothing to unstake", v)
 			}
 
+			err = stats.Unstaked(unstakeData.Amount)
+			if err != nil {
+				Log.Err("this should never happen:", err)
+				return err
+			}
+
 			err = bc.SetDelegate(txn, delegate)
 			if err != nil {
 				Log.Err("this should never happen:", err)
@@ -978,8 +987,8 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		}
 
 		// add the funds to recipient
-		atsd := tx.Data.StateOutputs(tx, signerAddr)
-		for _, out := range atsd {
+		stateoutputs := tx.Data.StateOutputs(tx, signerAddr)
+		for _, out := range stateoutputs {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Debug("recipient state not previously known:", err)
@@ -1099,6 +1108,12 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 				return err
 			}
 
+			err = stats.Staked(out.Amount)
+			if err != nil {
+				Log.Err("this should never happen:", err)
+				return err
+			}
+
 			err = bc.SetDelegate(txn, delegate)
 			if err != nil {
 				Log.Err(err)
@@ -1120,6 +1135,9 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 
 // Reverses the transaction of a block from the blockchain state
 func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
+	stats := bc.GetStats(txn)
+	defer bc.SetStats(txn, stats)
+
 	type txCache struct {
 		Hash [32]byte
 		Tx   *transaction.Transaction
@@ -1177,34 +1195,34 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 	coinbaseOutputs := bl.CoinbaseStateOutputs(totalReward)
 
 	for _, out := range coinbaseOutputs {
-		// undo miner transaction
-		minerState, err := bc.GetState(txn, out.Recipient)
+		// undo coinbase transaction
+		coinbaseState, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
 			err := fmt.Errorf("coinbase reward account unknown: %s", err)
 			Log.Err(err)
 			return err
 		}
-		if minerState.Balance < out.Amount {
+		if coinbaseState.Balance < out.Amount {
 			err := fmt.Errorf("balance of coinbase account is too small: balance %d, block reward %d",
-				minerState.Balance, out.Amount)
+				coinbaseState.Balance, out.Amount)
 			Log.Err(err)
 			return err
 		}
-		if minerState.LastIncoming == 0 {
+		if coinbaseState.LastIncoming == 0 {
 			err = fmt.Errorf("coinbase %s LastIncoming must not be zero in block %x", out.Recipient, blhash)
 			Log.Err(err)
 			return err
 		}
-		minerState.Balance -= out.Amount
-		minerState.LastIncoming--
-		err = bc.SetState(txn, out.Recipient, minerState)
+		coinbaseState.Balance -= out.Amount
+		coinbaseState.LastIncoming--
+		err = bc.SetState(txn, out.Recipient, coinbaseState)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-		// removing coinbase transaction from incoming tx list is not necessary - since it's never read, and later overwritten
+		// removing coinbase transaction from incoming tx list is not necessary, since it's never read and later overwritten
 
-		// Reverse each coinbase output
+		// Reverse coinbase PoS
 		if out.Type == transaction.OUT_COINBASE_POS {
 			if out.ExtraData == 0 {
 				err = fmt.Errorf("invalid delegate id %d", out.ExtraData)
@@ -1220,6 +1238,8 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			if len(delegate.Funds) == 0 {
 				return fmt.Errorf("delegate has no funds")
 			}
+
+			stats.StakedAmount -= out.Amount
 
 			totalStake := delegate.TotalAmount() - out.Amount
 			totalSubtracted := uint64(0)
@@ -1268,8 +1288,8 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		signerAddr := address.FromPubKey(tx.Signer)
 
 		// decrease recipient balance and LastIncoming
-		atsd := tx.Data.StateOutputs(tx, signerAddr)
-		for _, out := range atsd {
+		stateoutputs := tx.Data.StateOutputs(tx, signerAddr)
+		for _, out := range stateoutputs {
 			recState, err := bc.GetState(txn, out.Recipient)
 			if err != nil {
 				Log.Err(err)

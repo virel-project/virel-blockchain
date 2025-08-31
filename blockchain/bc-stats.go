@@ -3,6 +3,7 @@ package blockchain
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"io"
 
 	"github.com/virel-project/virel-blockchain/v2/address"
@@ -70,6 +71,21 @@ func DeserializeStats(d []byte) (*Stats, error) {
 	}
 
 	return &s, err
+}
+
+func (s *Stats) Staked(amount uint64) error {
+	if s.StakedAmount+amount < s.StakedAmount {
+		return errors.New("add overflow")
+	}
+	s.StakedAmount += amount
+	return nil
+}
+func (s *Stats) Unstaked(amount uint64) error {
+	if s.StakedAmount-amount > s.StakedAmount {
+		return errors.New("sub overflow")
+	}
+	s.StakedAmount -= amount
+	return nil
 }
 
 type Mempool struct {
