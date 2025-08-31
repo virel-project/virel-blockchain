@@ -878,8 +878,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 	for _, v := range bl.Transactions {
 		tx, _, err := bc.GetTx(txn, v)
 		if err != nil {
-			Log.Err(err)
-			return err
+			return fmt.Errorf("transaction is not in state: %w", err)
 		}
 		signerAddr := address.FromPubKey(tx.Signer)
 
@@ -894,10 +893,54 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 		Log.Dev("signer state before:", signerState)
 
 		if tx.Nonce != signerState.LastNonce+1 {
-			err = fmt.Errorf("transaction %s has unexpected nonce: %d, previous nonce: %d", v,
+			return fmt.Errorf("transaction %s has unexpected nonce: %d, previous nonce: %d", v,
 				tx.Nonce, signerState.LastNonce)
-			Log.Warn(err)
-			return err
+		}
+
+		// unstake if the tx is an unstake transaction
+		if tx.Version == transaction.TX_VERSION_UNSTAKE {
+			unstakeData := tx.Data.(*transaction.Unstake)
+			if unstakeData.DelegateId == 0 {
+				return errors.New("unstake transaction has invalid delegate id")
+			}
+
+			if signerState.DelegateId != unstakeData.DelegateId {
+				return fmt.Errorf("unstake transaction delegate id %d does not match with state %d",
+					unstakeData.DelegateId, signerState.DelegateId)
+			}
+
+			delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
+			if err != nil {
+				return err
+			}
+
+			unstaked := false
+			for i, fund := range delegate.Funds {
+				if fund.Owner != signerAddr {
+					continue
+				}
+
+				if fund.Amount < unstakeData.Amount {
+					return fmt.Errorf("transaction %s trying to unstake %s, more than available balance %s",
+						v, util.FormatCoin(unstakeData.Amount), util.FormatCoin(unstakeData.Amount))
+				}
+				fund.Amount -= unstakeData.Amount
+
+				if fund.Amount == 0 {
+					delegate.Funds = append(delegate.Funds[:i], delegate.Funds[i+1:]...)
+				}
+				unstaked = true
+				break
+			}
+			if !unstaked {
+				return fmt.Errorf("transaction %s nothing to unstake", v)
+			}
+
+			err = bc.SetDelegate(txn, delegate)
+			if err != nil {
+				Log.Err("this should never happen:", err)
+				return err
+			}
 		}
 
 		// apply signer state
