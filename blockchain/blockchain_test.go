@@ -66,6 +66,7 @@ func TestState(t *testing.T) {
 			return err
 		}
 
+		// add block 1
 		bl := &block.Block{
 			BlockHeader: block.BlockHeader{
 				Version:     1,
@@ -80,17 +81,16 @@ func TestState(t *testing.T) {
 			Difficulty: uint128.From64(config.MIN_DIFFICULTY),
 		}
 		bl.CumulativeDiff = uint128.From64(bl.Height * config.MIN_DIFFICULTY)
-
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
 		}
 
+		// add block 2
 		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
-
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -98,13 +98,30 @@ func TestState(t *testing.T) {
 
 		stats := bc.GetStats(txn)
 		staketxs := GetStakeTxs(txn, bc, wall, stats.TopHeight)
-		for _, v := range staketxs {
+		staketxids := make([]transaction.TXID, len(staketxs))
+		for i, v := range staketxs {
 			hash := v.Hash()
+			staketxids[i] = hash
 			err = bc.AddTransaction(txn, v, hash, true)
 			if err != nil {
 				return err
 			}
 		}
+
+		// add block 3
+		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
+		bl.Height++
+		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
+		bl.Nonce++
+		bl.Transactions = staketxids
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
+		stats = bc.GetStats(txn)
+
+		t.Logf("stats: %s", stats)
 
 		return nil
 	})
@@ -144,12 +161,18 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 		panic(err)
 	}
 	w.ManualRefresh(state, height)
-
 	tx, err := w.RegisterDelegate("test delegate")
 	if err != nil {
 		panic(err)
 	}
+	txs = append(txs, tx)
 
+	state.LastNonce++
+	w.ManualRefresh(state, height)
+	tx, err = w.Stake(1, config.COIN)
+	if err != nil {
+		panic(err)
+	}
 	txs = append(txs, tx)
 
 	return txs

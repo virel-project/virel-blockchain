@@ -66,6 +66,10 @@ func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 		t.Data = &RegisterDelegate{}
 	case TX_VERSION_SET_DELEGATE: // Set delegate
 		t.Data = &SetDelegate{}
+	case TX_VERSION_STAKE:
+		t.Data = &Stake{}
+	case TX_VERSION_UNSTAKE:
+		t.Data = &Unstake{}
 	default:
 		return fmt.Errorf("unknown transaction version %d", t.Version)
 	}

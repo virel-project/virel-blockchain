@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
@@ -176,7 +177,12 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	for addr := range affectedAddrs {
 		state, err := bc.GetState(txn, addr)
 		if err != nil {
-			return fmt.Errorf("failed to get state for %s: %w", addr, err)
+			if strings.Contains(err.Error(), "not in state") {
+				Log.Debug("address", addr, "not previously in state")
+				state = &State{}
+			} else {
+				return err
+			}
 		}
 		simulatedStates[addr] = state
 	}
@@ -207,8 +213,10 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		// Apply state changes from outputs
 		for _, out := range entry.Outputs {
 			state := simulatedStates[out.Recipient]
-			state.Balance += out.Amount
-			state.LastIncoming++
+			if state != nil {
+				state.Balance += out.Amount
+				state.LastIncoming++
+			}
 		}
 
 		// Handle unstake transactions in previous entries

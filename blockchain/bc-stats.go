@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/virel-project/virel-blockchain/v2/address"
@@ -19,6 +20,10 @@ type Stats struct {
 	Tips           map[util.Hash]*AltchainTip
 	Orphans        map[util.Hash]*Orphan // hash -> orphan
 	StakedAmount   uint64
+}
+
+func (s *Stats) String() string {
+	return fmt.Sprintf("top hash: %s height: %d cumulativediff %s staked amount %s", s.TopHash, s.TopHeight, s.CumulativeDiff, util.FormatCoin(s.StakedAmount))
 }
 
 type AltchainTip struct {

@@ -55,6 +55,25 @@ func (bc *Blockchain) RemoveTxFromState(
 		return err
 	}
 
+	// TODO: undo stake if the tx is an stake transaction
+	if tx.Version == transaction.TX_VERSION_STAKE {
+		stakeData := tx.Data.(*transaction.Stake)
+		if stakeData.DelegateId == 0 {
+			return errors.New("stake transaction has invalid delegate id")
+		}
+		if signerState.DelegateId != stakeData.DelegateId {
+			return fmt.Errorf("stake transaction delegate id %d does not match with state %d",
+				stakeData.DelegateId, signerState.DelegateId)
+		}
+		// ApplyUnstake is equivalent to RemoveStake
+		err = bc.ApplyUnstake(txn, &transaction.Unstake{
+			Amount:     stakeData.Amount,
+			DelegateId: stakeData.DelegateId,
+		}, signerAddr, txid, stats)
+		if err != nil {
+			return fmt.Errorf("could not remove stake: %w", err)
+		}
+	}
 	// undo unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
 		unstakeData := tx.Data.(*transaction.Unstake)
@@ -65,50 +84,16 @@ func (bc *Blockchain) RemoveTxFromState(
 			return fmt.Errorf("unstake transaction delegate id %d does not match with state %d",
 				unstakeData.DelegateId, signerState.DelegateId)
 		}
-		err = bc.RemoveUnstake(txn, blockhash, unstakeData, signerAddr, txid, stats)
+		// ApplyStake is equivalent to RemoveUnstake
+		err = bc.ApplyStake(txn, &transaction.Stake{
+			Amount:     unstakeData.Amount,
+			DelegateId: unstakeData.DelegateId,
+		}, signerAddr, txid, stats)
 		if err != nil {
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
 	}
 
-	return nil
-}
-
-func (bc *Blockchain) RemoveUnstake(txn adb.Txn, blockhash util.Hash, unstakeData *transaction.Unstake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
-	delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
-	if err != nil {
-		return err
-	}
-
-	unstaked := false
-	for _, fund := range delegate.Funds {
-		if fund.Owner != signerAddr {
-			continue
-		}
-		fund.Amount += unstakeData.Amount
-		unstaked = true
-		break
-	}
-	// If the fund was not found, we add it back.
-	// Order is not important as it's sorted later with SetDelegate.
-	if !unstaked {
-		delegate.Funds = append(delegate.Funds, &DelegatedFund{
-			Owner:  signerAddr,
-			Amount: unstakeData.Amount,
-		})
-	}
-
-	// reverse stats.Unstaked
-	err = stats.Staked(unstakeData.Amount)
-	if err != nil {
-		return fmt.Errorf("failed to remove from stats, this should never happen: %w", err)
-	}
-
-	// Update the delegate in the state (note: SetDelegate also sorts the funds)
-	err = bc.SetDelegate(txn, delegate)
-	if err != nil {
-		return fmt.Errorf("failed to set delegate, this should never happen: %w", err)
-	}
 	return nil
 }
 

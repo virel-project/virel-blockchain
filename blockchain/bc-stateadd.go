@@ -28,6 +28,22 @@ func (bc *Blockchain) ApplyTxToState(
 			tx.Nonce, signerState.LastNonce)
 	}
 
+	// stake if the tx is an stake transaction
+	if tx.Version == transaction.TX_VERSION_STAKE {
+		// This stake data already has some prevalidation, such as amount > fee spent
+		stakeData := tx.Data.(*transaction.Stake)
+		if stakeData.DelegateId == 0 {
+			return errors.New("stake transaction has invalid delegate id")
+		}
+		if signerState.DelegateId != stakeData.DelegateId {
+			return fmt.Errorf("stake transaction delegate id %d does not match with state %d",
+				stakeData.DelegateId, signerState.DelegateId)
+		}
+		err = bc.ApplyStake(txn, stakeData, signerAddr, txid, stats)
+		if err != nil {
+			return fmt.Errorf("could not apply stake: %w", err)
+		}
+	}
 	// unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
 		// This unstake data already has some prevalidation, such as amount > fee spent
@@ -91,6 +107,44 @@ func (bc *Blockchain) ApplyTxToState(
 		return err
 	}
 
+	return nil
+}
+
+func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
+	delegate, err := bc.GetDelegate(txn, stakeData.DelegateId)
+	if err != nil {
+		return err
+	}
+
+	staked := false
+	for _, fund := range delegate.Funds {
+		if fund.Owner != signerAddr {
+			continue
+		}
+		fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
+		if err != nil {
+			return err
+		}
+		staked = true
+		break
+	}
+	if !staked {
+		delegate.Funds = append(delegate.Funds, &DelegatedFund{
+			Owner:  signerAddr,
+			Amount: stakeData.Amount,
+		})
+	}
+
+	err = stats.Staked(stakeData.Amount)
+	if err != nil {
+		return fmt.Errorf("failed to add to stats, this should never happen: %w", err)
+	}
+
+	// Update the delegate in the state (note: SetDelegate also sorts the funds and checks there are no duplicate owners)
+	err = bc.SetDelegate(txn, delegate)
+	if err != nil {
+		return fmt.Errorf("failed to set delegate, this should never happen: %w", err)
+	}
 	return nil
 }
 
