@@ -13,6 +13,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/p2p"
 	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 // Adds a transaction to mempool.
@@ -35,7 +36,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 		// validate the transaction
 		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries)
 		if err != nil {
-			Log.Err("transaction is not valid in mempool:", err)
+			Log.Err("validateMempoolTx error:", err)
 			return err
 		}
 
@@ -187,10 +188,6 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		simulatedStates[addr] = state
 	}
 
-	// Track nonces for all signers from previous entries
-	simulatedNonces := make(map[address.Address]uint64)
-	simulatedNonces[signer] = simulatedStates[signer].LastNonce
-
 	// Process previous entries to update simulated states and delegates
 	for _, entry := range previousEntries {
 		// stop if we have reached this transaction (should not happen)
@@ -199,7 +196,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 
 		// Update nonce for entry's signer
-		simulatedNonces[entry.Signer]++
+		simulatedStates[entry.Signer].LastNonce++
 
 		// Apply state changes from inputs
 		for _, inp := range entry.Inputs {
@@ -217,6 +214,42 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 				state.Balance += out.Amount
 				state.LastIncoming++
 			}
+		}
+
+		// Handle stake transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_STAKE {
+			tx, _, err := bc.GetTx(txn, entry.TXID)
+			if err != nil {
+				return fmt.Errorf("failed to get stake transaction: %w", err)
+			}
+
+			stakeData := tx.Data.(*transaction.Stake)
+			delegate, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
+			if err != nil {
+				return err
+			}
+
+			// Find and update the fund for the entry signer
+			found := false
+			for _, fund := range delegate.Funds {
+				if fund.Owner == entry.Signer {
+					fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
+					if err != nil {
+						return err
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
+				delegate.Funds = append(delegate.Funds, &DelegatedFund{
+					Owner:  signer,
+					Amount: stakeData.Amount,
+				})
+			}
+
+			// Update simulated delegate
+			simulatedDelegates[stakeData.DelegateId] = delegate
 		}
 
 		// Handle unstake transactions in previous entries
@@ -254,9 +287,9 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	}
 
 	// Validate nonce for current transaction
-	if tx.Nonce != simulatedNonces[signer]+1 {
+	if tx.Nonce != simulatedStates[signer].LastNonce+1 {
 		return fmt.Errorf("invalid nonce: expected %d, got %d",
-			simulatedNonces[signer]+1, tx.Nonce)
+			simulatedStates[signer].LastNonce+1, tx.Nonce)
 	}
 
 	// Validate sufficient balances for inputs
@@ -268,6 +301,21 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 	}
 
+	// Validate stake transaction if applicable
+	if tx.Version == transaction.TX_VERSION_STAKE {
+		stakeData := tx.Data.(*transaction.Stake)
+		_, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
+		if err != nil {
+			return err
+		}
+
+		// Check delegate ID matches signer's current delegate
+		signerState := simulatedStates[signer]
+		if signerState.DelegateId != stakeData.DelegateId {
+			return fmt.Errorf("signer delegate ID %d doesn't match stake delegate ID %d",
+				signerState.DelegateId, stakeData.DelegateId)
+		}
+	}
 	// Validate unstake transaction if applicable
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
 		unstakeData := tx.Data.(*transaction.Unstake)

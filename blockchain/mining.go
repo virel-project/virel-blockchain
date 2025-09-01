@@ -169,7 +169,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries)
 		if err != nil {
-			Log.Warn("GetBlockTemplate: mempool tx is not valid:", err)
+			Log.Warn("GetBlockTemplate: validateMempoolTx error:", err)
 			continue
 		}
 
