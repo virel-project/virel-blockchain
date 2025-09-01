@@ -64,13 +64,14 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			}
 		}
 		mem.Entries = append(mem.Entries, &MempoolEntry{
-			TXID:    hash,
-			Size:    tx.GetVirtualSize(),
-			Fee:     tx.Fee,
-			Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-			Signer:  signerAddr,
-			Inputs:  tx.Data.StateInputs(tx, signerAddr),
-			Outputs: out,
+			TXID:      hash,
+			TxVersion: tx.Version,
+			Size:      tx.GetVirtualSize(),
+			Fee:       tx.Fee,
+			Expires:   time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
+			Signer:    signerAddr,
+			Inputs:    tx.Data.StateInputs(tx, signerAddr),
+			Outputs:   out,
 		})
 		err = bc.SetMempool(txn, mem)
 		if err != nil {
@@ -135,124 +136,172 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	signer := address.FromPubKey(tx.Signer)
 
 	// Calculate total transaction amount (outputs + fee)
-	totalAmount, err := tx.TotalAmount()
+	_, err := tx.TotalAmount()
 	if err != nil {
-		Log.Err(err)
-		return err
+		return fmt.Errorf("invalid total amount: %w", err)
 	}
 
-	// Group inputs by sender and calculate total input amounts
-	inputAmounts := make(map[address.Address]uint64)
+	// Get all inputs and outputs for the current transaction
 	inputs := tx.Data.StateInputs(tx, signer)
-	for _, input := range inputs {
-		inputAmounts[input.Sender] += input.Amount
-	}
-
-	// Verify total inputs match outputs + fee
-	var totalInputs uint64
-	for _, amount := range inputAmounts {
-		totalInputs += amount
-	}
-	if totalInputs != totalAmount {
-		err := fmt.Errorf("transaction %x input sum %d doesn't match total amount %d + fee %d",
-			hash, totalInputs, totalAmount-tx.Fee, tx.Fee)
-		Log.Warn(err)
-		return err
-	}
 	outputs := tx.Data.StateOutputs(tx, signer)
-	var outSum uint64
-	for _, v := range outputs {
-		outSum += v.Amount
-	}
-	if totalAmount != outSum+tx.Fee {
-		err := fmt.Errorf("transaction %x total amount %d doesn't match output sum + fee %d",
-			hash, totalAmount, outSum+tx.Fee)
-		Log.Warn(err)
-		return err
-	}
 
-	// Get initial signer state
-	signerState, err := bc.GetState(txn, signer)
-	if err != nil {
-		Log.Err(err)
-		return err
+	// Verify input and output sums match
+	var totalInputs, totalOutputs uint64
+	for _, inp := range inputs {
+		totalInputs += inp.Amount
+	}
+	for _, out := range outputs {
+		totalOutputs += out.Amount
+	}
+	if totalInputs != totalOutputs+tx.Fee {
+		return fmt.Errorf("input sum %d doesn't match output sum %d + fee %d",
+			totalInputs, totalOutputs, tx.Fee)
 	}
 
-	// Track expected nonce for signer
-	signerNonce := signerState.LastNonce
+	// Collect all affected addresses
+	affectedAddrs := make(map[address.Address]bool)
+	affectedAddrs[signer] = true
+	for _, inp := range inputs {
+		affectedAddrs[inp.Sender] = true
+	}
+	for _, out := range outputs {
+		affectedAddrs[out.Recipient] = true
+	}
 
-	// Process previous entries to update balances and nonces
+	// Initialize simulated states and delegates
 	simulatedStates := make(map[address.Address]*State)
-	for _, entry := range previousEntries {
-		if entry.TXID == hash {
-			break
+	simulatedDelegates := make(map[uint64]*Delegate)
+
+	// Load initial states from database
+	for addr := range affectedAddrs {
+		state, err := bc.GetState(txn, addr)
+		if err != nil {
+			return fmt.Errorf("failed to get state for %s: %w", addr, err)
 		}
-
-		// Update expected nonce if entry is from same signer
-		if entry.Signer == signer {
-			signerNonce++
-		}
-
-		// Apply entry to affected sender states
-		for sender := range inputAmounts {
-			if _, exists := simulatedStates[sender]; !exists {
-				senderState, err := bc.GetState(txn, sender)
-				if err != nil {
-					Log.Err(err)
-					return err
-				}
-				simulatedStates[sender] = senderState
-			}
-
-			// Apply input deductions
-			for _, input := range entry.Inputs {
-				if input.Sender == sender {
-					if input.Amount > simulatedStates[sender].Balance {
-						err := fmt.Errorf("insufficient balance in transaction %x: need %d, have %d",
-							entry.TXID, input.Amount, simulatedStates[sender].Balance)
-						Log.Err(err)
-						return err
-					}
-					simulatedStates[sender].Balance -= input.Amount
-				}
-			}
-
-			// Apply output additions
-			for _, output := range entry.Outputs {
-				if output.Recipient == sender {
-					simulatedStates[sender].Balance += output.Amount
-				}
-			}
-		}
+		simulatedStates[addr] = state
 	}
 
-	// Validate each sender's balance covers their inputs
-	for sender, amount := range inputAmounts {
-		state := simulatedStates[sender]
-		if state == nil {
-			senderState, err := bc.GetState(txn, sender)
+	// Track nonces for all signers from previous entries
+	simulatedNonces := make(map[address.Address]uint64)
+	simulatedNonces[signer] = simulatedStates[signer].LastNonce
+
+	// Process previous entries to update simulated states and delegates
+	for _, entry := range previousEntries {
+		// stop if we have reached this transaction (should not happen)
+		if entry.TXID == hash {
+			return errors.New("previousEntries contains the transaction")
+		}
+
+		// Update nonce for entry's signer
+		simulatedNonces[entry.Signer]++
+
+		// Apply state changes from inputs
+		for _, inp := range entry.Inputs {
+			state := simulatedStates[inp.Sender]
+			if state.Balance < inp.Amount {
+				return fmt.Errorf("insufficient balance in previous entry %x", entry.TXID)
+			}
+			state.Balance -= inp.Amount
+		}
+
+		// Apply state changes from outputs
+		for _, out := range entry.Outputs {
+			state := simulatedStates[out.Recipient]
+			state.Balance += out.Amount
+			state.LastIncoming++
+		}
+
+		// Handle unstake transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_UNSTAKE {
+			tx, _, err := bc.GetTx(txn, entry.TXID)
+			if err != nil {
+				return fmt.Errorf("failed to get unstake transaction: %w", err)
+			}
+
+			unstakeData := tx.Data.(*transaction.Unstake)
+			delegate, err := bc.getOrLoadDelegate(txn, unstakeData.DelegateId, simulatedDelegates)
 			if err != nil {
 				return err
 			}
-			state = senderState
-		}
-		if state.Balance < amount {
-			err := fmt.Errorf("insufficient balance for sender %s: need %d, have %d",
-				sender, amount, state.Balance)
-			Log.Warn(err)
-			return err
+
+			// Find and update the fund for the entry signer
+			found := false
+			for _, fund := range delegate.Funds {
+				if fund.Owner == entry.Signer {
+					if fund.Amount < unstakeData.Amount {
+						return fmt.Errorf("insufficient stake in previous entry %x", entry.TXID)
+					}
+					fund.Amount -= unstakeData.Amount
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no stake found for %s in previous entry %x", entry.Signer, entry.TXID)
+			}
+
+			// Update simulated delegate
+			simulatedDelegates[unstakeData.DelegateId] = delegate
 		}
 	}
 
-	// Validate signer's nonce
-	if tx.Nonce != signerNonce+1 {
-		err := fmt.Errorf("invalid nonce for transaction %x: expected %d, got %d",
-			hash, signerNonce+1, tx.Nonce)
-		Log.Warn(err)
-		return err
+	// Validate nonce for current transaction
+	if tx.Nonce != simulatedNonces[signer]+1 {
+		return fmt.Errorf("invalid nonce: expected %d, got %d",
+			simulatedNonces[signer]+1, tx.Nonce)
+	}
+
+	// Validate sufficient balances for inputs
+	for _, inp := range inputs {
+		state := simulatedStates[inp.Sender]
+		if state.Balance < inp.Amount {
+			return fmt.Errorf("insufficient balance for %s: need %d, have %d",
+				inp.Sender, inp.Amount, state.Balance)
+		}
+	}
+
+	// Validate unstake transaction if applicable
+	if tx.Version == transaction.TX_VERSION_UNSTAKE {
+		unstakeData := tx.Data.(*transaction.Unstake)
+		delegate, err := bc.getOrLoadDelegate(txn, unstakeData.DelegateId, simulatedDelegates)
+		if err != nil {
+			return err
+		}
+
+		// Check delegate ID matches signer's current delegate
+		signerState := simulatedStates[signer]
+		if signerState.DelegateId != unstakeData.DelegateId {
+			return fmt.Errorf("signer delegate ID %d doesn't match unstake delegate ID %d",
+				signerState.DelegateId, unstakeData.DelegateId)
+		}
+
+		// Check sufficient staked amount
+		var stakedAmount uint64
+		for _, fund := range delegate.Funds {
+			if fund.Owner == signer {
+				stakedAmount = fund.Amount
+				break
+			}
+		}
+		if stakedAmount < unstakeData.Amount {
+			return fmt.Errorf("insufficient stake: need %d, have %d",
+				unstakeData.Amount, stakedAmount)
+		}
 	}
 
 	return nil
+}
+
+// Helper function to get delegate from simulatedDelegates or database
+func (bc *Blockchain) getOrLoadDelegate(txn adb.Txn, delegateId uint64, simulatedDelegates map[uint64]*Delegate) (*Delegate, error) {
+	if delegate, exists := simulatedDelegates[delegateId]; exists {
+		return delegate, nil
+	}
+	delegate, err := bc.GetDelegate(txn, delegateId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get delegate %d: %w", delegateId, err)
+	}
+	return delegate, nil
 }
 
 func (bc *Blockchain) BroadcastTx(hash [32]byte, tx *transaction.Transaction) {

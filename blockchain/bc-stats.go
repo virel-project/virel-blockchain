@@ -92,13 +92,14 @@ type Mempool struct {
 	Entries []*MempoolEntry
 }
 type MempoolEntry struct {
-	TXID    [32]byte
-	Size    uint64
-	Fee     uint64
-	Expires int64
-	Signer  address.Address
-	Inputs  []transaction.StateInput
-	Outputs []transaction.Output
+	TXID      [32]byte
+	TxVersion uint8
+	Size      uint64
+	Fee       uint64
+	Expires   int64
+	Signer    address.Address
+	Inputs    []transaction.StateInput
+	Outputs   []transaction.Output
 }
 
 func (s *Mempool) Serialize() []byte {

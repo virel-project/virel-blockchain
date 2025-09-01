@@ -970,13 +970,14 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 					}
 				}
 				memp.Entries = append(memp.Entries, &MempoolEntry{
-					TXID:    v,
-					Size:    tx.GetVirtualSize(),
-					Fee:     tx.Fee,
-					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-					Signer:  signerAddr,
-					Inputs:  tx.Data.StateInputs(tx, signerAddr),
-					Outputs: out,
+					TXID:      v,
+					TxVersion: tx.Version,
+					Size:      tx.GetVirtualSize(),
+					Fee:       tx.Fee,
+					Expires:   time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
+					Signer:    signerAddr,
+					Inputs:    tx.Data.StateInputs(tx, signerAddr),
+					Outputs:   out,
 				})
 			}
 		}
