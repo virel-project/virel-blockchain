@@ -166,14 +166,19 @@ func (bc *Blockchain) RemoveTxOutputsFromState(txn adb.Txn, outs []transaction.S
 			roundingError := out.Amount - totalSubtracted
 			Log.Debugf("rounding errors left the delegate owner with %s extra", util.FormatCoin(roundingError))
 			delegateAddr := delegate.OwnerAddress()
+			ownerFound := false
 			for _, v := range delegate.Funds {
 				if v.Owner == delegateAddr {
 					if v.Amount < roundingError {
 						return fmt.Errorf("cannot subtract rounding error from first fund")
 					}
-					v.Amount += roundingError
+					v.Amount -= roundingError
+					ownerFound = true
 					break
 				}
+			}
+			if !ownerFound {
+				return fmt.Errorf("delegate owner not found")
 			}
 
 			// Verify the subtraction was correct

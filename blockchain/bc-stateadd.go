@@ -126,7 +126,7 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 		return fmt.Errorf("failed to add to stats, this should never happen: %w", err)
 	}
 
-	// Update the delegate in the state (note: SetDelegate also sorts the funds)
+	// Update the delegate in the state (note: SetDelegate also sorts the funds and checks there are no duplicate owners)
 	err = bc.SetDelegate(txn, delegate)
 	if err != nil {
 		return fmt.Errorf("failed to set delegate, this should never happen: %w", err)
@@ -199,11 +199,19 @@ func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, outs []transaction.Stat
 			roundingError := out.Amount - totalAdded
 			Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
 			delegateAddr := delegate.OwnerAddress()
+			ownerFound := false
 			for _, v := range delegate.Funds {
 				if v.Owner == delegateAddr {
+					ownerFound = true
 					v.Amount += roundingError
 					break
 				}
+			}
+			if !ownerFound {
+				delegate.Funds = append(delegate.Funds, &DelegatedFund{
+					Owner:  delegateAddr,
+					Amount: roundingError,
+				})
 			}
 
 			// Verify the addition was correct
