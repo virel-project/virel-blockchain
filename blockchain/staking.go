@@ -79,6 +79,22 @@ func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error
 	})
 }
 
+func (bc *Blockchain) SetDelegateHistory(txn adb.Txn, blockhash util.Hash, delegate *Delegate) error {
+	return txn.Put(bc.Index.DelegateHistory, blockhash[:], delegate.Serialize())
+}
+func (bc *Blockchain) GetDelegateHistory(txn adb.Txn, blockhash util.Hash) (*Delegate, error) {
+	delegatedata := txn.Get(bc.Index.DelegateHistory, blockhash[:])
+	if len(delegatedata) < 1 {
+		return nil, errors.New("no delegate found")
+	}
+	delegate := &Delegate{}
+	err := delegate.Deserialize(delegatedata)
+	if err != nil {
+		return nil, err
+	}
+	return delegate, nil
+}
+
 func (bc *Blockchain) GetStakeSig(txn adb.Txn, hash util.Hash) (*packet.PacketStakeSignature, error) {
 	stakesigdata := txn.Get(bc.Index.StakeSig, hash[:])
 	if len(stakesigdata) < 1 {

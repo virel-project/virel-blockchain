@@ -12,8 +12,9 @@ import (
 )
 
 // Note: It is up to the caller to save the stats afterwards.
+// Note: In case of error, the database transaction `txn` should be reversed.
 func (bc *Blockchain) ApplyTxToState(
-	txn adb.Txn, tx *transaction.Transaction, signerAddr address.Address, bl *block.Block, stats *Stats, txid transaction.TXID,
+	txn adb.Txn, tx *transaction.Transaction, signerAddr address.Address, bl *block.Block, blockhash util.Hash, stats *Stats, txid transaction.TXID,
 ) error {
 	// check signer state
 	signerState, err := bc.GetState(txn, signerAddr)
@@ -76,7 +77,7 @@ func (bc *Blockchain) ApplyTxToState(
 
 	// add the funds to the outputs
 	stateoutputs := tx.Data.StateOutputs(tx, signerAddr)
-	bc.ApplyTxOutputsToState(txn, stateoutputs, txid, stats)
+	bc.ApplyTxOutputsToState(txn, blockhash, stateoutputs, txid, stats)
 
 	// add tx hash to sender's outgoing list
 	err = bc.SetTxTopoOut(txn, txid, signerAddr, signerState.LastNonce)
@@ -135,7 +136,7 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 }
 
 // Note: It is up to the caller to save the stats afterwards.
-func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, outs []transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
+func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, blockhash util.Hash, outs []transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
 	for _, out := range outs {
 		recState, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
@@ -161,75 +162,86 @@ func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, outs []transaction.Stat
 
 		// special payout for PoS reward
 		if out.Type == transaction.OUT_COINBASE_POS {
-			if out.ExtraData == 0 {
-				return fmt.Errorf("invalid delegate id %d", out.ExtraData)
-			}
-			// Apply the PoS reward distribution
-			delegate, err := bc.GetDelegate(txn, out.ExtraData)
+			err = bc.ApplyPosReward(txn, blockhash, &out, txid, stats)
 			if err != nil {
-				return err
-			}
-
-			if len(delegate.Funds) == 0 {
-				return fmt.Errorf("delegate has no funds")
-			}
-
-			totalStake := delegate.TotalAmount()
-			totalAdded := uint64(0)
-
-			if totalStake == 0 {
-				return errors.New("delegate has no stake")
-			}
-
-			for _, fund := range delegate.Funds {
-				// add the amount with 1% fee (that will be paid to fund owner from the roundingError)
-				addAmount := fund.Amount * out.Amount * 99 / 100 / totalStake
-
-				Log.Debugf("adding %s to staker %s", util.FormatCoin(addAmount), fund.Owner)
-
-				if fund.Amount+addAmount < fund.Amount {
-					return errors.New("fund amount overflow")
-				}
-
-				fund.Amount += addAmount
-				totalAdded += addAmount
-			}
-
-			// Handle rounding error + fee, adding it to the delegate owner
-			roundingError := out.Amount - totalAdded
-			Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
-			delegateAddr := delegate.OwnerAddress()
-			ownerFound := false
-			for _, v := range delegate.Funds {
-				if v.Owner == delegateAddr {
-					ownerFound = true
-					v.Amount += roundingError
-					break
-				}
-			}
-			if !ownerFound {
-				delegate.Funds = append(delegate.Funds, &DelegatedFund{
-					Owner:  delegateAddr,
-					Amount: roundingError,
-				})
-			}
-
-			// Verify the addition was correct
-			if delegate.TotalAmount() != totalStake+out.Amount {
-				return fmt.Errorf("staking mismatch: delegate balance %d, expected %d", delegate.TotalAmount(), totalStake+out.Amount)
-			}
-
-			err = stats.Staked(out.Amount)
-			if err != nil {
-				return fmt.Errorf("failed to add to stats, this should never happen: %w", err)
-			}
-
-			// Update the delegate in the state (note: SetDelegate also sorts the funds)
-			err = bc.SetDelegate(txn, delegate)
-			if err != nil {
-				return fmt.Errorf("failed to set delegate, this should never happen: %w", err)
+				return fmt.Errorf("failed to apply pos reward: %w", err)
 			}
 		}
+	}
+	return nil
+}
+func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
+	if out.ExtraData == 0 {
+		return fmt.Errorf("invalid delegate id %d", out.ExtraData)
+	}
+	// Get and validate the delegate
+	delegate, err := bc.GetDelegate(txn, out.ExtraData)
+	if err != nil {
+		return err
+	}
+	if len(delegate.Funds) == 0 {
+		return fmt.Errorf("delegate has no funds")
+	}
+	totalStake := delegate.TotalAmount()
+	totalAdded := uint64(0)
+	if totalStake == 0 {
+		return errors.New("delegate has no stake")
+	}
+
+	// Save the delegate history
+	err = bc.SetDelegateHistory(txn, blockhash, delegate)
+	if err != nil {
+		return fmt.Errorf("failed to set delegate: %w", err)
+	}
+
+	// Apply the PoS reward distribution
+	for _, fund := range delegate.Funds {
+		// add the amount with 1% fee (that will be paid to fund owner from the roundingError)
+		addAmount := fund.Amount * out.Amount * 99 / 100 / totalStake
+
+		Log.Debugf("adding %s to staker %s", util.FormatCoin(addAmount), fund.Owner)
+
+		if fund.Amount+addAmount < fund.Amount {
+			return errors.New("fund amount overflow")
+		}
+
+		fund.Amount += addAmount
+		totalAdded += addAmount
+	}
+
+	// Handle rounding error + fee, adding it to the delegate owner
+	roundingError := out.Amount - totalAdded
+	Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
+	delegateAddr := delegate.OwnerAddress()
+	ownerFound := false
+	for _, v := range delegate.Funds {
+		if v.Owner == delegateAddr {
+			ownerFound = true
+			v.Amount += roundingError
+			break
+		}
+	}
+	if !ownerFound {
+		delegate.Funds = append(delegate.Funds, &DelegatedFund{
+			Owner:  delegateAddr,
+			Amount: roundingError,
+		})
+	}
+
+	// Verify the addition was correct
+	if delegate.TotalAmount() != totalStake+out.Amount {
+		return fmt.Errorf("staking mismatch: delegate balance %d, expected %d", delegate.TotalAmount(), totalStake+out.Amount)
+	}
+
+	err = stats.Staked(out.Amount)
+	if err != nil {
+		return fmt.Errorf("failed to add to stats, this should never happen: %w", err)
+	}
+
+	// Update the delegate in the state (note: SetDelegate also sorts the funds)
+	err = bc.SetDelegate(txn, delegate)
+	if err != nil {
+		return fmt.Errorf("failed to set delegate, this should never happen: %w", err)
 	}
 	return nil
 }

@@ -11,8 +11,9 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
+// Note: In case of error, the database transaction `txn` should be reversed.
 func (bc *Blockchain) RemoveTxFromState(
-	txn adb.Txn, tx *transaction.Transaction, signerAddr address.Address, bl *block.Block, stats *Stats, txid transaction.TXID,
+	txn adb.Txn, tx *transaction.Transaction, signerAddr address.Address, bl *block.Block, blockhash util.Hash, stats *Stats, txid transaction.TXID,
 ) error {
 	// reset tx height
 	err := bc.SetTxHeight(txn, txid, 0)
@@ -22,7 +23,8 @@ func (bc *Blockchain) RemoveTxFromState(
 
 	// remove the funds from the outputs
 	stateoutputs := tx.Data.StateOutputs(tx, signerAddr)
-	bc.RemoveTxOutputsFromState(txn, stateoutputs, txid, stats)
+	bc.RemoveTxOutputsFromState(txn, blockhash, stateoutputs, txid, stats)
+	// NOTE: We don't have to remove the TxTopoOut/TxTopoInc, since we are reducing LastIncoming/LastNonce, so they are never read and later overwritten.
 
 	// remove inputs
 	for _, inp := range tx.Data.StateInputs(tx, signerAddr) {
@@ -63,7 +65,7 @@ func (bc *Blockchain) RemoveTxFromState(
 			return fmt.Errorf("unstake transaction delegate id %d does not match with state %d",
 				unstakeData.DelegateId, signerState.DelegateId)
 		}
-		err = bc.RemoveUnstake(txn, unstakeData, signerAddr, txid, stats)
+		err = bc.RemoveUnstake(txn, blockhash, unstakeData, signerAddr, txid, stats)
 		if err != nil {
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
@@ -72,7 +74,7 @@ func (bc *Blockchain) RemoveTxFromState(
 	return nil
 }
 
-func (bc *Blockchain) RemoveUnstake(txn adb.Txn, unstakeData *transaction.Unstake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
+func (bc *Blockchain) RemoveUnstake(txn adb.Txn, blockhash util.Hash, unstakeData *transaction.Unstake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
 	delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
 	if err != nil {
 		return err
@@ -96,6 +98,7 @@ func (bc *Blockchain) RemoveUnstake(txn adb.Txn, unstakeData *transaction.Unstak
 		})
 	}
 
+	// reverse stats.Unstaked
 	err = stats.Staked(unstakeData.Amount)
 	if err != nil {
 		return fmt.Errorf("failed to remove from stats, this should never happen: %w", err)
@@ -109,7 +112,7 @@ func (bc *Blockchain) RemoveUnstake(txn adb.Txn, unstakeData *transaction.Unstak
 	return nil
 }
 
-func (bc *Blockchain) RemoveTxOutputsFromState(txn adb.Txn, outs []transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
+func (bc *Blockchain) RemoveTxOutputsFromState(txn adb.Txn, blockhash util.Hash, outs []transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
 	for _, out := range outs {
 		recState, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
@@ -129,72 +132,33 @@ func (bc *Blockchain) RemoveTxOutputsFromState(txn adb.Txn, outs []transaction.S
 		}
 		// Reverse coinbase PoS
 		if out.Type == transaction.OUT_COINBASE_POS {
-			if out.ExtraData == 0 {
-				return fmt.Errorf("invalid delegate id %d", out.ExtraData)
-			}
-			// Reverse the PoS reward distribution
-			delegate, err := bc.GetDelegate(txn, out.ExtraData)
-			if err != nil {
-				return err
-			}
-
-			if len(delegate.Funds) == 0 {
-				return fmt.Errorf("delegate has no funds")
-			}
-
-			totalStake := delegate.TotalAmount() - out.Amount
-			totalSubtracted := uint64(0)
-
-			if totalStake == 0 {
-				return fmt.Errorf("delegate has no stake")
-			}
-
-			for i, fund := range delegate.Funds {
-				// Calculate the amount that was added to each fund
-				subtractAmount := fund.Amount * out.Amount * 99 / 100 / (totalStake + out.Amount)
-
-				// Safety check to prevent underflow
-				if fund.Amount < subtractAmount {
-					return fmt.Errorf("cannot subtract more than available in fund")
-				}
-
-				delegate.Funds[i].Amount -= subtractAmount
-				totalSubtracted += subtractAmount
-			}
-
-			// Handle rounding error (reverse of what was done in ApplyBlockToState)
-			roundingError := out.Amount - totalSubtracted
-			Log.Debugf("rounding errors left the delegate owner with %s extra", util.FormatCoin(roundingError))
-			delegateAddr := delegate.OwnerAddress()
-			ownerFound := false
-			for _, v := range delegate.Funds {
-				if v.Owner == delegateAddr {
-					if v.Amount < roundingError {
-						return fmt.Errorf("cannot subtract rounding error from first fund")
-					}
-					v.Amount -= roundingError
-					ownerFound = true
-					break
-				}
-			}
-			if !ownerFound {
-				return fmt.Errorf("delegate owner not found")
-			}
-
-			// Verify the subtraction was correct
-			if delegate.TotalAmount() != totalStake {
-				return fmt.Errorf("staking mismatch after reversal: delegate balance %d, expected %d",
-					delegate.TotalAmount(), totalStake)
-			}
-
-			stats.Unstaked(out.Amount)
-
-			// Update the delegate in the state (note: SetDelegate also sorts the funds)
-			err = bc.SetDelegate(txn, delegate)
-			if err != nil {
-				return err
-			}
+			bc.RemovePosReward(txn, blockhash, &out, txid, stats)
 		}
 	}
 	return nil
+}
+
+func (bc *Blockchain) RemovePosReward(txn adb.Txn, blockhash util.Hash, out *transaction.StateOutput, txid transaction.TXID, stats *Stats) error {
+	if out.ExtraData == 0 {
+		return fmt.Errorf("invalid delegate id %d", out.ExtraData)
+	}
+	// Reverse the PoS reward distribution
+	delegate, err := bc.GetDelegate(txn, out.ExtraData)
+	if err != nil {
+		return err
+	}
+
+	if len(delegate.Funds) == 0 {
+		return fmt.Errorf("delegate has no funds")
+	}
+
+	oldDelegate, err := bc.GetDelegateHistory(txn, blockhash)
+	if err != nil {
+		return fmt.Errorf("failed to get delegate history: %w", err)
+	}
+	if oldDelegate.Id != delegate.Id || oldDelegate.Owner != delegate.Owner {
+		return fmt.Errorf("delegate historical data does not match with the current data, this should never happen")
+	}
+
+	return bc.SetDelegate(txn, delegate)
 }

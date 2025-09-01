@@ -55,15 +55,16 @@ type Blockchain struct {
 	SyncMut    util.RWMutex
 }
 type Index struct {
-	Info     adb.Index
-	Block    adb.Index
-	Topo     adb.Index
-	State    adb.Index
-	Tx       adb.Index
-	InTx     adb.Index
-	OutTx    adb.Index
-	Delegate adb.Index // Delegate Id -> Delegate
-	StakeSig adb.Index // Block hash -> Stake signature
+	Info            adb.Index
+	Block           adb.Index
+	Topo            adb.Index
+	State           adb.Index
+	Tx              adb.Index
+	InTx            adb.Index
+	OutTx           adb.Index
+	Delegate        adb.Index // Delegate Id -> Delegate
+	StakeSig        adb.Index // Block hash -> Stake signature
+	DelegateHistory adb.Index // Block hash -> Delegate (before applying block reward)
 }
 
 func (bc *Blockchain) IsShuttingDown() bool {
@@ -887,7 +888,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 
 		Log.Debugf("Applying transaction %x to mainchain", v)
 
-		err = bc.ApplyTxToState(txn, tx, signerAddr, bl, stats, v)
+		err = bc.ApplyTxToState(txn, tx, signerAddr, bl, blockhash, stats, v)
 		if err != nil {
 			Log.Err(err)
 			return err
@@ -919,7 +920,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 		}
 	}
 
-	err = bc.ApplyTxOutputsToState(txn, outs, blockhash, stats)
+	err = bc.ApplyTxOutputsToState(txn, blockhash, outs, blockhash, stats)
 	if err != nil {
 		Log.Err(err)
 		return err
