@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
@@ -68,6 +69,8 @@ func (bc *Blockchain) ApplyTxToState(
 		if err == nil {
 			return fmt.Errorf("delegate %d is already registered", registerData.Id)
 		}
+
+		Log.Debug("registering delegate", registerData.Id, "with name", strconv.Quote(string(registerData.Name)))
 
 		bc.SetDelegate(txn, &Delegate{
 			Id:    registerData.Id,

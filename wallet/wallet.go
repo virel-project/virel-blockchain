@@ -296,13 +296,14 @@ func (w *Wallet) RegisterDelegate(name string, id uint64) (*transaction.Transact
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) SetDelegate(delegateId uint64) (*transaction.Transaction, error) {
+func (w *Wallet) SetDelegate(delegateId, previousId uint64) (*transaction.Transaction, error) {
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_SET_DELEGATE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
 		Data: &transaction.SetDelegate{
-			DelegateId: delegateId,
+			DelegateId:       delegateId,
+			PreviousDelegate: previousId,
 		},
 	}
 

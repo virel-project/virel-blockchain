@@ -131,9 +131,11 @@ func (t *RegisterDelegate) AssociatedTransactionVersion() uint8 {
 }
 func (t *RegisterDelegate) Serialize(s *binary.Ser) {
 	s.AddByteSlice(t.Name)
+	s.AddUvarint(t.Id)
 }
 func (t *RegisterDelegate) Deserialize(d *binary.Des) error {
 	t.Name = d.ReadByteSlice()
+	t.Id = d.ReadUvarint()
 	return d.Error()
 }
 func (t *RegisterDelegate) String() string {
@@ -148,6 +150,9 @@ func (t *RegisterDelegate) VSize() uint64 {
 func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
 	if len(t.Name) > 16 {
 		return errors.New("RegisterDelegate name is too long")
+	}
+	if t.Id == 0 {
+		return errors.New("delegate id 0 is not valid")
 	}
 	return nil
 }

@@ -174,6 +174,14 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 
 	state.LastNonce++
 	w.ManualRefresh(state, height)
+	tx, err = w.SetDelegate(delegate_id, state.DelegateId)
+	if err != nil {
+		panic(err)
+	}
+	txs = append(txs, tx)
+
+	state.LastNonce++
+	w.ManualRefresh(state, height)
 	tx, err = w.Stake(delegate_id, config.COIN)
 	if err != nil {
 		panic(err)

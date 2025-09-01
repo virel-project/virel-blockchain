@@ -216,6 +216,22 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			}
 		}
 
+		// Handle register delegate transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_REGISTER_DELEGATE {
+			tx, _, err := bc.GetTx(txn, entry.TXID)
+			if err != nil {
+				return fmt.Errorf("failed to get register delegate transaction: %w", err)
+			}
+
+			registerData := tx.Data.(*transaction.RegisterDelegate)
+
+			simulatedDelegates[registerData.Id] = &Delegate{
+				Id:    registerData.Id,
+				Owner: tx.Signer,
+				Name:  registerData.Name,
+				Funds: []*DelegatedFund{},
+			}
+		}
 		// Handle stake transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_STAKE {
 			tx, _, err := bc.GetTx(txn, entry.TXID)
@@ -251,7 +267,6 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			// Update simulated delegate
 			simulatedDelegates[stakeData.DelegateId] = delegate
 		}
-
 		// Handle unstake transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_UNSTAKE {
 			tx, _, err := bc.GetTx(txn, entry.TXID)
@@ -342,6 +357,15 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		if stakedAmount < unstakeData.Amount {
 			return fmt.Errorf("insufficient stake: need %d, have %d",
 				unstakeData.Amount, stakedAmount)
+		}
+	}
+	// Validate register delegate transaction if applicable
+	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
+		registerDelegateData := tx.Data.(*transaction.RegisterDelegate)
+
+		_, err := bc.getOrLoadDelegate(txn, registerDelegateData.Id, simulatedDelegates)
+		if err == nil {
+			return fmt.Errorf("delegate %d is already registered", registerDelegateData.Id)
 		}
 	}
 
