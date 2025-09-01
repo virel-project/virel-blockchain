@@ -7,6 +7,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
+	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/logger"
@@ -84,7 +85,13 @@ func main() {
 	err := os.MkdirAll(*data_dir, 0o774)
 	Log.Debug("failed to create data dir:", err)
 
-	bc := blockchain.New(*data_dir)
+	db, err := lmdb.New(*data_dir+"/lmdb/", 0755, Log)
+	if err != nil {
+		Log.Fatal(err)
+		return
+	}
+
+	bc := blockchain.New(*data_dir, db)
 
 	if config.IS_MASTERCHAIN {
 		if len(*slavechains_stratums) > 0 {

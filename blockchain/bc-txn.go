@@ -154,8 +154,19 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		totalInputs += amount
 	}
 	if totalInputs != totalAmount {
-		err := fmt.Errorf("transaction %x input sum %d doesn't match output sum %d + fee %d",
+		err := fmt.Errorf("transaction %x input sum %d doesn't match total amount %d + fee %d",
 			hash, totalInputs, totalAmount-tx.Fee, tx.Fee)
+		Log.Warn(err)
+		return err
+	}
+	outputs := tx.Data.StateOutputs(tx, signer)
+	var outSum uint64
+	for _, v := range outputs {
+		outSum += v.Amount
+	}
+	if totalAmount != outSum+tx.Fee {
+		err := fmt.Errorf("transaction %x total amount %d doesn't match output sum + fee %d",
+			hash, totalAmount, outSum+tx.Fee)
 		Log.Warn(err)
 		return err
 	}
@@ -218,6 +229,13 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	// Validate each sender's balance covers their inputs
 	for sender, amount := range inputAmounts {
 		state := simulatedStates[sender]
+		if state == nil {
+			senderState, err := bc.GetState(txn, sender)
+			if err != nil {
+				return err
+			}
+			state = senderState
+		}
 		if state.Balance < amount {
 			err := fmt.Errorf("insufficient balance for sender %s: need %d, have %d",
 				sender, amount, state.Balance)

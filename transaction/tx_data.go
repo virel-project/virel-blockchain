@@ -139,7 +139,7 @@ func (t *RegisterDelegate) String() string {
 	return "RegisterDelegate " + strconv.Quote(string(t.Name))
 }
 func (t *RegisterDelegate) TotalAmount() (uint64, error) {
-	return 0, nil
+	return config.REGISTER_DELEGATE_BURN, nil
 }
 func (t *RegisterDelegate) VSize() uint64 {
 	return 16 + uint64(len(t.Name))

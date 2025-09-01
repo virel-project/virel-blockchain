@@ -9,6 +9,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
@@ -163,6 +164,15 @@ func (w *Wallet) Refresh() error {
 	return nil
 }
 
+// Only for unit tests
+func (w *Wallet) ManualRefresh(state *blockchain.State, height uint64) {
+	w.balance = state.Balance
+	w.lastNonce = state.LastNonce
+	w.mempoolBal = state.Balance
+	w.mempoolNonce = state.LastNonce
+	w.height = height
+}
+
 func (w *Wallet) GetPassword() []byte {
 	return w.password
 }
@@ -236,11 +246,6 @@ func (w *Wallet) checkAndSignTx(tx *transaction.Transaction) error {
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
-	}
-
 	for _, out := range outputs {
 		if w.GetAddress().Addr == out.Recipient {
 			return nil, fmt.Errorf("cannot transfer funds to self")
@@ -275,11 +280,6 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) RegisterDelegate(name string) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
-	}
-
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
@@ -296,11 +296,6 @@ func (w *Wallet) RegisterDelegate(name string) (*transaction.Transaction, error)
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) SetDelegate(delegateId uint64) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
-	}
-
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_SET_DELEGATE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
@@ -315,11 +310,6 @@ func (w *Wallet) SetDelegate(delegateId uint64) (*transaction.Transaction, error
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
-	}
-
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_STAKE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
@@ -335,11 +325,6 @@ func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transacti
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) Unstake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
-	}
-
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_STAKE,
 		Signer:  w.dbInfo.PrivateKey.Public(),

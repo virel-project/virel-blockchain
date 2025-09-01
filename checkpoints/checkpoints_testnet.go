@@ -1,4 +1,4 @@
-//go:build testnet
+//go:build testnet || unittest
 
 package checkpoints
 

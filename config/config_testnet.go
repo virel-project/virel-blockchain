@@ -1,4 +1,4 @@
-//go:build testnet
+//go:build testnet && !unittest
 
 package config
 
@@ -17,6 +17,10 @@ const GENESIS_TIMESTAMP = 0
 const BLOCK_REWARD_FEE_PERCENT = 10
 
 var SEED_NODES = []string{"127.0.0.1"}
+
+// PROOF OF STAKE
+const MIN_STAKE_AMOUNT = 100 * COIN
+const REGISTER_DELEGATE_BURN = 5_000 * COIN
 
 // HARD-FORKS
 const HARDFORK_V2_HEIGHT = 1

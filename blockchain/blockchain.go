@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
-	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
@@ -74,7 +73,7 @@ func (bc *Blockchain) IsShuttingDown() bool {
 	return bc.shutdownInfo.ShuttingDown
 }
 
-func New(dataDir string) *Blockchain {
+func New(dataDir string, db adb.DB) *Blockchain {
 	bc := &Blockchain{
 		Stratum: &stratumsrv.Server{
 			NewConnections: make(chan *stratumsrv.Conn),
@@ -82,12 +81,7 @@ func New(dataDir string) *Blockchain {
 	}
 
 	bc.DataDir = dataDir
-	var err error
-	bc.DB, err = lmdb.New(bc.DataDir+"/lmdb/", 0755, Log)
-	// bc.DB, err = boltdb.New("./"+config.NETWORK_NAME+".db", 0755)
-	if err != nil {
-		panic(err)
-	}
+	bc.DB = db
 
 	bc.Index = Index{
 		Info:     bc.DB.Index("info"),

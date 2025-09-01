@@ -52,6 +52,10 @@ func (bc *Blockchain) StartStratum(bindIp string, bindPort uint16) {
 }
 
 func (bc *Blockchain) NewStratumJob(force bool) {
+	if bc.Stratum == nil {
+		return
+	}
+
 	// notify the integrated miner about the new job
 	bc.MergesMut.Lock()
 	bc.mergesUpdated = true
