@@ -206,7 +206,10 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 		}
 
 		fund.Amount += addAmount
-		totalAdded += addAmount
+		totalAdded += addAmount // No need to check overflow of totalAdded, as we check fund.Amount which is >=
+	}
+	if totalAdded > out.Amount {
+		return fmt.Errorf("totalAdded %d > out.Amount %d, should never happen", totalAdded, out.Amount)
 	}
 
 	// Handle rounding error + fee, adding it to the delegate owner
