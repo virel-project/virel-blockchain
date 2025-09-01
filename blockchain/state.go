@@ -3,6 +3,7 @@ package blockchain
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
@@ -70,6 +71,27 @@ func (d *Delegate) TotalAmount() (t uint64) {
 		oldt = t
 	}
 	return
+}
+
+func (d *Delegate) SortFunds() (err error) {
+	var seen = make(map[address.Address]bool, len(d.Funds))
+
+	for _, v := range d.Funds {
+		if seen[v.Owner] {
+			return fmt.Errorf("fund with owner %s is duplicate", v.Owner)
+		}
+		seen[v.Owner] = true
+	}
+
+	slices.SortStableFunc(d.Funds, func(a, b *DelegatedFund) int {
+		return slices.Compare(a.Owner[:], b.Owner[:])
+	})
+
+	return nil
+}
+
+func (d *Delegate) OwnerAddress() address.Address {
+	return address.FromPubKey(d.Owner)
 }
 
 type DelegatedFund struct {

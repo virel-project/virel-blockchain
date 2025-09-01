@@ -1025,60 +1025,6 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 		// removing coinbase transaction from incoming tx list is not necessary, since it's never read and later overwritten
 
-		// Reverse coinbase PoS
-		if out.Type == transaction.OUT_COINBASE_POS {
-			if out.DelegateId == 0 {
-				err = fmt.Errorf("invalid delegate id %d", out.DelegateId)
-				Log.Err(err)
-				return err
-			}
-			// Reverse the PoS reward distribution
-			delegate, err := bc.GetDelegate(txn, out.DelegateId)
-			if err != nil {
-				return err
-			}
-
-			if len(delegate.Funds) == 0 {
-				return fmt.Errorf("delegate has no funds")
-			}
-
-			stats.StakedAmount -= out.Amount
-
-			totalStake := delegate.TotalAmount() - out.Amount
-			totalSubtracted := uint64(0)
-
-			for i, fund := range delegate.Funds {
-				// Calculate the amount that was added to each fund
-				subtractAmount := fund.Amount * out.Amount / (totalStake + out.Amount)
-
-				// Safety check to prevent underflow
-				if fund.Amount < subtractAmount {
-					return fmt.Errorf("cannot subtract more than available in fund")
-				}
-
-				delegate.Funds[i].Amount -= subtractAmount
-				totalSubtracted += subtractAmount
-			}
-
-			// Handle rounding error (reverse of what was done in ApplyBlockToState)
-			roundingError := out.Amount - totalSubtracted
-			if delegate.Funds[0].Amount < roundingError {
-				return fmt.Errorf("cannot subtract rounding error from first fund")
-			}
-			delegate.Funds[0].Amount -= roundingError
-
-			// Verify the subtraction was correct
-			if delegate.TotalAmount() != totalStake {
-				return fmt.Errorf("staking mismatch after reversal: delegate balance %d, expected %d",
-					delegate.TotalAmount(), totalStake)
-			}
-
-			// Update the delegate in state
-			err = bc.SetDelegate(txn, delegate)
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	// remove transactions in reverse order
