@@ -10,6 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
 // Note: It is up to the caller to save the stats afterwards.
@@ -294,7 +295,7 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 	// Apply the PoS reward distribution
 	for _, fund := range delegate.Funds {
 		// add the amount with 1% fee (that will be paid to fund owner from the roundingError)
-		addAmount := fund.Amount * out.Amount * 99 / 100 / totalStake
+		addAmount := uint128.From64(fund.Amount).Mul64(out.Amount).Div64(100).Mul64(99).Div64(totalStake).Lo
 
 		Log.Debugf("adding %s to staker %s", util.FormatCoin(addAmount), fund.Owner)
 
@@ -311,7 +312,9 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 
 	// Handle rounding error + fee, adding it to the delegate owner
 	roundingError := out.Amount - totalAdded
+	Log.Debugf("out.Amount: %s", util.FormatCoin(out.Amount))
 	Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
+	Log.Debugf("delegate totalStake: %s", util.FormatCoin(totalStake))
 	delegateAddr := delegate.OwnerAddress()
 	ownerFound := false
 	for _, v := range delegate.Funds {
