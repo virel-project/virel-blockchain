@@ -50,10 +50,9 @@ func (bc *Blockchain) RemoveTxFromState(
 		return err
 	}
 	signerState.LastNonce--
-	err = bc.SetState(txn, signerAddr, signerState)
-	if err != nil {
-		return err
-	}
+
+	// NOTE: The following functions must be careful not to read/write the signer state again,
+	// as it is saved later and this could cause conflicts.
 
 	// TODO: undo stake if the tx is an stake transaction
 	if tx.Version == transaction.TX_VERSION_STAKE {
@@ -106,6 +105,27 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove delegate: %w", err)
 		}
+	}
+	// revert delegate if the tx is a set_delegate transaction
+	if tx.Version == transaction.TX_VERSION_SET_DELEGATE {
+		setData := tx.Data.(*transaction.SetDelegate)
+
+		if setData.DelegateId != signerState.DelegateId {
+			return fmt.Errorf("invalid current delegate %d, expected %d", setData.DelegateId, signerState.DelegateId)
+		}
+
+		_, err = bc.GetDelegate(txn, setData.DelegateId)
+		if err != nil {
+			return fmt.Errorf("delegate not found: %w", err)
+		}
+
+		signerState.DelegateId = setData.PreviousDelegate
+	}
+
+	// save signer state
+	err = bc.SetState(txn, signerAddr, signerState)
+	if err != nil {
+		return err
 	}
 
 	return nil

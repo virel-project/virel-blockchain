@@ -187,6 +187,7 @@ func (t *SetDelegate) Serialize(s *binary.Ser) {
 }
 func (t *SetDelegate) Deserialize(d *binary.Des) error {
 	t.DelegateId = d.ReadUvarint()
+	t.PreviousDelegate = d.ReadUvarint()
 	return d.Error()
 }
 func (t *SetDelegate) String() string {

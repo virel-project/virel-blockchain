@@ -880,7 +880,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 		}
 		signerAddr := address.FromPubKey(tx.Signer)
 
-		Log.Debugf("Applying transaction %x to mainchain", v)
+		Log.Debugf("Applying transaction %s to mainchain", v)
 
 		err = bc.ApplyTxToState(txn, tx, signerAddr, bl, blockhash, stats, v)
 		if err != nil {

@@ -299,6 +299,19 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			// Update simulated delegate
 			simulatedDelegates[unstakeData.DelegateId] = delegate
 		}
+		// Handle set delegate transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_SET_DELEGATE {
+			tx, _, err := bc.GetTx(txn, entry.TXID)
+			if err != nil {
+				return fmt.Errorf("failed to get unstake transaction: %w", err)
+			}
+
+			setDelegateData := tx.Data.(*transaction.SetDelegate)
+
+			if simulatedStates[signer] != nil {
+				simulatedStates[signer].DelegateId = setDelegateData.DelegateId
+			}
+		}
 	}
 
 	// Validate nonce for current transaction

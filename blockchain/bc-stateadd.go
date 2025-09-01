@@ -79,6 +79,30 @@ func (bc *Blockchain) ApplyTxToState(
 			Funds: make([]*DelegatedFund, 0),
 		})
 	}
+	// set delegate if the tx is a set_delegate transaction
+	if tx.Version == transaction.TX_VERSION_SET_DELEGATE {
+		setData := tx.Data.(*transaction.SetDelegate)
+
+		if setData.PreviousDelegate != signerState.DelegateId {
+			return fmt.Errorf("invalid previous delegate %d, expected %d", setData.PreviousDelegate, signerState.DelegateId)
+		}
+
+		prevDelegate, err := bc.GetDelegate(txn, setData.PreviousDelegate)
+		if err == nil {
+			for _, v := range prevDelegate.Funds {
+				if v.Owner == signerAddr {
+					return fmt.Errorf("all funds must be unstaked before delegate can be changed")
+				}
+			}
+		}
+
+		_, err = bc.GetDelegate(txn, setData.DelegateId)
+		if err != nil {
+			return fmt.Errorf("delegate not found: %w", err)
+		}
+
+		signerState.DelegateId = setData.DelegateId
+	}
 
 	// increase signer nonce
 	signerState.LastNonce++
