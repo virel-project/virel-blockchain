@@ -345,3 +345,7 @@ func (w *Wallet) SubmitTx(txn *transaction.Transaction) (*daemonrpc.SubmitTransa
 		Hex: txn.Serialize(),
 	})
 }
+
+func (w *Wallet) SignBlockHash(hash util.Hash) (bitcrypto.Signature, error) {
+	return bitcrypto.Sign(append(config.STAKE_SIGN_PREFIX, hash[:]...), w.dbInfo.PrivateKey)
+}

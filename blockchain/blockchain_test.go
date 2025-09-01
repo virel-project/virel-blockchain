@@ -125,6 +125,27 @@ func TestState(t *testing.T) {
 
 		t.Logf("stats: %s", stats)
 
+		// add block 4
+		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
+		bl.Height++
+		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
+		bl.Nonce++
+		bl.Transactions = []transaction.TXID{}
+		bl.DelegateId = delegate_id
+		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
+		bl.CumulativeDiff = bl.CumulativeDiff.Add64(1)
+		if err != nil {
+			return err
+		}
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
+		stats = bc.GetStats(txn)
+
+		t.Logf("stats: %s", stats)
+
 		return nil
 	})
 	if err != nil {

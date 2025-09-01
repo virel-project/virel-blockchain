@@ -84,14 +84,16 @@ func New(dataDir string, db adb.DB) *Blockchain {
 	bc.DB = db
 
 	bc.Index = Index{
-		Info:     bc.DB.Index("info"),
-		Block:    bc.DB.Index("block"),
-		Topo:     bc.DB.Index("topo"),
-		State:    bc.DB.Index("state"),
-		Tx:       bc.DB.Index("tx"),
-		InTx:     bc.DB.Index("intx"),
-		OutTx:    bc.DB.Index("outtx"),
-		Delegate: bc.DB.Index("delegate"),
+		Info:            bc.DB.Index("info"),
+		Block:           bc.DB.Index("block"),
+		Topo:            bc.DB.Index("topo"),
+		State:           bc.DB.Index("state"),
+		Tx:              bc.DB.Index("tx"),
+		InTx:            bc.DB.Index("intx"),
+		OutTx:           bc.DB.Index("outtx"),
+		Delegate:        bc.DB.Index("delegate"),
+		StakeSig:        bc.DB.Index("stakesig"),
+		DelegateHistory: bc.DB.Index("delegatehistory"),
 	}
 
 	bc.Validator = bc.NewValidator(runtime.NumCPU())

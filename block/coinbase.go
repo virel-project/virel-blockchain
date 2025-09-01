@@ -65,9 +65,10 @@ func (b *Block) CoinbaseTransaction(totalReward uint64) []CoinbaseOutput {
 
 		if posReward != 0 {
 			outs = append(outs, CoinbaseOutput{
-				Recipient: address.NewDelegateAddress(b.DelegateId),
-				Amount:    posReward,
-				Type:      transaction.OUT_COINBASE_POS,
+				Recipient:  address.NewDelegateAddress(b.DelegateId),
+				Amount:     posReward,
+				Type:       transaction.OUT_COINBASE_POS,
+				DelegateId: b.DelegateId,
 			})
 		}
 		if burnReward != 0 {
