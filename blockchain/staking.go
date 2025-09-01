@@ -66,6 +66,11 @@ func (bc *Blockchain) GetDelegate(txn adb.Txn, id uint64) (*Delegate, error) {
 	}
 	return delegate, nil
 }
+func (bc *Blockchain) RemoveDelegate(txn adb.Txn, delegateId uint64) error {
+	idb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(idb, delegateId)
+	return txn.Del(bc.Index.Delegate, idb)
+}
 func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error)) error {
 	return txn.ForEachInterrupt(bc.Index.Delegate, func(k, v []byte) (bool, error) {
 		d := &Delegate{}

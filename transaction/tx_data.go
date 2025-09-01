@@ -123,6 +123,7 @@ func (t *Transfer) StateOutputs(tx *Transaction, sender address.Address) []State
 
 type RegisterDelegate struct {
 	Name []byte
+	Id   uint64
 }
 
 func (t *RegisterDelegate) AssociatedTransactionVersion() uint8 {
@@ -168,7 +169,8 @@ func (t *RegisterDelegate) StateOutputs(tx *Transaction, sender address.Address)
 // TransactionData: SetDelegate
 
 type SetDelegate struct {
-	DelegateId uint64
+	DelegateId       uint64
+	PreviousDelegate uint64
 }
 
 func (t *SetDelegate) AssociatedTransactionVersion() uint8 {
@@ -176,19 +178,20 @@ func (t *SetDelegate) AssociatedTransactionVersion() uint8 {
 }
 func (t *SetDelegate) Serialize(s *binary.Ser) {
 	s.AddUvarint(t.DelegateId)
+	s.AddUvarint(t.PreviousDelegate)
 }
 func (t *SetDelegate) Deserialize(d *binary.Des) error {
 	t.DelegateId = d.ReadUvarint()
 	return d.Error()
 }
 func (t *SetDelegate) String() string {
-	return fmt.Sprintf("SetDelegate: %d", t.DelegateId)
+	return fmt.Sprintf("SetDelegate: from %d to %d", t.PreviousDelegate, t.DelegateId)
 }
 func (t *SetDelegate) TotalAmount() (uint64, error) {
 	return 0, nil
 }
 func (t *SetDelegate) VSize() uint64 {
-	return 4
+	return config.MAX_TX_PER_BLOCK
 }
 func (t *SetDelegate) Prevalidate(_ *Transaction) error {
 	return nil
@@ -230,7 +233,7 @@ func (t *Stake) TotalAmount() (uint64, error) {
 	return t.Amount, nil
 }
 func (t *Stake) VSize() uint64 {
-	return 8
+	return 256 // for stake transactions, we use a bigger fee to reduce spam.
 }
 func (t *Stake) Prevalidate(_ *Transaction) error {
 	if t.Amount < config.MIN_STAKE_AMOUNT {

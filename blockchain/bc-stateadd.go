@@ -60,6 +60,22 @@ func (bc *Blockchain) ApplyTxToState(
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
 	}
+	// register delegate if the tx is a register_delegate transaction
+	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
+		registerData := tx.Data.(*transaction.RegisterDelegate)
+
+		_, err = bc.GetDelegate(txn, registerData.Id)
+		if err == nil {
+			return fmt.Errorf("delegate %d is already registered", registerData.Id)
+		}
+
+		bc.SetDelegate(txn, &Delegate{
+			Id:    registerData.Id,
+			Owner: tx.Signer,
+			Name:  registerData.Name,
+			Funds: make([]*DelegatedFund, 0),
+		})
+	}
 
 	// increase signer nonce
 	signerState.LastNonce++

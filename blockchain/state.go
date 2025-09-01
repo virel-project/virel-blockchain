@@ -57,6 +57,7 @@ func (x State) String() string {
 type Delegate struct {
 	Id    uint64 // delegate identifier, starting from 1
 	Owner bitcrypto.Pubkey
+	Name  []byte
 
 	Funds []*DelegatedFund
 }
@@ -107,6 +108,7 @@ func (g *Delegate) Serialize() []byte {
 
 	s.AddUvarint(g.Id)
 	s.AddFixedByteArray(g.Owner[:])
+	s.AddByteSlice(g.Name)
 
 	s.AddUvarint(uint64(len(g.Funds)))
 	for _, v := range g.Funds {
@@ -126,6 +128,7 @@ func (g *Delegate) Deserialize(b []byte) error {
 
 	g.Id = d.ReadUvarint()
 	g.Owner = bitcrypto.Pubkey(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
+	g.Name = d.ReadByteSlice()
 
 	numFunds := d.ReadUvarint()
 	if numFunds > uint64(len(d.RemainingData())/20) {

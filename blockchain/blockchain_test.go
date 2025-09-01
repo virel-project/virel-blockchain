@@ -12,6 +12,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/logger"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 	"github.com/virel-project/virel-blockchain/v2/wallet"
 )
@@ -106,6 +107,7 @@ func TestState(t *testing.T) {
 			if err != nil {
 				return err
 			}
+			t.Logf("tx has fee %s", util.FormatCoin(v.Fee))
 		}
 
 		// add block 3
@@ -153,6 +155,9 @@ func AddBlock(txn adb.Txn, bc *blockchain.Blockchain, bl *block.Block) error {
 
 	return nil
 }
+
+const delegate_id = 1
+
 func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, height uint64) []*transaction.Transaction {
 	txs := make([]*transaction.Transaction, 0)
 
@@ -161,7 +166,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 		panic(err)
 	}
 	w.ManualRefresh(state, height)
-	tx, err := w.RegisterDelegate("test delegate")
+	tx, err := w.RegisterDelegate("test delegate", delegate_id)
 	if err != nil {
 		panic(err)
 	}
@@ -169,7 +174,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 
 	state.LastNonce++
 	w.ManualRefresh(state, height)
-	tx, err = w.Stake(1, config.COIN)
+	tx, err = w.Stake(delegate_id, config.COIN)
 	if err != nil {
 		panic(err)
 	}

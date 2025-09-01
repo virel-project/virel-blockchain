@@ -93,6 +93,20 @@ func (bc *Blockchain) RemoveTxFromState(
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
 	}
+	// unregister delegate if the tx is a register_delegate transaction
+	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
+		registerData := tx.Data.(*transaction.RegisterDelegate)
+
+		_, err = bc.GetDelegate(txn, registerData.Id)
+		if err != nil {
+			return fmt.Errorf("delegate %d does not exist: %w", registerData.Id, err)
+		}
+
+		err = bc.RemoveDelegate(txn, registerData.Id)
+		if err != nil {
+			return fmt.Errorf("could not remove delegate: %w", err)
+		}
+	}
 
 	return nil
 }

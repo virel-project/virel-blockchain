@@ -279,13 +279,14 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) RegisterDelegate(name string) (*transaction.Transaction, error) {
+func (w *Wallet) RegisterDelegate(name string, id uint64) (*transaction.Transaction, error) {
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
 		Data: &transaction.RegisterDelegate{
 			Name: []byte(name),
+			Id:   id,
 		},
 	}
 
