@@ -93,6 +93,7 @@ func TestState(t *testing.T) {
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
+		bl.NextDelegateId = delegate_id
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -116,6 +117,7 @@ func TestState(t *testing.T) {
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
+		bl.NextDelegateId = delegate_id
 		bl.Transactions = staketxids
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
@@ -134,6 +136,7 @@ func TestState(t *testing.T) {
 		bl.Nonce++
 		bl.Transactions = []transaction.TXID{}
 		bl.DelegateId = delegate_id
+		bl.NextDelegateId = delegate_id
 		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
 		if err != nil {
 			return err
@@ -155,6 +158,7 @@ func TestState(t *testing.T) {
 		bl.Nonce++
 		bl.Transactions = []transaction.TXID{}
 		bl.DelegateId = delegate_id
+		bl.NextDelegateId = delegate_id
 		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
 		if err != nil {
 			return err
@@ -172,6 +176,7 @@ func TestState(t *testing.T) {
 		bl.Nonce++
 		bl.Transactions = []transaction.TXID{}
 		bl.DelegateId = delegate_id
+		bl.NextDelegateId = delegate_id
 		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
 		if err != nil {
 			return err

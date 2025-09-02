@@ -6,13 +6,24 @@ import (
 	"fmt"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
+	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
-func (bc *Blockchain) GetStaker(txn adb.Txn, h util.Hash, stats *Stats) (*Delegate, error) {
-	coinIndex := hashToCoinIndex(h, stats.StakedAmount)
+// GetStaker returns the correct staker for a given block hash.
+// Can only be called when the stakedhash is at chain tip.
+func (bc *Blockchain) GetStaker(txn adb.Txn, bl *block.Block, stats *Stats) (*Delegate, error) {
+	if stats.StakedAmount == 0 {
+		// return dummy delegate
+		return &Delegate{
+			Id:   0,
+			Name: []byte("no delegate"),
+		}, nil
+	}
+
+	coinIndex := hashToCoinIndex(bl.BaseHash(), stats.StakedAmount)
 
 	var coinsSeen uint64
 

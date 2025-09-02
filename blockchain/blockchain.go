@@ -347,7 +347,8 @@ func (bc *Blockchain) addGenesis() {
 
 // checkBlock validates things like height, diff, etc. for a block. It doesn't validate PoW (that's done by
 // bl.Prevalidate()) or transactions.
-func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
+// Can only be used when bl is at chain tip (the state is before applying it).
+func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, hash util.Hash) error {
 	// validate difficulty
 	expectDiff, err := bc.GetNextDifficulty(tx, prevBl)
 	if err != nil {
@@ -436,27 +437,41 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 			newCumDiff)
 	}
 
+	// Verify that the block's NextDelegateId is valid.
+	stats := bc.GetStats(tx)
+	if bl.Version > 0 {
+		nextstaker, err := bc.GetStaker(tx, bl, stats)
+		if err != nil {
+			return fmt.Errorf("failed to get next staker: %w", err)
+		}
+		if nextstaker.Id != bl.NextDelegateId {
+			return fmt.Errorf("block has invalid NextDelegateId: %d", bl.NextDelegateId)
+		}
+	}
 	// Verify if the signature is valid. If it is blank, this block is not considered staked.
 	if bl.Version > 0 && bl.StakeSignature != bitcrypto.BlankSignature {
 		stakedhash := bl.BlockStakedHash()
-		stats := bc.GetStats(tx)
 
 		// signature is always invalid if the network has nothing at stake
 		if stats.StakedAmount == 0 {
 			return fmt.Errorf("invalid stake signature: the network has not staked any coins")
 		}
 
-		delegate, err := bc.GetStaker(tx, stakedhash, stats)
+		delegate, err := bc.GetDelegate(tx, bl.DelegateId)
 		if err != nil {
-			return fmt.Errorf("failed to get delegate: %w", err)
-		}
-
-		if delegate.Id != bl.DelegateId {
-			return fmt.Errorf("block DelegateId is invalid: expected %d, got %d", delegate.Id, bl.DelegateId)
+			return fmt.Errorf("failed to get delegate %d: %w", bl.DelegateId, err)
 		}
 
 		if !bitcrypto.VerifySignature(delegate.Owner, append(config.STAKE_SIGN_PREFIX, stakedhash[:]...), bl.StakeSignature) {
 			return errors.New("invalid stake signature")
+		}
+
+		oldblock, err := bc.GetBlock(tx, stakedhash)
+		if err != nil {
+			return err
+		}
+		if oldblock.NextDelegateId != bl.DelegateId {
+			return fmt.Errorf("block's delegate id %d doesn't match the old block's delegate id %d", bl.DelegateId, oldblock.DelegateId)
 		}
 	}
 
@@ -499,7 +514,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 		return nil
 	}
 
-	err = bc.checkBlock(tx, bl, prevBl)
+	err = bc.checkBlock(tx, bl, prevBl, hash)
 	if err != nil {
 		Log.Warn("block is invalid:", err)
 		return err
@@ -776,7 +791,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 				return err
 			}
 
-			err = bc.checkBlock(txn, bl, prevBl)
+			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash)
 			if err != nil {
 				Log.Warn("reorg invalid block:", err)
 				return err
@@ -1239,8 +1254,8 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 }
 
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetStats(tx adb.Txn) *Stats {
-	d := tx.Get(bc.Index.Info, []byte("stats"))
+func (bc *Blockchain) GetStats(txn adb.Txn) *Stats {
+	d := txn.Get(bc.Index.Info, []byte("stats"))
 
 	if len(d) == 0 {
 		Log.Fatal("stats are empty")

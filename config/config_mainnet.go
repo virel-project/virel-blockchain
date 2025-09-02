@@ -10,6 +10,7 @@ const NETWORK_ID uint64 = 0xd38dab1d4676d0c5 // Network identifier. It MUST be u
 const NETWORK_NAME = "mainnet"
 
 const MIN_DIFFICULTY = 100_000
+const DIFFICULTY_N = 30 * 60 / TARGET_BLOCK_TIME // DAA half-life (30 minutes).
 
 // GENESIS BLOCK INFO
 const GENESIS_ADDRESS = "v139diixrpv0ftmip4mgpuy92u51iq4pnmgjsfn"

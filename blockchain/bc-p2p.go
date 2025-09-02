@@ -239,6 +239,14 @@ func (bc *Blockchain) HandleStakeSignature(st *packet.PacketStakeSignature) erro
 			return errors.New("stake signature already in database")
 		}
 
+		block, err := bc.GetBlock(txn, st.Hash)
+		if err != nil {
+			return err
+		}
+		if block.NextDelegateId != st.DelegateId {
+			return errors.New("stake signature is not done by the correct delegate")
+		}
+
 		delegate, err = bc.GetDelegate(txn, st.DelegateId)
 		if err != nil {
 			return fmt.Errorf("failed to get delegate %d: %w", st.DelegateId, err)

@@ -308,9 +308,14 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 			setDelegateData := tx.Data.(*transaction.SetDelegate)
 
-			if simulatedStates[signer] != nil {
-				simulatedStates[signer].DelegateId = setDelegateData.DelegateId
+			if simulatedStates[signer] == nil {
+				simulatedStates[signer], err = bc.GetState(txn, signer)
+				if err != nil {
+					return err
+				}
 			}
+
+			simulatedStates[signer].DelegateId = setDelegateData.DelegateId
 		}
 	}
 

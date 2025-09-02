@@ -69,8 +69,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		var bl *block.Block
 		var hash [32]byte
-		var delegate *blockchain.Delegate
-		var nextDelegate *blockchain.Delegate
 		err = bc.DB.View(func(txn adb.Txn) error {
 			bl, err = bc.GetBlock(txn, params.Hash)
 			if err != nil {
@@ -84,17 +82,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			if topo != hash {
 				return err_block_orphan
 			}
-			stats := bc.GetStats(txn)
-			delegate, err = bc.GetStaker(txn, bl.BlockStakedHash(), stats)
-			if err != nil {
-				Log.Debug("failed to get staker for block:", err)
-			}
-			nextDelegate, err = bc.GetStaker(txn, hash, stats)
-			if err != nil {
-				Log.Debug("failed to get staker for block:", err)
-			}
-			Log.Info("nextDelegate:", nextDelegate.Id)
-
 			return err
 		})
 		if err != nil {
@@ -120,11 +107,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
 			Miner:       bl.Recipient.String(),
 		}
-		if delegate != nil {
-			res.Delegate = address.NewDelegateAddress(delegate.Id)
-		}
-		if nextDelegate != nil {
-			res.NextDelegate = address.NewDelegateAddress(nextDelegate.Id)
+		if bl.Version > 0 {
+			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
+			res.NextDelegate = address.NewDelegateAddress(bl.NextDelegateId)
 		}
 
 		c.SuccessResponse(res)
@@ -138,26 +123,11 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		var bl *block.Block
-		var delegate *blockchain.Delegate
-		var nextDelegate *blockchain.Delegate
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			bl, err = bc.GetBlockByHeight(txn, params.Height)
 			if err != nil {
 				return err
 			}
-
-			hash := bl.Hash()
-
-			stats := bc.GetStats(txn)
-			delegate, err = bc.GetStaker(txn, bl.BlockStakedHash(), stats)
-			if err != nil {
-				Log.Debug("failed to get staker for block:", err)
-			}
-			nextDelegate, err = bc.GetStaker(txn, hash, stats)
-			if err != nil {
-				Log.Debug("failed to get staker for block:", err)
-			}
-			Log.Info("nextDelegate:", nextDelegate.Id)
 
 			return
 		})
@@ -177,11 +147,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
 			Miner:       bl.Recipient.String(),
 		}
-		if delegate != nil {
-			res.Delegate = address.NewDelegateAddress(delegate.Id)
-		}
-		if nextDelegate != nil {
-			res.NextDelegate = address.NewDelegateAddress(nextDelegate.Id)
+		if bl.Version > 0 {
+			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
+			res.NextDelegate = address.NewDelegateAddress(bl.NextDelegateId)
 		}
 
 		c.SuccessResponse(res)

@@ -32,8 +32,10 @@ type BlockHeader struct {
 
 	// Proof-of-Stake data
 
-	// Id of the delegate staker
+	// Id of the delegate staker that rewards this block
 	DelegateId uint64
+	// Id of the delegate staker (for the next block)
+	NextDelegateId uint64
 	// Signature of the stake
 	StakeSignature bitcrypto.Signature
 }
@@ -54,7 +56,7 @@ type Block struct {
 	Transactions   []transaction.TXID `json:"transactions"`    // list of transaction hashes
 }
 
-func (b Block) String() string {
+func (b *Block) String() string {
 	hash := b.Hash()
 
 	var x string
@@ -89,6 +91,7 @@ func (b Block) String() string {
 		x += fmt.Sprintf(" - %v\n", v)
 	}
 	if b.Version > 0 {
+		x += fmt.Sprintf("Delegate id: %d Next delegate id: %d\n", b.DelegateId, b.NextDelegateId)
 		x += fmt.Sprintf("Stake signature: %x", b.StakeSignature[:])
 	}
 
@@ -174,6 +177,7 @@ func (b BlockHeader) Serialize() []byte {
 
 	if b.Version > 0 {
 		s.AddUvarint(b.DelegateId)
+		s.AddUvarint(b.NextDelegateId)
 		s.AddFixedByteArray(b.StakeSignature[:])
 	}
 
@@ -230,13 +234,14 @@ func (b *BlockHeader) Deserialize(data []byte) ([]byte, error) {
 
 	if b.Version > 0 {
 		b.DelegateId = d.ReadUvarint()
+		b.NextDelegateId = d.ReadUvarint()
 		b.StakeSignature = bitcrypto.Signature(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
 	}
 
 	return d.RemainingData(), d.Error()
 }
 
-func (b Block) Serialize() []byte {
+func (b *Block) Serialize() []byte {
 	s := binary.NewSer(make([]byte, 80))
 
 	s.AddFixedByteArray(b.BlockHeader.Serialize())

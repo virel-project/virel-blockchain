@@ -10,6 +10,7 @@ const NETWORK_ID uint64 = 0x1 // Network identifier. It MUST be unique for each 
 const NETWORK_NAME = "unittest"
 
 const MIN_DIFFICULTY = 1
+const DIFFICULTY_N = 30 * 60 / TARGET_BLOCK_TIME // DAA half-life (30 minutes).
 
 // GENESIS BLOCK INFO
 const GENESIS_ADDRESS = "vo3yexhnu89af4aai83uou17dupb79c3gxng1q"

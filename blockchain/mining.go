@@ -183,6 +183,8 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 	}
 
+	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
+
 	if bl.Version > 0 {
 		stakesig, err := bc.GetStakeSig(txn, bl.BlockStakedHash())
 		if err != nil {
@@ -193,11 +195,10 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			} else {
 				bl.StakeSignature = stakesig.Signature
 				bl.DelegateId = stakesig.DelegateId
+				bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 			}
 		}
 	}
-
-	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 	var min_diff uint64 = bl.Difficulty.Lo
 
@@ -220,6 +221,15 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		bc.MergesMut.Unlock()
 
 		bl.SortOtherChains()
+	}
+
+	// calculating NextDelegateId should be the last thing, because we require a correct block basehash.
+	if bl.Version > 0 {
+		nextdelegate, err := bc.GetStaker(txn, bl, stats)
+		if err != nil {
+			return nil, 0, err
+		}
+		bl.NextDelegateId = nextdelegate.Id
 	}
 
 	return bl, min_diff, nil
