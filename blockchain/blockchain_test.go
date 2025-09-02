@@ -7,6 +7,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
+	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
@@ -124,6 +125,7 @@ func TestState(t *testing.T) {
 		stats = bc.GetStats(txn)
 
 		t.Logf("stats: %s", stats)
+		bl3 := *bl
 
 		// add block 4
 		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
@@ -133,10 +135,10 @@ func TestState(t *testing.T) {
 		bl.Transactions = []transaction.TXID{}
 		bl.DelegateId = delegate_id
 		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
-		bl.CumulativeDiff = bl.CumulativeDiff.Add64(1)
 		if err != nil {
 			return err
 		}
+		bl.CumulativeDiff = bl.CumulativeDiff.Add64(1)
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -145,6 +147,55 @@ func TestState(t *testing.T) {
 		stats = bc.GetStats(txn)
 
 		t.Logf("stats: %s", stats)
+
+		// add block 4
+		bl.Ancestors = bl3.Ancestors.AddHash(bl3.Hash())
+		bl.Height = bl3.Height + 1
+		bl.Timestamp = bl3.Timestamp + config.TARGET_BLOCK_TIME*1000
+		bl.Nonce++
+		bl.Transactions = []transaction.TXID{}
+		bl.DelegateId = delegate_id
+		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
+		if err != nil {
+			return err
+		}
+		bl.CumulativeDiff = bl3.CumulativeDiff.Add64(1)
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
+		// add block 5
+		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
+		bl.Height++
+		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
+		bl.Nonce++
+		bl.Transactions = []transaction.TXID{}
+		bl.DelegateId = delegate_id
+		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
+		if err != nil {
+			return err
+		}
+		bl.CumulativeDiff = bl.CumulativeDiff.Add64(1)
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
+		stats = bc.GetStats(txn)
+
+		t.Logf("stats: %s", stats)
+
+		burnrewards := (3*config.BLOCK_REWARD*0.45 + 3*config.BLOCK_REWARD*0.45*0.25) / config.COIN
+		err = PrintState(txn, bc, map[string]float64{
+			"burnaddress": config.REGISTER_DELEGATE_BURN/config.COIN + burnrewards + 0.444,
+			"delegate0":   1 + 78.75*2,
+			// genesis address: first block + 10% of all blocks
+			"vo3yexhnu89af4aai83uou17dupb79c3gxng1q": (config.BLOCK_REWARD + float64(bl.Height)*config.BLOCK_REWARD*0.1) / config.COIN,
+		})
+		if err != nil {
+			return err
+		}
 
 		return nil
 	})
@@ -210,4 +261,31 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 	txs = append(txs, tx)
 
 	return txs
+}
+func PrintState(txn adb.Txn, bc *blockchain.Blockchain, check map[string]float64) error {
+	sum := uint64(0)
+	err := txn.ForEach(bc.Index.State, func(k, v []byte) error {
+		addr := address.Address(k)
+		state := &blockchain.State{}
+
+		err := state.Deserialize(v)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("address: %s balance: %s last nonce: %d\n", addr, util.FormatCoin(state.Balance), state.LastNonce)
+
+		c := check[addr.String()]
+		if c != 0 {
+			bl := float64(state.Balance) / config.COIN
+			if bl > c*1.001 || bl < c*0.999 {
+				return fmt.Errorf("address %s balance %s does not match expected %f", addr, util.FormatCoin(state.Balance), c)
+			}
+		}
+
+		sum += state.Balance
+
+		return nil
+	})
+	return err
 }

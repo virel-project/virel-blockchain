@@ -45,8 +45,8 @@ func (b *Block) CoinbaseTransaction(totalReward uint64) []CoinbaseOutput {
 		burnReward := uint64(0)
 
 		if b.StakeSignature == bitcrypto.BlankSignature {
-			// for blocks without a valid stake signature, apply 10% burn to PoW reward and burn all the PoS reward.
-			powReward = powReward * 9 / 10
+			// for blocks without a valid stake signature, apply 25% burn to PoW reward and burn all the PoS reward.
+			powReward = powReward * 3 / 4
 			posReward = 0
 			burnReward = communityReward - powReward
 		} else {
