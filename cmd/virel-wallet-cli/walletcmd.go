@@ -102,6 +102,188 @@ func prompts(w *wallet.Wallet) {
 			}
 		},
 	}, {
+		Names: []string{"register_delegate", "registerdelegate"},
+		Args:  "<delegate id or address> <delegate name>",
+		Action: func(args []string) {
+			const USAGE = "Usage: register_delegate <delegate id or address> <delegate name>"
+			if len(args) < 1 {
+				Log.Err(USAGE)
+				return
+			}
+
+			delegateStr := args[0]
+			delegateStr = strings.TrimPrefix(delegateStr, config.DELEGATE_ADDRESS_PREFIX)
+			delegateId, err := strconv.ParseUint(delegateStr, 10, 64)
+			if err != nil {
+				Log.Err("invalid delegate id:", err)
+				return
+			}
+
+			name := strings.Join(args[1:], " ")
+
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.RegisterDelegate(name, delegateId)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			totalamt, err := txn.TotalAmount()
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			if totalamt+txn.Fee > w.GetBalance() {
+				Log.Err("not enough money")
+				return
+			}
+			Log.Infof("Delegate name: %s", name)
+			Log.Infof("Delegate id: %s", name)
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalamt))
+
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
+
+			submitRes, err := w.SubmitTx(txn)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+
+			Log.Infof("transaction has been submit, txid: %s", submitRes.TXID.String())
+		},
+	}, {
+		Names: []string{"set_delegate", "setdelegate"},
+		Args:  "<delegate id or address>",
+		Action: func(args []string) {
+			const USAGE = "Usage: set_delegate <delegate id or address>"
+			if len(args) < 1 {
+				Log.Err(USAGE)
+				return
+			}
+
+			delegateStr := args[0]
+			delegateStr = strings.TrimPrefix(delegateStr, config.DELEGATE_ADDRESS_PREFIX)
+			delegateId, err := strconv.ParseUint(delegateStr, 10, 64)
+			if err != nil {
+				Log.Err("invalid delegate id:", err)
+				return
+			}
+
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.SetDelegate(delegateId, w.GetDelegateId())
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			totalamt, err := txn.TotalAmount()
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			if totalamt+txn.Fee > w.GetBalance() {
+				Log.Err("not enough money")
+				return
+			}
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalamt))
+
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
+
+			submitRes, err := w.SubmitTx(txn)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+
+			Log.Infof("transaction has been submit, txid: %s", submitRes.TXID.String())
+		},
+	}, {
+		Names: []string{"stake"},
+		Args:  "<amount>",
+		Action: func(args []string) {
+			const USAGE = "Usage: stake <amount>"
+			if len(args) < 1 {
+				Log.Err(USAGE)
+				return
+			}
+
+			amtStr := args[0]
+			amtFloat, err := strconv.ParseFloat(amtStr, 64)
+			if err != nil || amtFloat <= 0 {
+				Log.Err("failed to parse amount:", err)
+				return
+			}
+
+			amt := uint64(amtFloat * config.COIN)
+
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.Stake(w.GetDelegateId(), amt)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			totalamt, err := txn.TotalAmount()
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			if totalamt+txn.Fee > w.GetBalance() {
+				Log.Err("not enough money")
+				return
+			}
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalamt))
+
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
+
+			submitRes, err := w.SubmitTx(txn)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+
+			Log.Infof("transaction has been submit, txid: %s", submitRes.TXID.String())
+		},
+	}, {
 		Names: []string{"transfer"},
 		Args:  "<destination> <amount> [<destination 2>] [<amount 2>]",
 		Action: func(args []string) {
@@ -169,9 +351,97 @@ func prompts(w *wallet.Wallet) {
 				Log.Err(err)
 				return
 			}
-			Log.Infof("Amount: %v", util.FormatCoin(totalAmt))
 			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
-			Log.Infof("Total spent: %v", util.FormatCoin(totalAmt+txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalAmt))
+
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
+
+			submitRes, err := w.SubmitTx(txn)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+
+			Log.Infof("transaction has been submit, txid: %s", submitRes.TXID.String())
+		},
+	}, {
+		Names: []string{"transfer"},
+		Args:  "<destination> <amount> [<destination 2>] [<amount 2>]",
+		Action: func(args []string) {
+			const USAGE = "Usage: transfer <destination> <amount> [<destination 2>] [<amount 2>]"
+			if len(args) < 2 {
+				Log.Err(USAGE)
+				return
+			}
+
+			outputs := []transaction.Output{}
+			var totalAmt uint64 = 0
+
+			for len(args) >= 2 {
+				dst, err := address.FromString(args[0])
+				if err != nil {
+					Log.Err("invalid destination:", err)
+					return
+				}
+
+				xbal, err := strconv.ParseFloat(args[1], 64)
+				if err != nil {
+					Log.Err("invalid amount:", err)
+					return
+				}
+
+				var amt = int64(xbal * config.COIN)
+
+				if amt < 1 {
+					Log.Errf("invalid output amount: %d", amt)
+					return
+				}
+				totalAmt += uint64(amt)
+				balance := w.GetBalance()
+				if totalAmt > balance {
+					Log.Errf("transaction spends too much money (%s), wallet balance is: %s", util.FormatCoin(balance))
+					return
+				}
+
+				outputs = append(outputs, transaction.Output{
+					Amount:    uint64(amt),
+					Recipient: dst.Addr,
+					PaymentId: dst.PaymentId,
+				})
+
+				args = args[2:]
+			}
+
+			if len(outputs) == 0 {
+				Log.Err(USAGE)
+				return
+			}
+
+			for _, v := range outputs {
+				Log.Infof("%v receives %v", v.Recipient, util.FormatCoin(v.Amount))
+			}
+
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.Transfer(outputs, w.GetHeight() >= config.HARDFORK_V2_HEIGHT)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalAmt))
 
 			lcfg := l.GeneratePasswordConfig()
 			lcfg.MaskRune = '*'

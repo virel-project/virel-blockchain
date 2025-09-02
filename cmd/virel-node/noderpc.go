@@ -69,6 +69,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		var bl *block.Block
 		var hash [32]byte
+		var delegate *blockchain.Delegate
+		var nextDelegate *blockchain.Delegate
 		err = bc.DB.View(func(txn adb.Txn) error {
 			bl, err = bc.GetBlock(txn, params.Hash)
 			if err != nil {
@@ -82,6 +84,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			if topo != hash {
 				return err_block_orphan
 			}
+			stats := bc.GetStats(txn)
+			delegate, err = bc.GetStaker(txn, bl.BlockStakedHash(), stats)
+			if err != nil {
+				Log.Debug("failed to get staker for block:", err)
+			}
+			nextDelegate, err = bc.GetStaker(txn, hash, stats)
+			if err != nil {
+				Log.Debug("failed to get staker for block:", err)
+			}
+			Log.Info("nextDelegate:", nextDelegate.Id)
+
 			return err
 		})
 		if err != nil {
@@ -100,13 +113,78 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		c.SuccessResponse(daemonrpc.GetBlockResponse{
+		res := daemonrpc.GetBlockResponse{
 			Block:       *bl,
 			Hash:        hex.EncodeToString(hash[:]),
 			TotalReward: bl.Reward(),
 			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
 			Miner:       bl.Recipient.String(),
+		}
+		if delegate != nil {
+			res.Delegate = address.NewDelegateAddress(delegate.Id)
+		}
+		if nextDelegate != nil {
+			res.NextDelegate = address.NewDelegateAddress(nextDelegate.Id)
+		}
+
+		c.SuccessResponse(res)
+	})
+
+	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {
+		params := daemonrpc.GetBlockByHeightRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		var bl *block.Block
+		var delegate *blockchain.Delegate
+		var nextDelegate *blockchain.Delegate
+		err = bc.DB.View(func(txn adb.Txn) (err error) {
+			bl, err = bc.GetBlockByHeight(txn, params.Height)
+			if err != nil {
+				return err
+			}
+
+			hash := bl.Hash()
+
+			stats := bc.GetStats(txn)
+			delegate, err = bc.GetStaker(txn, bl.BlockStakedHash(), stats)
+			if err != nil {
+				Log.Debug("failed to get staker for block:", err)
+			}
+			nextDelegate, err = bc.GetStaker(txn, hash, stats)
+			if err != nil {
+				Log.Debug("failed to get staker for block:", err)
+			}
+			Log.Info("nextDelegate:", nextDelegate.Id)
+
+			return
 		})
+		if err != nil {
+			Log.Debug(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "block not found",
+			})
+			return
+		}
+
+		res := daemonrpc.GetBlockResponse{
+			Block:       *bl,
+			Hash:        bl.Hash().String(),
+			TotalReward: bl.Reward(),
+			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
+			Miner:       bl.Recipient.String(),
+		}
+		if delegate != nil {
+			res.Delegate = address.NewDelegateAddress(delegate.Id)
+		}
+		if nextDelegate != nil {
+			res.NextDelegate = address.NewDelegateAddress(nextDelegate.Id)
+		}
+
+		c.SuccessResponse(res)
 	})
 
 	rs.Handle("get_transaction", func(c *rpcserver.Context) {
@@ -321,6 +399,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				result.Balance = state.Balance
 				result.LastNonce = state.LastNonce
 				result.LastIncoming = state.LastIncoming
+				result.DelegateId = state.DelegateId
+				result.DelegateAmount = state.DelegateAmount
 			}
 
 			stats := bc.GetStats(tx)
@@ -467,36 +547,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				MaxPage:      0,
 			})
 		}
-	})
-
-	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {
-		params := daemonrpc.GetBlockByHeightRequest{}
-		err := c.GetParams(&params)
-		if err != nil {
-			return
-		}
-
-		var bl *block.Block
-		err = bc.DB.View(func(tx adb.Txn) (err error) {
-			bl, err = bc.GetBlockByHeight(tx, params.Height)
-			return
-		})
-		if err != nil {
-			Log.Debug(err)
-			c.ErrorResponse(&rpc.Error{
-				Code:    internalReadFailed,
-				Message: "block not found",
-			})
-			return
-		}
-
-		c.SuccessResponse(daemonrpc.GetBlockResponse{
-			Block:       *bl,
-			Hash:        bl.Hash().String(),
-			TotalReward: bl.Reward(),
-			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
-			Miner:       bl.Recipient.String(),
-		})
 	})
 
 	rs.Handle("validate_address", func(c *rpcserver.Context) {

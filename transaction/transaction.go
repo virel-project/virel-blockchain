@@ -107,7 +107,7 @@ const base_overhead = bitcrypto.PUBKEY_SIZE /*sender*/ + bitcrypto.SIGNATURE_SIZ
 
 const output_overhead = address.SIZE /* address */ + 1 /* subaddress */ + 1 /* amount */
 
-const max_tx_size = base_overhead + config.MAX_OUTPUTS*output_overhead
+const max_tx_size = 2048
 
 func (t Transaction) GetVirtualSize() uint64 {
 	return base_overhead + t.Data.VSize()

@@ -55,7 +55,7 @@ func (x State) String() string {
 }
 
 type Delegate struct {
-	Id    uint64 // delegate identifier, starting from 1
+	Id    uint64 `json:"id"` // delegate identifier, starting from 1
 	Owner bitcrypto.Pubkey
 	Name  []byte
 

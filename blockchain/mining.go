@@ -150,8 +150,6 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 	}
 
-	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
-
 	// TODO: sort mempool transactions by Fee Per Kilobyte, to prioritize the transactions with higher fee
 	// possibly also take in account transaction age in the sorting algorithm
 	mem := bc.GetMempool(txn)
@@ -184,6 +182,22 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			Log.Warn(err)
 		}
 	}
+
+	if bl.Version > 0 {
+		stakesig, err := bc.GetStakeSig(txn, bl.BlockStakedHash())
+		if err != nil {
+			Log.Debug("block template: no stake sig found:", err)
+		} else {
+			if stakesig.Hash != bl.BlockStakedHash() {
+				Log.Warn("stakeSig.Hash and block staked hash do not match:", stakesig.Hash, bl.BlockStakedHash())
+			} else {
+				bl.StakeSignature = stakesig.Signature
+				bl.DelegateId = stakesig.DelegateId
+			}
+		}
+	}
+
+	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 	var min_diff uint64 = bl.Difficulty.Lo
 

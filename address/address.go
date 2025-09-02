@@ -103,6 +103,46 @@ func (a Address) String() string {
 	return a.Integrated().String()
 }
 
+func (a *Address) Marshal() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
+}
+
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
+}
+
+func (a *Address) UnmarshalJSON(c []byte) error {
+	if len(c) < 2 {
+		return errors.New("value is too short")
+	}
+
+	if c[0] != '"' || c[len(c)-1] != '"' {
+		return errors.New("invalid string literal")
+	}
+
+	addr, err := FromString(string(c[1 : len(c)-1]))
+
+	if err != nil {
+		return err
+	}
+
+	copy(a[:], addr.Addr[:])
+
+	return nil
+}
+func (a *Address) IsDelegate() bool {
+	c := a[:len(a)-8]
+	for _, v := range c {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+func (a *Address) DecodeDelegateId() uint64 {
+	return binary.BigEndian.Uint64(a[len(a)-8:])
+}
+
 type Integrated struct {
 	Addr      Address
 	PaymentId uint64
@@ -120,16 +160,8 @@ func (a Integrated) String() string {
 	if a.Addr == INVALID_ADDRESS {
 		return "burnaddress"
 	}
-	c := a.Addr[:len(a.Addr)-8]
-	isDelegate := true
-	for _, v := range c {
-		if v != 0 {
-			isDelegate = false
-			break
-		}
-	}
-	if isDelegate {
-		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(binary.BigEndian.Uint64(a.Addr[:]), 10)
+	if a.Addr.IsDelegate() {
+		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(a.Addr.DecodeDelegateId(), 10)
 	}
 
 	return config.WALLET_PREFIX + big.NewInt(0).SetBytes(a.bytes()).Text(36)

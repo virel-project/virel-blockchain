@@ -88,6 +88,9 @@ func (b Block) String() string {
 	for _, v := range b.SideBlocks {
 		x += fmt.Sprintf(" - %v\n", v)
 	}
+	if b.Version > 0 {
+		x += fmt.Sprintf("Stake signature: %x", b.StakeSignature[:])
+	}
 
 	return x
 }

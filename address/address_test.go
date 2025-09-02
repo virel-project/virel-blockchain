@@ -65,7 +65,12 @@ func TestAddress2(t *testing.T) {
 }
 
 func TestDelegate(t *testing.T) {
-	d1 := address.NewDelegateAddress(util.RandomUint64())
+	num := util.RandomUint64()
+	if num == 0 {
+		num++
+	}
+	t.Log("number:", num)
+	d1 := address.NewDelegateAddress(num)
 	d1s := d1.String()
 
 	d2, err := address.FromString(d1s)

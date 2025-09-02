@@ -150,6 +150,7 @@ func main() {
 	wallet_password := flag.String("wallet-password", "", "wallet password when using --open-wallet")
 	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
 	daemon_address := flag.String("daemon-address", default_rpc, "sets the daemon")
+	start_staking := flag.String("start-staking", "", "starts staking to the provided delegate id")
 
 	flag.Parse()
 
@@ -195,6 +196,16 @@ func main() {
 	Log.Info("Wallet", w.GetAddress(), "has been loaded")
 
 	Log.Debugf("Address hex: %x", addr.Addr[:])
+
+	if len(*start_staking) > 0 {
+		delegateAddr, err := address.FromString(*start_staking)
+		if err != nil {
+			Log.Err("invalid delegate address:", err)
+			return
+		}
+
+		go staker(w, delegateAddr.Addr)
+	}
 
 	err := w.Refresh()
 	if err != nil {

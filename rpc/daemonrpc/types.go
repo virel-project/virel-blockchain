@@ -51,6 +51,8 @@ type GetAddressResponse struct {
 	MempoolBalance  uint64 `json:"mempool_balance"`    // unconfirmed balance, from mempool
 	MempoolNonce    uint64 `json:"mempool_last_nonce"` // unconfirmed nonce, from mempool
 	MempoolIncoming uint64 `json:"mempool_incoming"`
+	DelegateId      uint64 `json:"delegate_id"`
+	DelegateAmount  uint64 `json:"delegate_amount"` // the amount originally deposited in the delegate
 	Height          uint64 `json:"height"`
 }
 
@@ -78,11 +80,13 @@ type GetBlockByHeightRequest struct {
 	Height uint64 `json:"height"`
 }
 type GetBlockResponse struct {
-	Block       block.Block `json:"block"`
-	Hash        string      `json:"hash"`
-	TotalReward uint64      `json:"total_reward"`
-	MinerReward uint64      `json:"miner_reward"`
-	Miner       string      `json:"miner"`
+	Block        block.Block     `json:"block"`
+	Hash         string          `json:"hash"`
+	TotalReward  uint64          `json:"total_reward"`
+	MinerReward  uint64          `json:"miner_reward"`
+	Miner        string          `json:"miner"`
+	Delegate     address.Address `json:"delegate"`
+	NextDelegate address.Address `json:"next_delegate"`
 }
 
 type CalcPowRequest struct {
