@@ -27,7 +27,7 @@ type TransactionData interface {
 	Deserialize(d *binary.Des) error
 	String() string
 	VSize() uint64
-	TotalAmount() (uint64, error)
+	TotalAmount(tx *Transaction) (uint64, error)
 	Prevalidate(tx *Transaction) error
 	// The inputs of this transaction.
 	// The sum of the amounts of this method must be equal to TransactionData's TotalAmount() + the transaction fee.
@@ -77,7 +77,7 @@ func (t *Transfer) String() string {
 func (t *Transfer) VSize() uint64 {
 	return uint64(len(t.Outputs)) * output_overhead
 }
-func (t *Transfer) TotalAmount() (uint64, error) {
+func (t *Transfer) TotalAmount(_ *Transaction) (uint64, error) {
 	var s uint64 = 0
 
 	for _, v := range t.Outputs {
@@ -101,7 +101,7 @@ func (t *Transfer) Prevalidate(_ *Transaction) error {
 	return nil
 }
 func (t *Transfer) StateInputs(tx *Transaction, sender address.Address) []StateInput {
-	totamt, _ := t.TotalAmount()
+	totamt, _ := t.TotalAmount(tx)
 	return []StateInput{{
 		Amount: totamt + tx.Fee,
 		Sender: sender,
@@ -142,7 +142,7 @@ func (t *RegisterDelegate) Deserialize(d *binary.Des) error {
 func (t *RegisterDelegate) String() string {
 	return "RegisterDelegate " + strconv.Quote(string(t.Name))
 }
-func (t *RegisterDelegate) TotalAmount() (uint64, error) {
+func (t *RegisterDelegate) TotalAmount(_ *Transaction) (uint64, error) {
 	return config.REGISTER_DELEGATE_BURN, nil
 }
 func (t *RegisterDelegate) VSize() uint64 {
@@ -194,7 +194,7 @@ func (t *SetDelegate) Deserialize(d *binary.Des) error {
 func (t *SetDelegate) String() string {
 	return fmt.Sprintf("SetDelegate: from %d to %d", t.PreviousDelegate, t.DelegateId)
 }
-func (t *SetDelegate) TotalAmount() (uint64, error) {
+func (t *SetDelegate) TotalAmount(_ *Transaction) (uint64, error) {
 	return 0, nil
 }
 func (t *SetDelegate) VSize() uint64 {
@@ -236,7 +236,7 @@ func (t *Stake) Deserialize(d *binary.Des) error {
 func (t *Stake) String() string {
 	return fmt.Sprintf("Stake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
 }
-func (t *Stake) TotalAmount() (uint64, error) {
+func (t *Stake) TotalAmount(_ *Transaction) (uint64, error) {
 	return t.Amount, nil
 }
 func (t *Stake) VSize() uint64 {
@@ -286,8 +286,11 @@ func (t *Unstake) Deserialize(d *binary.Des) error {
 func (t *Unstake) String() string {
 	return fmt.Sprintf("Unstake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
 }
-func (t *Unstake) TotalAmount() (uint64, error) {
-	return t.Amount, nil
+func (t *Unstake) TotalAmount(tx *Transaction) (uint64, error) {
+	if t.Amount < tx.Fee {
+		return 0, fmt.Errorf("amount %d < tx fee %d", t.Amount, tx.Fee)
+	}
+	return t.Amount - tx.Fee, nil
 }
 func (t *Unstake) VSize() uint64 {
 	return 8

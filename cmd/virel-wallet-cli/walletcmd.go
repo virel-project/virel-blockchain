@@ -242,6 +242,11 @@ func prompts(w *wallet.Wallet) {
 
 			amt := uint64(amtFloat * config.COIN)
 
+			if amt < config.MIN_STAKE_AMOUNT {
+				Log.Err("stake amount is too small, you must stake at least", config.MIN_STAKE_AMOUNT/config.COIN)
+				return
+			}
+
 			err = w.Refresh()
 			if err != nil {
 				Log.Err("failed to refresh wallet:", err)
@@ -260,6 +265,62 @@ func prompts(w *wallet.Wallet) {
 			}
 			if totalamt+txn.Fee > w.GetBalance() {
 				Log.Err("not enough money")
+				return
+			}
+			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))
+			Log.Infof("Total spent: %v", util.FormatCoin(totalamt))
+
+			lcfg := l.GeneratePasswordConfig()
+			lcfg.MaskRune = '*'
+
+			Log.Prompt("Are you sure you want to submit the transaction? (Y/n)")
+			line, err := l.ReadLine()
+			if err != nil || !strings.HasPrefix(strings.ToLower(line), "y") {
+				Log.Info("Cancelled.")
+				return
+			}
+
+			submitRes, err := w.SubmitTx(txn)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+
+			Log.Infof("transaction has been submit, txid: %s", submitRes.TXID.String())
+		},
+	}, {
+		Names: []string{"unstake"},
+		Args:  "<amount>",
+		Action: func(args []string) {
+			const USAGE = "Usage: unstake <amount>"
+			if len(args) < 1 {
+				Log.Err(USAGE)
+				return
+			}
+
+			amtStr := args[0]
+			amtFloat, err := strconv.ParseFloat(amtStr, 64)
+			if err != nil || amtFloat <= 0 {
+				Log.Err("failed to parse amount:", err)
+				return
+			}
+
+			amt := uint64(amtFloat * config.COIN)
+
+			err = w.Refresh()
+			if err != nil {
+				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			txn, err := w.Unstake(w.GetDelegateId(), amt)
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			totalamt, err := txn.TotalAmount()
+			if err != nil {
+				Log.Err(err)
 				return
 			}
 			Log.Infof("Fee: %v", util.FormatCoin(txn.Fee))

@@ -47,7 +47,11 @@ func (x *State) Deserialize(d []byte) error {
 		}
 		x.DelegateId = s.ReadUvarint()
 		x.TotalStaked = s.ReadUvarint()
+		if s.Error() != nil {
+			return s.Error()
+		}
 		x.TotalUnstaked = s.ReadUvarint()
+		return nil
 	}
 
 	return s.Error()

@@ -97,7 +97,7 @@ func (t Transaction) Hash() TXID {
 func (t Transaction) TotalAmount() (uint64, error) {
 	var s uint64 = t.Fee
 
-	amt, err := t.Data.TotalAmount()
+	amt, err := t.Data.TotalAmount(&t)
 	if err != nil {
 		return 0, err
 	}

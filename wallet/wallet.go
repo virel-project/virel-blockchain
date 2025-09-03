@@ -350,10 +350,10 @@ func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transacti
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
 func (w *Wallet) Unstake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
 	txn := &transaction.Transaction{
-		Version: transaction.TX_VERSION_STAKE,
+		Version: transaction.TX_VERSION_UNSTAKE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
 		Nonce:   w.GetMempoolLastNonce() + 1,
-		Data: &transaction.Stake{
+		Data: &transaction.Unstake{
 			Amount:     amount,
 			DelegateId: delegateId,
 		},
