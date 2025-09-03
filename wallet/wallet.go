@@ -28,6 +28,8 @@ type Wallet struct {
 	mempoolBal    uint64
 	mempoolNonce  uint64
 	delegateId    uint64
+	delegateName  string
+	stakedBalance uint64
 	totalStaked   uint64
 	totalUnstaked uint64
 
@@ -167,6 +169,29 @@ func (w *Wallet) Refresh() error {
 	w.totalUnstaked = res.TotalUnstaked
 	w.height = res.Height
 
+	if res.DelegateId != 0 {
+		delegateRes, err := w.rpc.GetDelegate(daemonrpc.GetDelegateRequest{
+			DelegateId: w.delegateId,
+		})
+		if err != nil {
+			return fmt.Errorf("could not get delegate: %w", err)
+		}
+		w.delegateName = delegateRes.Name
+		if len(w.delegateName) > 20 {
+			w.delegateName = w.delegateName[:20] + "..."
+		}
+
+		for _, v := range delegateRes.Funds {
+			if v.Owner == w.GetAddress().Addr {
+				w.stakedBalance = v.Amount
+				break
+			}
+		}
+	} else {
+		w.stakedBalance = 0
+		w.delegateName = ""
+	}
+
 	return nil
 }
 
@@ -209,6 +234,12 @@ func (w *Wallet) GetAddress() address.Integrated {
 }
 func (w *Wallet) GetDelegateId() uint64 {
 	return w.delegateId
+}
+func (w *Wallet) GetDelegateName() string {
+	return w.delegateName
+}
+func (w *Wallet) GetStakedBalance() uint64 {
+	return w.stakedBalance
 }
 func (w *Wallet) GetTotalStaked() uint64 {
 	return w.totalStaked

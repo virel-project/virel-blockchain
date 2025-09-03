@@ -85,6 +85,10 @@ func prompts(w *wallet.Wallet) {
 			Log.Infof("Wallet %s", w.GetAddress())
 			Log.Infof("Balance: %s", util.FormatCoin(w.GetBalance()))
 			Log.Infof("Last nonce: %d", w.GetLastNonce())
+			if w.GetDelegateId() != 0 {
+				Log.Infof("Delegate: %s (%s)", w.GetDelegateName(), address.NewDelegateAddress(w.GetDelegateId()))
+				Log.Infof("Staked balance: %s", util.FormatCoin(w.GetStakedBalance()))
+			}
 		},
 	}, {
 		Names: []string{"exit", "quit"},
@@ -310,6 +314,11 @@ func prompts(w *wallet.Wallet) {
 			err = w.Refresh()
 			if err != nil {
 				Log.Err("failed to refresh wallet:", err)
+				return
+			}
+
+			if amt > w.GetStakedBalance() {
+				Log.Err("trying to stake more than staked balance:", util.FormatCoin(w.GetStakedBalance()))
 				return
 			}
 
