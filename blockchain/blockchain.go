@@ -891,7 +891,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 
 	// validate and apply transactions
 	for _, v := range bl.Transactions {
-		tx, _, err := bc.GetTx(txn, v)
+		tx, _, err := bc.GetTx(txn, v, bl.Height)
 		if err != nil {
 			return fmt.Errorf("transaction is not in state: %w", err)
 		}
@@ -964,7 +964,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 	if len(bl.Transactions) > 0 {
 		memp := bc.GetMempool(txn)
 		for i, v := range bl.Transactions {
-			tx, _, err := bc.GetTx(txn, v)
+			tx, _, err := bc.GetTx(txn, v, bl.Height)
 			if err != nil {
 				Log.Err(err)
 				return err

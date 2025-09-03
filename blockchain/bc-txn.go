@@ -89,7 +89,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 
 // GetTx returns the transaction given its hash, and the transaction height if available
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transaction, uint64, error) {
+func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte, topheight uint64) (*transaction.Transaction, uint64, error) {
 	tx := &transaction.Transaction{}
 	// read TX data
 	txbin := txn.Get(bc.Index.Tx, hash[:])
@@ -101,7 +101,28 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transactio
 	if des.Error() != nil {
 		return nil, 0, fmt.Errorf("failed to deserialize transaction: %w", des.Error())
 	}
-	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V2_HEIGHT || includedIn == 0)
+
+	if includedIn == 0 {
+		if topheight > config.HARDFORK_V2_HEIGHT {
+			err := tx.Deserialize(des.RemainingData(), true)
+			if err == nil {
+				return tx, includedIn, nil
+			}
+			tx = &transaction.Transaction{}
+			err = tx.Deserialize(des.RemainingData(), false)
+			return tx, includedIn, err
+		} else {
+			err := tx.Deserialize(des.RemainingData(), false)
+			if err == nil {
+				return tx, includedIn, nil
+			}
+			tx = &transaction.Transaction{}
+			err = tx.Deserialize(des.RemainingData(), true)
+			return tx, includedIn, err
+		}
+	}
+
+	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V2_HEIGHT)
 }
 
 func (bc *Blockchain) SetTx(txn adb.Txn, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
@@ -216,9 +237,10 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			}
 		}
 
+		stats := bc.GetStats(txn)
 		// Handle register delegate transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_REGISTER_DELEGATE {
-			tx, _, err := bc.GetTx(txn, entry.TXID)
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
 			if err != nil {
 				return fmt.Errorf("failed to get register delegate transaction: %w", err)
 			}
@@ -234,7 +256,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 		// Handle stake transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_STAKE {
-			tx, _, err := bc.GetTx(txn, entry.TXID)
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
 			if err != nil {
 				return fmt.Errorf("failed to get stake transaction: %w", err)
 			}
@@ -269,7 +291,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 		// Handle unstake transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_UNSTAKE {
-			tx, _, err := bc.GetTx(txn, entry.TXID)
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
 			if err != nil {
 				return fmt.Errorf("failed to get unstake transaction: %w", err)
 			}
@@ -301,7 +323,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 		// Handle set delegate transactions in previous entries
 		if entry.TxVersion == transaction.TX_VERSION_SET_DELEGATE {
-			tx, _, err := bc.GetTx(txn, entry.TXID)
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
 			if err != nil {
 				return fmt.Errorf("failed to get unstake transaction: %w", err)
 			}

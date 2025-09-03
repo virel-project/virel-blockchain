@@ -160,7 +160,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			break
 		}
 
-		memtx, _, err := bc.GetTx(txn, v.TXID)
+		memtx, _, err := bc.GetTx(txn, v.TXID, bl.Height)
 		if err != nil {
 			Log.Err(err)
 			continue

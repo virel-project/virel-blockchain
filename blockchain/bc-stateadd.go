@@ -21,7 +21,7 @@ func (bc *Blockchain) ApplyTxToState(
 	// check signer state
 	signerState, err := bc.GetState(txn, signerAddr)
 	if err != nil {
-		return fmt.Errorf("failed to get signer state: %w", err)
+		return fmt.Errorf("failed to get signer state for transaction %s: %w", txid, err)
 	}
 	Log.Dev("signer state before:", signerState)
 
@@ -45,6 +45,7 @@ func (bc *Blockchain) ApplyTxToState(
 		if err != nil {
 			return fmt.Errorf("could not apply stake: %w", err)
 		}
+		signerState.DelegateAmount += stakeData.Amount
 	}
 	// unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
@@ -61,6 +62,8 @@ func (bc *Blockchain) ApplyTxToState(
 		if err != nil {
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
+		// TODO: we should remove proportional part, not exact
+		signerState.DelegateAmount -= unstakeData.Amount
 	}
 	// register delegate if the tx is a register_delegate transaction
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {

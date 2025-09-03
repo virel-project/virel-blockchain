@@ -19,6 +19,7 @@ const (
 	TX_VERSION_STAKE
 	TX_VERSION_UNSTAKE
 )
+const MAX_TX_VERSION = TX_VERSION_UNSTAKE
 
 type TransactionData interface {
 	AssociatedTransactionVersion() uint8

@@ -15,7 +15,7 @@ type State struct {
 	LastNonce      uint64
 	LastIncoming   uint64 // not used in consensus, but we store it to list the wallet incoming transactions
 	DelegateId     uint64
-	DelegateAmount uint64
+	DelegateAmount uint64 // not used in consensus, only for display
 }
 
 func (x State) Serialize() []byte {

@@ -55,6 +55,9 @@ func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 
 	if hasVersion {
 		t.Version = d.ReadUint8()
+		if t.Version > MAX_TX_VERSION || t.Version == 0 {
+			return fmt.Errorf("invalid transaction version %d", t.Version)
+		}
 	}
 	t.Signer = [bitcrypto.PUBKEY_SIZE]byte(d.ReadFixedByteArray(bitcrypto.PUBKEY_SIZE))
 	t.Signature = [bitcrypto.SIGNATURE_SIZE]byte(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
@@ -71,7 +74,7 @@ func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 	case TX_VERSION_UNSTAKE:
 		t.Data = &Unstake{}
 	default:
-		return fmt.Errorf("unknown transaction version %d", t.Version)
+		return fmt.Errorf("unknown transaction version %d at deserialize, hasversion: %v", t.Version, hasVersion)
 	}
 	err := t.Data.Deserialize(&d)
 	if err != nil {
@@ -80,7 +83,10 @@ func (t *Transaction) Deserialize(data []byte, hasVersion bool) error {
 	t.Nonce = d.ReadUvarint()
 	t.Fee = d.ReadUvarint()
 
-	return d.Error()
+	if d.Error() != nil {
+		return fmt.Errorf("transaction with version %d encountered deserialization error: %w", t.Version, d.Error())
+	}
+	return nil
 }
 
 func (t Transaction) Hash() TXID {

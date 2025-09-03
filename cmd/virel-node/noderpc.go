@@ -166,7 +166,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		var height uint64
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
-			tx, height, err = bc.GetTx(txn, params.Txid)
+			stats := bc.GetStats(txn)
+			tx, height, err = bc.GetTx(txn, params.Txid, stats.TopHeight)
 			return
 		})
 		if err != nil {
@@ -293,14 +294,13 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		Log.Debugf("submit_transaction hex: %s", params.Hex)
 
-		tx := &transaction.Transaction{}
-
 		var stats *blockchain.Stats
 		bc.DB.View(func(txn adb.Txn) error {
 			stats = bc.GetStats(txn)
 			return nil
 		})
 
+		tx := &transaction.Transaction{}
 		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
