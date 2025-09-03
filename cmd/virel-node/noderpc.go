@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
@@ -564,6 +566,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				Code:    -1,
 				Message: "invalid hash or signature length",
 			})
+			return
 		}
 
 		hash := util.Hash(params.Hash)
@@ -588,6 +591,59 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			Accepted: true,
 		})
 	})
+
+	rs.Handle("get_delegate", func(c *rpcserver.Context) {
+		params := daemonrpc.GetDelegateRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		if params.DelegateId == 0 {
+			if !strings.HasPrefix(params.DelegateAddress, config.DELEGATE_ADDRESS_PREFIX) {
+				c.ErrorResponse(&rpc.Error{
+					Code:    -1,
+					Message: "invalid delegate address prefix",
+				})
+				return
+			}
+
+			params.DelegateAddress = strings.TrimPrefix(params.DelegateAddress, config.DELEGATE_ADDRESS_PREFIX)
+
+			params.DelegateId, err = strconv.ParseUint(params.DelegateAddress, 10, 64)
+			if err != nil {
+				Log.Debug(err)
+				c.ErrorResponse(&rpc.Error{
+					Code:    -1,
+					Message: "invalid delegate address",
+				})
+				return
+			}
+		}
+
+		var delegate *blockchain.Delegate
+		err = bc.DB.View(func(txn adb.Txn) error {
+			delegate, err = bc.GetDelegate(txn, params.DelegateId)
+			return err
+		})
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "failed to get delegate",
+			})
+			return
+		}
+
+		c.SuccessResponse(daemonrpc.GetDelegateResponse{
+			Id:      params.DelegateId,
+			Address: address.NewDelegateAddress(params.DelegateId),
+			Owner:   delegate.OwnerAddress(),
+			Name:    string(delegate.Name),
+			Funds:   delegate.Funds,
+		})
+	})
+
 	if !restricted {
 		rs.Handle("get_rich_list", func(c *rpcserver.Context) {
 			const COUNT = 100

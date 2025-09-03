@@ -8,6 +8,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 )
 
 type State struct {
@@ -66,7 +67,7 @@ type Delegate struct {
 	Owner bitcrypto.Pubkey
 	Name  []byte
 
-	Funds []*DelegatedFund
+	Funds []*daemonrpc.DelegatedFund
 }
 
 func (d *Delegate) TotalAmount() (t uint64) {
@@ -91,7 +92,7 @@ func (d *Delegate) SortFunds() (err error) {
 		seen[v.Owner] = true
 	}
 
-	slices.SortStableFunc(d.Funds, func(a, b *DelegatedFund) int {
+	slices.SortStableFunc(d.Funds, func(a, b *daemonrpc.DelegatedFund) int {
 		return slices.Compare(a.Owner[:], b.Owner[:])
 	})
 
@@ -100,11 +101,6 @@ func (d *Delegate) SortFunds() (err error) {
 
 func (d *Delegate) OwnerAddress() address.Address {
 	return address.FromPubKey(d.Owner)
-}
-
-type DelegatedFund struct {
-	Owner  address.Address
-	Amount uint64
 }
 
 func (g *Delegate) Serialize() []byte {
@@ -142,9 +138,9 @@ func (g *Delegate) Deserialize(b []byte) error {
 		return fmt.Errorf("too many funds %d", numFunds)
 	}
 
-	g.Funds = make([]*DelegatedFund, numFunds)
+	g.Funds = make([]*daemonrpc.DelegatedFund, numFunds)
 	for i := 0; i < len(g.Funds); i++ {
-		g.Funds[i] = &DelegatedFund{
+		g.Funds[i] = &daemonrpc.DelegatedFund{
 			Owner:  address.Address(d.ReadFixedByteArray(address.SIZE)),
 			Amount: d.ReadUvarint(),
 		}

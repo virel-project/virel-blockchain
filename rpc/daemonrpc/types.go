@@ -137,3 +137,20 @@ type SubmitStakeSignatureResponse struct {
 	Accepted     bool   `json:"accepted"`
 	ErrorMessage string `json:"error_message"`
 }
+
+type DelegatedFund struct {
+	Owner  address.Address `json:"owner"`
+	Amount uint64          `json:"amount"`
+}
+
+type GetDelegateRequest struct {
+	DelegateId      uint64 `json:"delegate_id"`
+	DelegateAddress string `json:"delegate_address"`
+}
+type GetDelegateResponse struct {
+	Id      uint64           `json:"id"`
+	Address address.Address  `json:"address"`
+	Owner   address.Address  `json:"owner"`
+	Name    string           `json:"name"`
+	Funds   []*DelegatedFund `json:"funds"`
+}

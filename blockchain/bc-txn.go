@@ -12,6 +12,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/p2p"
 	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
+	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
 )
@@ -251,7 +252,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 				Id:    registerData.Id,
 				Owner: tx.Signer,
 				Name:  registerData.Name,
-				Funds: []*DelegatedFund{},
+				Funds: []*daemonrpc.DelegatedFund{},
 			}
 		}
 		// Handle stake transactions in previous entries
@@ -280,7 +281,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 				}
 			}
 			if !found {
-				delegate.Funds = append(delegate.Funds, &DelegatedFund{
+				delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
 					Owner:  signer,
 					Amount: stakeData.Amount,
 				})

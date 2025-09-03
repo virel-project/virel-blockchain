@@ -8,6 +8,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/block"
+	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
@@ -79,7 +80,7 @@ func (bc *Blockchain) ApplyTxToState(
 			Id:    registerData.Id,
 			Owner: tx.Signer,
 			Name:  registerData.Name,
-			Funds: make([]*DelegatedFund, 0),
+			Funds: make([]*daemonrpc.DelegatedFund, 0),
 		})
 	}
 	// set delegate if the tx is a set_delegate transaction
@@ -177,7 +178,7 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		break
 	}
 	if !staked {
-		delegate.Funds = append(delegate.Funds, &DelegatedFund{
+		delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
 			Owner:  signerAddr,
 			Amount: stakeData.Amount,
 		})
@@ -329,7 +330,7 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 		}
 	}
 	if !ownerFound {
-		delegate.Funds = append(delegate.Funds, &DelegatedFund{
+		delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
 			Owner:  delegateAddr,
 			Amount: roundingError,
 		})
