@@ -52,7 +52,8 @@ type GetAddressResponse struct {
 	MempoolNonce    uint64 `json:"mempool_last_nonce"` // unconfirmed nonce, from mempool
 	MempoolIncoming uint64 `json:"mempool_incoming"`
 	DelegateId      uint64 `json:"delegate_id"`
-	DelegateAmount  uint64 `json:"delegate_amount"` // the amount originally deposited in the delegate
+	TotalStaked     uint64 `json:"total_staked"`   // The total amount staked since the last delegate change.
+	TotalUnstaked   uint64 `json:"total_unstaked"` // The total amount unstaked since the last delegate change.
 	Height          uint64 `json:"height"`
 }
 
@@ -109,11 +110,12 @@ type ValidateAddressResponse struct {
 }
 
 type State struct {
-	Balance        uint64
-	LastNonce      uint64
-	LastIncoming   uint64 // not used in consensus, but we store it to list the wallet incoming transactions
-	DelegateId     uint64
-	DelegateAmount uint64
+	Balance       uint64
+	LastNonce     uint64
+	LastIncoming  uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	DelegateId    uint64
+	TotalStaked   uint64
+	TotalUnstaked uint64
 }
 type StateInfo struct {
 	Address string

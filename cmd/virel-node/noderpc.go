@@ -368,7 +368,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				result.LastNonce = state.LastNonce
 				result.LastIncoming = state.LastIncoming
 				result.DelegateId = state.DelegateId
-				result.DelegateAmount = state.DelegateAmount
+				result.TotalStaked = state.TotalStaked
+				result.TotalUnstaked = state.TotalUnstaked
 			}
 
 			stats := bc.GetStats(tx)

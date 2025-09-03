@@ -72,7 +72,7 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove stake: %w", err)
 		}
-		signerState.DelegateAmount -= stakeData.Amount
+		signerState.TotalStaked -= stakeData.Amount
 	}
 	// undo unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
@@ -93,7 +93,7 @@ func (bc *Blockchain) RemoveTxFromState(
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
 		// TODO: we should add proportional part, not exact
-		signerState.DelegateAmount += unstakeData.Amount
+		signerState.TotalUnstaked -= unstakeData.Amount
 	}
 	// unregister delegate if the tx is a register_delegate transaction
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {

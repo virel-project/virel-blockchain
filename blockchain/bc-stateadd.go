@@ -45,7 +45,7 @@ func (bc *Blockchain) ApplyTxToState(
 		if err != nil {
 			return fmt.Errorf("could not apply stake: %w", err)
 		}
-		signerState.DelegateAmount += stakeData.Amount
+		signerState.TotalStaked += stakeData.Amount
 	}
 	// unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
@@ -62,8 +62,7 @@ func (bc *Blockchain) ApplyTxToState(
 		if err != nil {
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
-		// TODO: we should remove proportional part, not exact
-		signerState.DelegateAmount -= unstakeData.Amount
+		signerState.TotalUnstaked += unstakeData.Amount
 	}
 	// register delegate if the tx is a register_delegate transaction
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
@@ -106,6 +105,8 @@ func (bc *Blockchain) ApplyTxToState(
 		}
 
 		signerState.DelegateId = setData.DelegateId
+		signerState.TotalStaked = 0
+		signerState.TotalUnstaked = 0
 	}
 
 	// increase signer nonce

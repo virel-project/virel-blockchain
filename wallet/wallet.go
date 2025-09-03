@@ -22,13 +22,14 @@ type Wallet struct {
 
 	rpc *daemonrpc.RpcClient
 
-	height       uint64
-	balance      uint64
-	lastNonce    uint64
-	mempoolBal   uint64
-	mempoolNonce uint64
-	delegateId   uint64
-	delegateAmt  uint64
+	height        uint64
+	balance       uint64
+	lastNonce     uint64
+	mempoolBal    uint64
+	mempoolNonce  uint64
+	delegateId    uint64
+	totalStaked   uint64
+	totalUnstaked uint64
 
 	password []byte
 }
@@ -162,7 +163,8 @@ func (w *Wallet) Refresh() error {
 	w.mempoolBal = res.MempoolBalance
 	w.mempoolNonce = res.MempoolNonce
 	w.delegateId = res.DelegateId
-	w.delegateAmt = res.DelegateAmount
+	w.totalStaked = res.TotalStaked
+	w.totalUnstaked = res.TotalUnstaked
 	w.height = res.Height
 
 	return nil
@@ -175,7 +177,8 @@ func (w *Wallet) ManualRefresh(state *blockchain.State, height uint64) {
 	w.mempoolBal = state.Balance
 	w.mempoolNonce = state.LastNonce
 	w.delegateId = state.DelegateId
-	w.delegateAmt = state.DelegateAmount
+	w.totalStaked = state.TotalStaked
+	w.totalUnstaked = state.TotalUnstaked
 	w.height = height
 }
 
@@ -207,8 +210,11 @@ func (w *Wallet) GetAddress() address.Integrated {
 func (w *Wallet) GetDelegateId() uint64 {
 	return w.delegateId
 }
-func (w *Wallet) GetDelegateAmount() uint64 {
-	return w.delegateAmt
+func (w *Wallet) GetTotalStaked() uint64 {
+	return w.totalStaked
+}
+func (w *Wallet) GetTotalUnstaked() uint64 {
+	return w.totalUnstaked
 }
 func (w *Wallet) GetTransactions(inc bool, page uint64) (*daemonrpc.GetTxListResponse, error) {
 	r := daemonrpc.GetTxListRequest{
