@@ -1087,7 +1087,11 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 				return err
 			}
 
-			senderState.Balance += inp.Amount
+			senderState.Balance, err = util.SafeAdd(senderState.Balance, inp.Amount)
+			if err != nil {
+				Log.Err(err)
+				return err
+			}
 			err = bc.SetState(txn, inp.Sender, senderState)
 			if err != nil {
 				Log.Err(err)

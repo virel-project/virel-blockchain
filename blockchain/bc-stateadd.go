@@ -211,7 +211,7 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 
 		if fund.Amount < unstakeData.Amount {
 			return fmt.Errorf("transaction %s trying to unstake %s, more than available balance %s",
-				txid, util.FormatCoin(unstakeData.Amount), util.FormatCoin(unstakeData.Amount))
+				txid, util.FormatCoin(unstakeData.Amount), util.FormatCoin(fund.Amount))
 		}
 		fund.Amount -= unstakeData.Amount
 

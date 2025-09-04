@@ -33,7 +33,10 @@ func (bc *Blockchain) RemoveTxFromState(
 			return err
 		}
 
-		senderState.Balance += inp.Amount
+		senderState.Balance, err = util.SafeAdd(senderState.Balance, inp.Amount)
+		if err != nil {
+			return err
+		}
 		err = bc.SetState(txn, inp.Sender, senderState)
 		if err != nil {
 			return err
@@ -92,7 +95,6 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
-		// TODO: we should add proportional part, not exact
 		signerState.TotalUnstaked -= unstakeData.Amount
 	}
 	// unregister delegate if the tx is a register_delegate transaction
@@ -108,6 +110,8 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove delegate: %w", err)
 		}
+
+		// TODO: restore TotalStaked and TotalUnstaked (not important, as they are only stats not used in consensus)
 	}
 	// revert delegate if the tx is a set_delegate transaction
 	if tx.Version == transaction.TX_VERSION_SET_DELEGATE {
