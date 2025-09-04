@@ -44,6 +44,7 @@ func (bc *Blockchain) AddStratum(ip, stratum_wallet string, permanent bool) {
 	cl, err := stratumclient.New(ip, stratum_wallet)
 	if err != nil {
 		Log.Err(err)
+		bc.MergesMut.Unlock()
 		return
 	}
 	m := &mergestratum{
