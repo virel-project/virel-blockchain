@@ -48,7 +48,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 	height := stats.TopHeight + 1
 
 	var version uint8 = 0
-	if height >= config.HARDFORK_V2_HEIGHT {
+	if height >= config.HARDFORK_V3_HEIGHT {
 		version = 1
 	}
 

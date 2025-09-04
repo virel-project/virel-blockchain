@@ -232,7 +232,6 @@ func (bc *Blockchain) packetStakeSignature(pack p2p.Packet) {
 }
 
 func (bc *Blockchain) HandleStakeSignature(st *packet.PacketStakeSignature) error {
-	var delegate *Delegate
 	err := bc.DB.Update(func(txn adb.Txn) error {
 		_, err := bc.GetStakeSig(txn, st.Hash)
 		if err == nil {
@@ -247,7 +246,7 @@ func (bc *Blockchain) HandleStakeSignature(st *packet.PacketStakeSignature) erro
 			return errors.New("stake signature is not done by the correct delegate")
 		}
 
-		delegate, err = bc.GetDelegate(txn, st.DelegateId)
+		delegate, err := bc.GetDelegate(txn, st.DelegateId)
 		if err != nil {
 			return fmt.Errorf("failed to get delegate %d: %w", st.DelegateId, err)
 		}
