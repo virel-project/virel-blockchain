@@ -157,6 +157,12 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 // Use this method to validate that a transaction in mempool is valid.
 // previousEntries are expected to be correctly ordered and valid. If they aren't, something is wrong elsewhere.
 func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
+	// relay rule: check fee is enough for FEE_PER_BYTE_V2
+	minFee := config.FEE_PER_BYTE_V2 * tx.GetVirtualSize()
+	if tx.Fee < minFee {
+		return fmt.Errorf("invalid tx fee %s, expected at least %s", util.FormatCoin(tx.Fee), util.FormatCoin(minFee))
+	}
+
 	signer := address.FromPubKey(tx.Signer)
 
 	// Calculate total transaction amount (outputs + fee)

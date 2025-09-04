@@ -43,7 +43,7 @@ func TestTransaction(t *testing.T) {
 		Nonce:     1,
 		Fee:       0,
 	}
-	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
+	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE_V2
 
 	err := tx.Sign(bitcrypto.Privkey(privk))
 	if err != nil {

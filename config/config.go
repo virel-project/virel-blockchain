@@ -10,6 +10,7 @@ const VERSION_PATCH = 1
 
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // 0.0615 coins for an 1-output tx
+const FEE_PER_BYTE_V2 = 2_000_000              // 0.246 coins for an 1-output tx
 const BLOCK_REWARD = 175 * COIN                // initial block reward
 const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 91 // block reward reduces by 10% every 91 days (4 times a year)
 

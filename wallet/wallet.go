@@ -279,7 +279,7 @@ func (w *Wallet) SetRpcDaemonAddress(a string) {
 }
 
 func (w *Wallet) checkAndSignTx(tx *transaction.Transaction) error {
-	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
+	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE_V2
 
 	addr := w.GetAddress().Addr
 
@@ -342,8 +342,6 @@ func (w *Wallet) RegisterDelegate(name string, id uint64) (*transaction.Transact
 			Id:   id,
 		},
 	}
-
-	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
 
 	return txn, w.checkAndSignTx(txn)
 }
