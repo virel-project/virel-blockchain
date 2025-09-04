@@ -52,7 +52,7 @@ func (bc *Blockchain) PrevalidateBlock(b *block.Block, txs []*transaction.Transa
 	// Generally, try insering the least expensive checks first, most expensive last
 
 	var expectedVersion uint8 = 0
-	if b.Height >= config.HARDFORK_V2_HEIGHT {
+	if b.Height >= config.HARDFORK_V3_HEIGHT {
 		expectedVersion = 1
 	}
 	if b.Version != expectedVersion {

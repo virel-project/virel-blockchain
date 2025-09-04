@@ -159,7 +159,6 @@ func (t *Transaction) Prevalidate(height uint64) error {
 			t.Version != TX_VERSION_UNSTAKE {
 			return fmt.Errorf("invalid version %d, expected 1-5", t.Version)
 		}
-
 	}
 
 	// verify sender address

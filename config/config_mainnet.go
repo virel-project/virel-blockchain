@@ -25,8 +25,10 @@ const REGISTER_DELEGATE_BURN = 1_000 * COIN
 
 // HARD-FORKS
 
-// Hardfork V1: transaction version field
+// Hardfork V2: transaction version field.
+// Tx version: 1, block version: 0
 const HARDFORK_V2_HEIGHT = 100_000
 
-// Hardfork V2: Hybrid PoW/PoS
+// Hardfork V3: Hybrid PoW/PoS
+// Tx version: 1-5, block version: 1
 const HARDFORK_V3_HEIGHT = 100_000 // TODO

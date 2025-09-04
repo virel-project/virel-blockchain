@@ -88,17 +88,6 @@ func TestState(t *testing.T) {
 			return err
 		}
 
-		// add block 2
-		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
-		bl.Height++
-		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
-		bl.Nonce++
-		bl.NextDelegateId = delegate_id
-		err = AddBlock(txn, bc, bl)
-		if err != nil {
-			return err
-		}
-
 		stats := bc.GetStats(txn)
 		staketxs := GetStakeTxs(txn, bc, wall, stats.TopHeight)
 		staketxids := make([]transaction.TXID, len(staketxs))
@@ -112,13 +101,24 @@ func TestState(t *testing.T) {
 			t.Logf("tx has fee %s", util.FormatCoin(v.Fee))
 		}
 
+		// add block 2
+		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
+		bl.Height++
+		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
+		bl.Transactions = staketxids
+		bl.Nonce++
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
 		// add block 3
 		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
 		bl.NextDelegateId = delegate_id
-		bl.Transactions = staketxids
+		bl.Transactions = []transaction.TXID{}
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -134,14 +134,7 @@ func TestState(t *testing.T) {
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
-		bl.Transactions = []transaction.TXID{}
-		bl.DelegateId = delegate_id
 		bl.NextDelegateId = delegate_id
-		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
-		if err != nil {
-			return err
-		}
-		bl.CumulativeDiff = bl.CumulativeDiff.Add64(1)
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -156,14 +149,10 @@ func TestState(t *testing.T) {
 		bl.Height = bl3.Height + 1
 		bl.Timestamp = bl3.Timestamp + config.TARGET_BLOCK_TIME*1000
 		bl.Nonce++
-		bl.Transactions = []transaction.TXID{}
-		bl.DelegateId = delegate_id
 		bl.NextDelegateId = delegate_id
-		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
 		if err != nil {
 			return err
 		}
-		bl.CumulativeDiff = bl3.CumulativeDiff.Add64(1)
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -174,7 +163,17 @@ func TestState(t *testing.T) {
 		bl.Height++
 		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
 		bl.Nonce++
-		bl.Transactions = []transaction.TXID{}
+		bl.NextDelegateId = delegate_id
+		err = AddBlock(txn, bc, bl)
+		if err != nil {
+			return err
+		}
+
+		// add block 6
+		bl.Ancestors = bl.Ancestors.AddHash(bl.Hash())
+		bl.Height++
+		bl.Timestamp += config.TARGET_BLOCK_TIME * 1000
+		bl.Nonce++
 		bl.DelegateId = delegate_id
 		bl.NextDelegateId = delegate_id
 		bl.StakeSignature, err = wall.SignBlockHash(bl.BlockStakedHash())
@@ -191,12 +190,16 @@ func TestState(t *testing.T) {
 
 		t.Logf("stats: %s", stats)
 
-		burnrewards := (3*config.BLOCK_REWARD*0.45 + 3*config.BLOCK_REWARD*0.45*0.25) / config.COIN
+		const pow_reward = config.BLOCK_REWARD * 0.5
+		const pos_reward = config.BLOCK_REWARD * 0.4
+		const dev_reward = config.BLOCK_REWARD * 0.1
+
+		burnrewards := 5 * (pos_reward + pow_reward*0.25) / config.COIN
 		err = PrintState(txn, bc, map[string]float64{
 			"burnaddress": config.REGISTER_DELEGATE_BURN/config.COIN + burnrewards + 0.444,
-			"delegate0":   1 + 78.75*2,
+			"delegate0":   1 + pos_reward*2,
 			// genesis address: first block + 10% of all blocks
-			"vo3yexhnu89af4aai83uou17dupb79c3gxng1q": (config.BLOCK_REWARD + float64(bl.Height)*config.BLOCK_REWARD*0.1) / config.COIN,
+			"vo3yexhnu89af4aai83uou17dupb79c3gxng1q": (config.BLOCK_REWARD + float64(bl.Height)*dev_reward) / config.COIN,
 		})
 		if err != nil {
 			return err
@@ -247,6 +250,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(tx)
 	txs = append(txs, tx)
 
 	state.LastNonce++
@@ -255,6 +259,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(tx)
 	txs = append(txs, tx)
 
 	state.LastNonce++
@@ -263,6 +268,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(tx)
 	txs = append(txs, tx)
 
 	return txs
