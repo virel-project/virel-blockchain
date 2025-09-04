@@ -49,10 +49,12 @@ func (bc *Blockchain) RemoveTxFromState(
 		return err
 	}
 	if signerState.LastNonce == 0 {
-		err = fmt.Errorf("sender %s last nonce must not be zero in tx %s", signerAddr, txid)
-		return err
+		return fmt.Errorf("sender %s last nonce must not be zero in tx %s", signerAddr, txid)
 	}
 	signerState.LastNonce--
+	if signerState.LastNonce != tx.Nonce {
+		return fmt.Errorf("signer nonce %d does not match tx nonce %d", signerState.LastNonce, tx.Nonce)
+	}
 
 	// NOTE: The following functions must be careful not to read/write the signer state again,
 	// as it is saved later and this could cause conflicts.
@@ -75,6 +77,7 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove stake: %w", err)
 		}
+		// underflow is not a big deal here, as TotalStaked/TotalUnstaked are not used in consensus (only in display)
 		signerState.TotalStaked -= stakeData.Amount
 	}
 	// undo unstake if the tx is an unstake transaction
@@ -101,9 +104,13 @@ func (bc *Blockchain) RemoveTxFromState(
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
 		registerData := tx.Data.(*transaction.RegisterDelegate)
 
-		_, err = bc.GetDelegate(txn, registerData.Id)
+		delegate, err := bc.GetDelegate(txn, registerData.Id)
 		if err != nil {
 			return fmt.Errorf("delegate %d does not exist: %w", registerData.Id, err)
+		}
+
+		if len(delegate.Funds) > 0 {
+			return fmt.Errorf("cannot unregister delegate with active funds")
 		}
 
 		err = bc.RemoveDelegate(txn, registerData.Id)
