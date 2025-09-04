@@ -186,5 +186,5 @@ func (bc *Blockchain) RemovePosReward(txn adb.Txn, blockhash util.Hash, out *tra
 		return fmt.Errorf("delegate historical data does not match with the current data, this should never happen")
 	}
 
-	return bc.SetDelegate(txn, delegate)
+	return bc.SetDelegate(txn, oldDelegate)
 }
