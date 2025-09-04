@@ -118,7 +118,8 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		var height uint64
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
-			tx, height, err = bc.GetTx(txn, params.Txid)
+			stats := bc.GetStats(txn)
+			tx, height, err = bc.GetTx(txn, params.Txid, stats.TopHeight)
 			return
 		})
 		if err != nil {
@@ -336,7 +337,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			for _, v := range mem.Entries {
 				if v.Sender == addr.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
 					Log.Devf("adding txn %x", v.TXID)
-					txn, _, err := bc.GetTx(txn, v.TXID)
+					txn, _, err := bc.GetTx(txn, v.TXID, result.Height)
 					if err != nil {
 						Log.Err(err)
 						return err

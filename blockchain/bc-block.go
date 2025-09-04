@@ -37,7 +37,7 @@ func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, e
 	s.AddUvarint(uint64(len(b.Transactions)))
 
 	for _, v := range b.Transactions {
-		txn, _, err := bc.GetTx(txn, v)
+		txn, _, err := bc.GetTx(txn, v, b.Height)
 		if err != nil {
 			return nil, err
 		}

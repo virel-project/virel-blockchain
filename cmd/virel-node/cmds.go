@@ -249,7 +249,8 @@ func prompts(bc *blockchain.Blockchain) {
 			var tx *transaction.Transaction
 			var height uint64
 			err = bc.DB.View(func(txn adb.Txn) (err error) {
-				tx, height, err = bc.GetTx(txn, [32]byte(txid))
+				stats := bc.GetStats(txn)
+				tx, height, err = bc.GetTx(txn, [32]byte(txid), stats.TopHeight)
 				return
 			})
 			if err != nil {

@@ -77,7 +77,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 
 // GetTx returns the transaction given its hash, and the transaction height if available
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transaction, uint64, error) {
+func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte, topheight uint64) (*transaction.Transaction, uint64, error) {
 	tx := &transaction.Transaction{}
 	// read TX data
 	txbin := txn.Get(bc.Index.Tx, hash[:])
@@ -89,8 +89,28 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte) (*transaction.Transactio
 	if des.Error() != nil {
 		return nil, 0, fmt.Errorf("failed to deserialize transaction: %w", des.Error())
 	}
-	// TODO: change this after the fork
-	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V1_HEIGHT /* || includedIn == 0 */)
+
+	if includedIn == 0 {
+		if topheight > config.HARDFORK_V1_HEIGHT {
+			err := tx.Deserialize(des.RemainingData(), true)
+			if err == nil {
+				return tx, includedIn, nil
+			}
+			tx = &transaction.Transaction{}
+			err = tx.Deserialize(des.RemainingData(), false)
+			return tx, includedIn, err
+		} else {
+			err := tx.Deserialize(des.RemainingData(), false)
+			if err == nil {
+				return tx, includedIn, nil
+			}
+			tx = &transaction.Transaction{}
+			err = tx.Deserialize(des.RemainingData(), true)
+			return tx, includedIn, err
+		}
+	}
+
+	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V1_HEIGHT)
 }
 
 func (bc *Blockchain) SetTx(txn adb.Txn, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
@@ -125,6 +145,8 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
 	senderAddr := address.FromPubKey(tx.Sender)
 
+	stats := bc.GetStats(txn)
+
 	// get sender state
 	senderState, err := bc.GetState(txn, senderAddr)
 	if err != nil {
@@ -142,7 +164,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 		// apply this transaction if it modifies sender state
 		if v.Sender == senderAddr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
-			vt, _, err := bc.GetTx(txn, v.TXID)
+			vt, _, err := bc.GetTx(txn, v.TXID, stats.TopHeight)
 			if err != nil {
 				Log.Err(err)
 				return err
