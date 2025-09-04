@@ -158,7 +158,10 @@ func (bc *Blockchain) RemoveTxOutputsFromState(txn adb.Txn, blockhash util.Hash,
 		}
 		// Reverse coinbase PoS
 		if out.Type == transaction.OUT_COINBASE_POS {
-			bc.RemovePosReward(txn, blockhash, &out, txid, stats)
+			err = bc.RemovePosReward(txn, blockhash, &out, txid, stats)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -184,6 +187,11 @@ func (bc *Blockchain) RemovePosReward(txn adb.Txn, blockhash util.Hash, out *tra
 	}
 	if oldDelegate.Id != delegate.Id || oldDelegate.Owner != delegate.Owner {
 		return fmt.Errorf("delegate historical data does not match with the current data, this should never happen")
+	}
+
+	err = stats.Unstaked(out.Amount)
+	if err != nil {
+		return fmt.Errorf("failed to remove from stats, this should never happen: %w", err)
 	}
 
 	return bc.SetDelegate(txn, oldDelegate)

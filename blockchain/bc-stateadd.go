@@ -248,7 +248,10 @@ func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, blockhash util.Hash, ou
 		}
 		Log.Devf("recipient %s state before: %v", out.Recipient, recState)
 
-		recState.Balance += out.Amount
+		recState.Balance, err = util.SafeAdd(recState.Balance, out.Amount)
+		if err != nil {
+			return fmt.Errorf("overflow when adding balance: %v", err)
+		}
 		recState.LastIncoming++ // also increase recipient's LastIncoming
 
 		Log.Devf("recipient %s state after: %v", out.Recipient, recState)

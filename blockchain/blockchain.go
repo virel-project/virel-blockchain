@@ -1005,39 +1005,26 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 	}
 
-	// undo coinbase transaction
-
+	// remove coinbase transacton
 	totalReward := bl.Reward() + totalFee
-	coinbaseOutputs := bl.CoinbaseTransaction(totalReward)
-
-	for _, out := range coinbaseOutputs {
-		// undo coinbase transaction
-		coinbaseState, err := bc.GetState(txn, out.Recipient)
-		if err != nil {
-			err := fmt.Errorf("coinbase reward account unknown: %s", err)
-			Log.Err(err)
-			return err
+	if totalReward < bl.Reward() {
+		return errors.New("reward overflow in block")
+	}
+	coinbaseOuts := bl.CoinbaseTransaction(totalReward)
+	outs := make([]transaction.StateOutput, len(coinbaseOuts))
+	for i, v := range coinbaseOuts {
+		outs[i] = transaction.StateOutput{
+			Type:      v.Type,
+			Amount:    v.Amount,
+			Recipient: v.Recipient,
+			PaymentId: 0,
+			ExtraData: v.DelegateId,
 		}
-		if coinbaseState.Balance < out.Amount {
-			err := fmt.Errorf("balance of coinbase account is too small: balance %d, block reward %d",
-				coinbaseState.Balance, out.Amount)
-			Log.Err(err)
-			return err
-		}
-		if coinbaseState.LastIncoming == 0 {
-			err = fmt.Errorf("coinbase %s LastIncoming must not be zero in block %x", out.Recipient, blhash)
-			Log.Err(err)
-			return err
-		}
-		coinbaseState.Balance -= out.Amount
-		coinbaseState.LastIncoming--
-		err = bc.SetState(txn, out.Recipient, coinbaseState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// removing coinbase transaction from incoming tx list is not necessary, since it's never read and later overwritten
-
+	}
+	err := bc.RemoveTxOutputsFromState(txn, blhash, outs, blhash, stats)
+	if err != nil {
+		Log.Err(err)
+		return err
 	}
 
 	// remove transactions in reverse order
@@ -1047,83 +1034,11 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 
 		Log.Devf("removing transaction %x (index %d) from state", txhash, i)
 
-		signerAddr := address.FromPubKey(tx.Signer)
-
-		// decrease recipient balance and LastIncoming
-		stateoutputs := tx.Data.StateOutputs(tx, signerAddr)
-		for _, out := range stateoutputs {
-			recState, err := bc.GetState(txn, out.Recipient)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			if recState.Balance < out.Amount {
-				err := fmt.Errorf("recipient balance is smaller than output amount: %d < %d",
-					recState.Balance, out.Amount)
-				if err != nil {
-					Log.Err(err)
-					return err
-				}
-			}
-			if recState.LastIncoming == 0 {
-				err = fmt.Errorf("recipient %s LastIncoming must not be zero in tx %x", out.Recipient, txhash)
-				Log.Err(err)
-				return err
-			}
-			recState.Balance -= out.Amount
-			recState.LastIncoming--
-			err = bc.SetState(txn, out.Recipient, recState)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-		}
-
-		// increase senders balances
-		for _, inp := range tx.Data.StateInputs(tx, signerAddr) {
-			senderState, err := bc.GetState(txn, inp.Sender)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-
-			senderState.Balance, err = util.SafeAdd(senderState.Balance, inp.Amount)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			err = bc.SetState(txn, inp.Sender, senderState)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-		}
-
-		// decrease signer nonce
-		signerState, err := bc.GetState(txn, signerAddr)
+		err := bc.RemoveTxFromState(txn, tx, address.FromPubKey(tx.Signer), bl, blhash, stats, txhash)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-		if signerState.LastNonce == 0 {
-			err = fmt.Errorf("sender %s last nonce must not be zero in tx %x", signerAddr, txhash)
-			Log.Err(err)
-			return err
-		}
-		signerState.LastNonce--
-		err = bc.SetState(txn, signerAddr, signerState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
-		// set tx height to zero
-		err = bc.SetTxHeight(txn, txhash, 0)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
 	}
 
 	return nil
