@@ -10,7 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
-const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20
+const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 100
 
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
 	return &QueuedBlock{

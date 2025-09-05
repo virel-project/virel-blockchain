@@ -789,10 +789,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 		txn.Put(bc.Index.Info, []byte("stats"), stats.Serialize())
 
-		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.PurgeHeightBlocks()
-		})
-
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
 		return nil

@@ -238,6 +238,7 @@ scanning:
 			}
 		}
 
+		Log.Debug("connecting to peer", randPeer.IP, randPeer.Port)
 		go p.startClient(randPeer.IP, randPeer.Port, private)
 	}
 }
@@ -618,7 +619,7 @@ func (p *P2P) AddPeerToList(ip string, port uint16, force bool) bool {
 			break
 		}
 	}
-	Log.Debug("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
+	Log.Net("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
 	if shouldAdd {
 		p.KnownPeers = append(p.KnownPeers, KnownPeer{
 			IP:   ip,
