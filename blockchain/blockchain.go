@@ -235,7 +235,7 @@ func (bc *Blockchain) Synchronize() {
 			}()
 		})
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 	}
 }
 

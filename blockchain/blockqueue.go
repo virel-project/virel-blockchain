@@ -109,7 +109,7 @@ const downloaded_expire = 10
 func (qt *QueueTx) BlockDownloaded(height uint64, hash [32]byte) {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
-		if v.Height == height || v.Hash == hash {
+		if (height != 0 && v.Height == height) || v.Hash == hash {
 			v.Expires = t + downloaded_expire
 			v.LastRequest = t + downloaded_expire
 		}
