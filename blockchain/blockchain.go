@@ -239,8 +239,6 @@ func (bc *Blockchain) Synchronize() {
 	}
 }
 
-// TODO: clean up expired queue
-
 // Blockchain MUST be locked before calling this
 func (bc *Blockchain) fillQueue(qt *QueueTx, topHeight uint64) {
 	bc.SyncMut.RLock()
