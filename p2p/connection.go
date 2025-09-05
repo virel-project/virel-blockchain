@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"net"
+	"sync"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
@@ -58,7 +59,7 @@ type ConnData struct {
 	Cipher        bitcrypto.Cipher
 
 	Conn     net.Conn
-	writeMut util.Mutex
+	writeMut sync.Mutex
 }
 
 // returns the connection IP address (without port)
@@ -71,16 +72,13 @@ func (c *ConnData) Close() {
 
 func (c *ConnData) sendPacket(p pack) error {
 	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-
 	c.LastOutPacket = time.Now().Unix()
 
 	ser := binary.Ser{}
-
 	ser.AddUint16(p.Type)
 	ser.AddFixedByteArray(p.Data)
 
 	data, err := c.Cipher.Encrypt(ser.Output())
-
 	if err != nil {
 		return err
 	}
@@ -89,17 +87,10 @@ func (c *ConnData) sendPacket(p pack) error {
 	ser.AddUint32(uint32(len(data)))
 	ser.AddFixedByteArray(data)
 
-	err = func() error {
-		c.writeMut.Lock()
-		defer c.writeMut.Unlock()
-		_, err := c.Conn.Write(ser.Output())
-		return err
-	}()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	c.writeMut.Lock()
+	defer c.writeMut.Unlock()
+	_, err = c.Conn.Write(ser.Output())
+	return err
 }
 
 func (c *Connection) sendPacketLock(p pack) error {

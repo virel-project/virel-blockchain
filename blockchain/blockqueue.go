@@ -93,8 +93,16 @@ func (qt *QueueTx) RemoveBlock(height uint64, hash [32]byte) {
 	}
 	qt.bq.cleanup()
 }
+func (qt *QueueTx) PurgeHeightBlocks() {
+	for _, v := range qt.bq.blocks {
+		if v.Height != 0 {
+			v.Expires = 0
+		}
+	}
+	qt.bq.cleanup()
+}
 
-const downloaded_expire = 15
+const downloaded_expire = 10
 
 // BlockDownloaded is used when a block has been downloaded but it's not in mainchain yet, so we cannot
 // remove it immediately, as that would eventually trigger a redownload.
