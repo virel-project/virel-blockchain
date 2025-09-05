@@ -3,25 +3,29 @@ package p2p
 import (
 	"errors"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 func NewConnection(c net.Conn, outgoing bool) *Connection {
-	return &Connection{
+	conn := &Connection{
 		data: &ConnData{
 			Conn:      c,
 			Outgoing:  outgoing,
 			LastPing:  time.Now().Unix(),
-			WriteChan: make(chan pack, 5),
+			WriteChan: make(chan pack, config.PARALLEL_BLOCKS_DOWNLOAD*2),
 		},
-		Alive:    true,
 		peerData: &PeerData{},
-		Time:     time.Now().UnixMilli(),
+		Time:     time.Now(),
+		alive:    1,
 	}
+	go conn.Writer()
+	return conn
 }
 
 func (c *Connection) Writer() {
@@ -33,21 +37,28 @@ func (c *Connection) Writer() {
 		err := c.sendPacketLock(pack)
 		if err != nil {
 			Log.Warn("writer failed:", err)
-			c.data.Close()
+			c.data.Conn.Close()
 			return
 		}
 	}
 }
 
-// a concurrency-safe wrapper for ConnData
+func (c *Connection) Close() {
+	if atomic.SwapInt32(&c.alive, 0) == 1 {
+		c.mut.Lock()
+		close(c.data.WriteChan)
+		c.data.Conn.Close()
+		c.mut.Unlock()
+	}
+}
+
 type Connection struct {
 	data     *ConnData
 	peerData *PeerData
-	Time     int64 // UNIX millisecond timestamp of when connection started
-	Alive    bool
-
-	mut   util.RWMutex
-	pdMut util.Mutex
+	Time     time.Time // when the connection was started
+	alive    int32     // Use atomic for alive flag
+	mut      util.RWMutex
+	pdMut    util.Mutex
 }
 
 func (c *Connection) View(f func(c *ConnData) error) error {
@@ -83,9 +94,6 @@ type ConnData struct {
 func (c *ConnData) IP() string {
 	return c.Conn.RemoteAddr().(*net.TCPAddr).IP.String()
 }
-func (c *ConnData) Close() {
-	c.Conn.Close()
-}
 
 func (c *Connection) sendPacketLock(p pack) error {
 	c.mut.Lock()
@@ -109,14 +117,38 @@ func (c *Connection) sendPacketLock(p pack) error {
 	return err
 }
 
-// Non-blocking in most cases (the chan is buffered)
 func (c *Connection) SendPacket(p *Packet) error {
-	c.mut.RLock()
-	alive := c.Alive
-	c.mut.RUnlock()
-	if !alive {
-		return errors.New("connection is not alive")
+	if atomic.LoadInt32(&c.alive) == 0 {
+		return errors.New("connection closed")
 	}
-	c.data.WriteChan <- pack{Data: p.Data, Type: uint16(p.Type) + 2}
-	return nil
+	pack := pack{Data: p.Data, Type: uint16(p.Type) + 2}
+	select {
+	case c.data.WriteChan <- pack:
+		return nil
+	default:
+		return errors.New("write channel full")
+	}
+}
+func (c *Connection) sendPacket(p pack) error {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+
+	if atomic.LoadInt32(&c.alive) == 0 {
+		return errors.New("connection closed")
+	}
+
+	ser := binary.Ser{}
+	ser.AddUint16(p.Type)
+	ser.AddFixedByteArray(p.Data)
+
+	data, err := c.data.Cipher.Encrypt(ser.Output())
+	if err != nil {
+		return err
+	}
+	ser = binary.Ser{}
+	ser.AddUint32(uint32(len(data)))
+	ser.AddFixedByteArray(data)
+	c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_, err = c.data.Conn.Write(ser.Output())
+	return err
 }

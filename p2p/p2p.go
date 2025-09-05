@@ -147,10 +147,7 @@ func Start(peers []string, dataDir string) *P2P {
 func (p *P2P) Close() {
 	p.listener.Close()
 	for _, v := range p.Connections {
-		v.View(func(c *ConnData) error {
-			c.Close()
-			return nil
-		})
+		v.Close()
 	}
 
 	err := p.savePeerlist()
@@ -246,12 +243,7 @@ scanning:
 // p2p must NOT be locked before calling this
 func (p *P2P) Kick(c *Connection) {
 	var ip string
-	c.Update(func(c *ConnData) error {
-		ip = c.Conn.RemoteAddr().String()
-		Log.Debugf("p2p kick %s %x", ip, c.PeerId)
-		c.Close()
-		return nil
-	})
+	c.Close()
 	p.Lock()
 	delete(p.Connections, ip)
 	p.Unlock()
@@ -304,10 +296,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		return nil
 	}()
 	if err != nil {
-		conn.Update(func(c *ConnData) error {
-			c.Close()
-			return nil
-		})
+		conn.Close()
 		return err
 	}
 

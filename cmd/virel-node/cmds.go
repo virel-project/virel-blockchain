@@ -145,7 +145,7 @@ func prompts(bc *blockchain.Blockchain) {
 			}
 
 			slices.SortStableFunc(cns, func(a, b *p2p.Connection) int {
-				return int(a.Time - b.Time)
+				return int(a.Time.Sub(b.Time))
 			})
 
 			for _, conn := range cns {
