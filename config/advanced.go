@@ -27,7 +27,7 @@ const WALLET_PREFIX = "v" // Wallet prefix should be the same for all merge mine
 // node to send Merge Mining jobs
 const IS_MASTERCHAIN = NETWORK_ID == 0xd38dab1d4676d0c5 // do not change this
 
-const PARALLEL_BLOCKS_DOWNLOAD = 50
+const PARALLEL_BLOCKS_DOWNLOAD = 10
 
 const VERSION = VERSION_MAJOR<<32 + VERSION_MINOR<<16 + VERSION_PATCH
 

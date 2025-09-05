@@ -159,7 +159,8 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 
 	Log.Devf("received block request with height %d count %d hash %x", st.Height, st.Count, st.Hash)
 
-	if st.Count > config.PARALLEL_BLOCKS_DOWNLOAD {
+	// TODO: we allow 50 parallel blocks for compatibility, replace 50 with PARALLEL_BLOCKS_DOWNLOAD when we can expect everyone to have upgraded
+	if st.Count > 50 {
 		Log.Warn("invalid block request count", st.Count)
 		return
 	}
