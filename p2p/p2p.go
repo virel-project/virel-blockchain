@@ -274,7 +274,7 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 			v.LastConnect = time.Now().Unix()
 			p.KnownPeers[i] = v
 		} else if v.Type == PEER_WHITE {
-			Log.Debugf("sendPeerList: sending %v:%v", v.IP, v.Port)
+			Log.NetDevf("sendPeerList: sending %v:%v", v.IP, v.Port)
 			s.AddUint16(v.Port)
 			s.AddString(v.IP)
 		}
