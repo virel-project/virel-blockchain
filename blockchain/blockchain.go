@@ -121,6 +121,12 @@ func New(dataDir string) *Blockchain {
 
 	bc.BlockQueue = NewBlockQueue(bc)
 
+	// check for reorgs
+	bc.DB.Update(func(txn adb.Txn) error {
+		_, err := bc.CheckReorgs(txn, stats)
+		return err
+	})
+
 	return bc
 }
 
