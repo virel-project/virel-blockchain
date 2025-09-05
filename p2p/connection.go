@@ -1,8 +1,8 @@
 package p2p
 
 import (
+	"errors"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
@@ -13,12 +13,29 @@ import (
 func NewConnection(c net.Conn, outgoing bool) *Connection {
 	return &Connection{
 		data: &ConnData{
-			Conn:     c,
-			Outgoing: outgoing,
-			LastPing: time.Now().Unix(),
+			Conn:      c,
+			Outgoing:  outgoing,
+			LastPing:  time.Now().Unix(),
+			WriteChan: make(chan pack, 5),
 		},
+		Alive:    true,
 		peerData: &PeerData{},
 		Time:     time.Now().UnixMilli(),
+	}
+}
+
+func (c *Connection) Writer() {
+	for {
+		pack, ok := <-c.data.WriteChan
+		if !ok {
+			return
+		}
+		err := c.sendPacketLock(pack)
+		if err != nil {
+			Log.Warn("writer failed:", err)
+			c.data.Close()
+			return
+		}
 	}
 }
 
@@ -27,6 +44,7 @@ type Connection struct {
 	data     *ConnData
 	peerData *PeerData
 	Time     int64 // UNIX millisecond timestamp of when connection started
+	Alive    bool
 
 	mut   util.RWMutex
 	pdMut util.Mutex
@@ -57,9 +75,8 @@ type ConnData struct {
 	LastPing      int64            // last packet received from peer
 	LastOutPacket int64            // when the last packet has been sent to the peer
 	Cipher        bitcrypto.Cipher
-
-	Conn     net.Conn
-	writeMut sync.Mutex
+	WriteChan     chan pack
+	Conn          net.Conn
 }
 
 // returns the connection IP address (without port)
@@ -68,29 +85,6 @@ func (c *ConnData) IP() string {
 }
 func (c *ConnData) Close() {
 	c.Conn.Close()
-}
-
-func (c *ConnData) sendPacket(p pack) error {
-	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	c.LastOutPacket = time.Now().Unix()
-
-	ser := binary.Ser{}
-	ser.AddUint16(p.Type)
-	ser.AddFixedByteArray(p.Data)
-
-	data, err := c.Cipher.Encrypt(ser.Output())
-	if err != nil {
-		return err
-	}
-
-	ser = binary.Ser{}
-	ser.AddUint32(uint32(len(data)))
-	ser.AddFixedByteArray(data)
-
-	c.writeMut.Lock()
-	defer c.writeMut.Unlock()
-	_, err = c.Conn.Write(ser.Output())
-	return err
 }
 
 func (c *Connection) sendPacketLock(p pack) error {
@@ -110,18 +104,19 @@ func (c *Connection) sendPacketLock(p pack) error {
 	ser.AddUint32(uint32(len(data)))
 	ser.AddFixedByteArray(data)
 
-	c.data.writeMut.Lock()
-	defer c.data.writeMut.Unlock()
 	c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	_, err = c.data.Conn.Write(ser.Output())
 	return err
 }
 
-func (c *ConnData) SendPacket(p *Packet) error {
-	Log.NetDevf("Sending packet of type %s to peer %x data %x", p.Type.String(), c.PeerId, p.Data)
-	return c.sendPacket(pack{Data: p.Data, Type: uint16(p.Type) + 2})
-}
-
+// Non-blocking in most cases (the chan is buffered)
 func (c *Connection) SendPacket(p *Packet) error {
-	return c.sendPacketLock(pack{Data: p.Data, Type: uint16(p.Type) + 2})
+	c.mut.RLock()
+	alive := c.Alive
+	c.mut.RUnlock()
+	if !alive {
+		return errors.New("connection is not alive")
+	}
+	c.data.WriteChan <- pack{Data: p.Data, Type: uint16(p.Type) + 2}
+	return nil
 }

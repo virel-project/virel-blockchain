@@ -19,7 +19,7 @@ func (bc *Blockchain) pinger() {
 			bc.P2P.RLock()
 
 			for _, v := range bc.P2P.Connections {
-				go v.SendPacket(&p2p.Packet{
+				v.SendPacket(&p2p.Packet{
 					Type: packet.PING,
 					Data: []byte{},
 				})
@@ -229,7 +229,7 @@ func (bc *Blockchain) SendStats(stats *Stats) {
 	defer bc.P2P.RUnlock()
 
 	for _, v := range bc.P2P.Connections {
-		go v.SendPacket(&p2p.Packet{
+		v.SendPacket(&p2p.Packet{
 			Type: packet.STATS,
 			Data: packet.PacketStats{
 				Height:         stats.TopHeight,

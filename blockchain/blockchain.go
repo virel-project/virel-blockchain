@@ -154,7 +154,7 @@ func (bc *Blockchain) Synchronize() {
 					break
 				}
 				if reqbl.Height != 0 && reqbl.Height < stats.TopHeight {
-					qt.BlockRequested(reqbl.Height)
+					qt.BlockDownloaded(reqbl.Height, reqbl.Hash)
 					continue
 				}
 				lastIdx := len(reqbls) - 1

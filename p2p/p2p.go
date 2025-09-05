@@ -280,12 +280,11 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 		}
 	}
 	p.RUnlock()
-	return conn.Update(func(c *ConnData) error {
-		return c.sendPacket(pack{
-			Type: 1,
-			Data: s.Output(),
-		})
+	return conn.sendPacketLock(pack{
+		Type: 1,
+		Data: s.Output(),
 	})
+
 }
 
 func (p *P2P) handleConnection(conn *Connection, private bool) error {
@@ -311,6 +310,8 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		})
 		return err
 	}
+
+	go conn.Writer()
 
 	go func() {
 		err := p.connectionMainHandling(conn, private, ipPort)
