@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
@@ -109,10 +110,20 @@ func main() {
 	go bc.NewStratumJob(true)
 
 	if !*non_interactive {
+		go CheckPeers(bc)
 		prompts(bc)
 	} else {
-		// wait forever
-		c := make(chan bool)
-		Log.Err(<-c)
+		CheckPeers(bc)
+	}
+}
+
+func CheckPeers(bc *blockchain.Blockchain) {
+	for {
+		time.Sleep(30 * time.Second)
+		bc.P2P.RLock()
+		if len(bc.P2P.Connections) == 0 {
+			Log.Warn("no connections, make sure you are connected to the network")
+		}
+		bc.P2P.RUnlock()
 	}
 }
