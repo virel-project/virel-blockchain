@@ -59,12 +59,10 @@ func (bc *Blockchain) incomingP2P() {
 		case packet.BLOCK:
 			bc.Validator.ProcessBlock(pack)
 		case packet.TX:
-			Log.Debug("Received new transaction packet")
 			bc.packetTx(pack)
 		case packet.STATS:
 			bc.packetStats(pack)
 		case packet.BLOCK_REQUEST:
-			Log.Debug("Received block request packet")
 			go bc.packetBlockRequest(pack)
 		}
 	}
