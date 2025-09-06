@@ -262,7 +262,7 @@ func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 		// only send the block if the peer has a smaller cumulative difficulty
 		// and its height is not too old
 		go v.PeerData(func(d *p2p.PeerData) {
-			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 || d.Stats.Height < bl.Height-10 {
+			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 && d.Stats.Height+10 >= bl.Height {
 				v.SendPacket(&p2p.Packet{
 					Type: packet.BLOCK,
 					Data: ser,
