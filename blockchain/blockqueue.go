@@ -16,7 +16,7 @@ func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
 	return &QueuedBlock{
 		Height:  height,
 		Hash:    hash,
-		Expires: time.Now().Add(15 * time.Minute).Unix(),
+		Expires: time.Now().Add(1 * time.Minute).Unix(),
 	}
 }
 

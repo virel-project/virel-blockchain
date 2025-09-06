@@ -255,13 +255,14 @@ func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 	}
 
 	// if remote peers have a cumulative difficulty larger than this, then most likely they aren't interested in the block
-	maxCumDiff := bl.CumulativeDiff.Add(bl.Difficulty.Mul64(config.MINIDAG_ANCESTORS + 2))
+	maxCumDiff := bl.CumulativeDiff.Add(bl.Difficulty.Mul64(config.MINIDAG_ANCESTORS + 10))
 
 	bc.P2P.RLock()
 	for _, v := range bc.P2P.Connections {
 		// only send the block if the peer has a smaller cumulative difficulty
+		// and its height is not too old
 		go v.PeerData(func(d *p2p.PeerData) {
-			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 {
+			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 || d.Stats.Height < bl.Height-10 {
 				v.SendPacket(&p2p.Packet{
 					Type: packet.BLOCK,
 					Data: ser,
