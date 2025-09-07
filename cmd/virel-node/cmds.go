@@ -92,9 +92,8 @@ func prompts(bc *blockchain.Blockchain) {
 			Log.Infof("Height: %d; Cumulative diff: %.3fk; next diff: %s; hashrate: %s", stats.TopHeight,
 				stats.CumulativeDiff.Float64()/1000,
 				diff, diff.Div64(config.TARGET_BLOCK_TIME))
-
+			Log.Infof("Sync height: %d", bc.SyncHeight)
 			Log.Infof("%d tips (use print_tips for the list of tips)", len(stats.Tips))
-
 			Log.Infof("Mempool: %d entries", len(mem.Entries))
 
 			for i, v := range mem.Entries {
