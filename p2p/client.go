@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const MAX_PEER_FAILURES = 5
+const MAX_PEER_FAILURES = 1
 
 // P2P must NOT be locked before calling this
 func (p2 *P2P) startClient(addr string, port uint16, private bool) {
