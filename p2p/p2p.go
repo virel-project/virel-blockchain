@@ -226,7 +226,21 @@ scanning:
 		if len(p.KnownPeers) == 0 {
 			return
 		}
-		randPeer := p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+
+		// 1/3 chance of trying to pick a priority node
+		priority := util.RandomInt(3) == 0
+
+		var randPeer KnownPeer
+
+		randPeer = p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+		if priority {
+			for range len(p.KnownPeers)/2 + 1 {
+				if randPeer.Priority {
+					break
+				}
+				randPeer = p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+			}
+		}
 		if randPeer.IsBanned() {
 			continue
 		}
@@ -616,9 +630,13 @@ func (p *P2P) AddPeerToList(ip string, port uint16, force bool) bool {
 	}
 
 	shouldAdd := true
-	for _, v := range p.KnownPeers {
+	for i, v := range p.KnownPeers {
 		if v.IP == ip {
 			shouldAdd = false
+			if force {
+				v.Priority = true
+				p.KnownPeers[i] = v
+			}
 			break
 		}
 	}
