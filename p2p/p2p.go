@@ -69,7 +69,7 @@ func (k KnownPeer) IsBanned() bool {
 	if k.Type != PEER_RED {
 		return false
 	}
-	return time.Now().Unix() < k.LastConnect
+	return time.Now().Unix() < k.LastConnect+config.BAN_DURATION
 }
 
 type Packet struct { // exported
@@ -228,6 +228,10 @@ scanning:
 		}
 		randPeer := p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
 		if randPeer.IsBanned() {
+			continue
+		}
+
+		if randPeer.Type == PEER_BLACK && time.Now().Unix() < randPeer.LastConnect+config.BLACK_DURATION {
 			continue
 		}
 
