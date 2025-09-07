@@ -153,10 +153,6 @@ func (bc *Blockchain) Synchronize() {
 				if reqbl == nil {
 					break
 				}
-				if reqbl.Height != 0 && reqbl.Height < stats.TopHeight {
-					qt.BlockDownloaded(reqbl.Height, reqbl.Hash)
-					continue
-				}
 				lastIdx := len(reqbls) - 1
 				if len(reqbls) > 0 && reqbls[lastIdx].Height != 0 && reqbls[lastIdx].Height+uint64(reqbls[lastIdx].Count) == reqbl.Height-1 {
 					reqbls[0].Count++
