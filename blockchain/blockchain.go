@@ -449,9 +449,17 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 // If the block doesn't fit in the mainchain, it is either added to an altchain or orphaned.
 // Blockchain MUST be locked before calling this
 func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) error {
+	stats := bc.GetStats(tx)
+
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
+		if bl.PrevHash() == stats.TopHash {
+			err = bc.checkDeorphanage(tx, bl, hash)
+			if err != nil {
+				Log.Err(err)
+			}
+		}
 		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
@@ -470,7 +478,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	}
 
 	// check if parent block is orphaned
-	stats := bc.GetStats(tx)
 	if stats.Orphans[prevHash] != nil {
 		// this block's parent is orphaned; add this block as an orphan
 		err := bc.addOrphanBlock(tx, bl, hash, true)
