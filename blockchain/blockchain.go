@@ -794,6 +794,10 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 		txn.Put(bc.Index.Info, []byte("stats"), stats.Serialize())
 
+		bc.BlockQueue.Update(func(qt *QueueTx) {
+			qt.BlockAdded(stats.TopHeight)
+		})
+
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
 		return nil
@@ -815,6 +819,9 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 		return err
 	}
 
+	bc.BlockQueue.Update(func(qt *QueueTx) {
+		qt.BlockAdded(bl.Height)
+	})
 	Log.Infof("Adding mainchain block %d %x diff: %s sides: %d", bl.Height, hash, bl.Difficulty, len(bl.SideBlocks))
 	stats := bc.GetStats(tx)
 
