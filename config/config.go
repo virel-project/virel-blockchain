@@ -18,7 +18,7 @@ const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 91 // block reward reduces by 10% ev
 const MAX_SUPPLY = REDUCTION_INTERVAL*BLOCK_REWARD*10 +
 	(BLOCK_REWARD * REDUCTION_INTERVAL) // also include initial flat-reward phase
 
-const P2P_CONNECTIONS = 12
+const P2P_CONNECTIONS = 16
 const P2P_PING_INTERVAL = 5
 const P2P_TIMEOUT = 20
 
