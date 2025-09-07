@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -365,7 +366,16 @@ func prompts(bc *blockchain.Blockchain) {
 		Action: func(args []string) {
 			bc.DB.View(func(tx adb.Txn) error {
 				stats := bc.GetStats(tx)
+
+				tips := make([]*blockchain.AltchainTip, len(stats.Tips))
 				for _, v := range stats.Tips {
+					tips = append(tips, v)
+				}
+				slices.SortFunc(tips, func(a, b *blockchain.AltchainTip) int {
+					return cmp.Compare(a.Height, b.Height)
+				})
+
+				for _, v := range tips {
 					Log.Infof("- %x: Cumulative diff %s; height: %d", v.Hash, v.CumulativeDiff, v.Height)
 				}
 				return nil
