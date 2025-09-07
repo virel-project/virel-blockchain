@@ -210,7 +210,8 @@ func (bc *Blockchain) Synchronize() {
 
 							last := reqbls[len(reqbls)-1]
 
-							if last.Height == 0 || d.Stats.Height >= last.Height {
+							if last.Height == 0 ||
+								(d.Stats.Height >= last.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
 								peer = conn
 								found = true
 							}
