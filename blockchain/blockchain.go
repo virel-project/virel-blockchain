@@ -452,10 +452,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
-		err = bc.checkDeorphanage(tx, bl, hash)
-		if err != nil {
-			Log.Err(err)
-		}
 		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
