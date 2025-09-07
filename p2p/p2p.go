@@ -202,7 +202,16 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 func (p *P2P) StartClients(private bool) {
 	for {
 		p.Lock()
-		if len(p.Connections) < config.P2P_CONNECTIONS {
+		connCount := 0
+		for _, v := range p.Connections {
+			v.View(func(c *ConnData) error {
+				if c.Outgoing {
+					connCount++
+				}
+				return nil
+			})
+		}
+		if connCount < config.P2P_CONNECTIONS {
 			p.connectToRandomPeer(private)
 		}
 		p.Unlock()
