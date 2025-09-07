@@ -12,7 +12,7 @@ import (
 
 const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 100
 
-const downloaded_expire = 10
+const downloaded_expire = 2
 const rerequest_time = 5
 
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
