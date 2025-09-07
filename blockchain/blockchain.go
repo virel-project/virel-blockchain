@@ -497,9 +497,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// add block to chain
 	var isMainchain = prevHash == stats.TopHash
 	if isMainchain {
-		// remove block from queue
-		bc.removeFromQueue(hash, bl.Height)
-
 		err = bc.addMainchainBlock(tx, bl, hash)
 	} else {
 		err = bc.addAltchainBlock(tx, bl, hash)
@@ -515,12 +512,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	}
 
 	return nil
-}
-
-func (bc *Blockchain) removeFromQueue(hash [32]byte, height uint64) {
-	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.RemoveBlock(height, hash)
-	})
 }
 
 // addOrphanBlock should only be called by the addBlock method
@@ -544,7 +535,7 @@ func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte
 	// add orphan prevhash to queued blocks, if it is not known already
 	if !parentKnown {
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.SetBlock(NewQueuedBlock(0, bl.PrevHash()), false)
+			qt.SetBlock(NewQueuedBlock(0, bl.PrevHash()), true)
 		})
 	}
 

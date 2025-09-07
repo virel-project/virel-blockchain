@@ -1,8 +1,10 @@
 package blockchain
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
@@ -67,6 +69,11 @@ func (bq *BlockQueue) Update(fn func(qt *QueueTx)) {
 	bq.Unlock()
 }
 
+func (qt *QueueTx) Sort() {
+	slices.SortFunc(qt.bq.blocks, func(a, b *QueuedBlock) int {
+		return cmp.Compare(a.Height, b.Height)
+	})
+}
 func (qt *QueueTx) RequestableBlock() *QueuedBlock {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
@@ -125,7 +132,7 @@ func (qt *QueueTx) BlockDownloaded(height uint64, hash [32]byte) {
 // BlockDownloaded is used when a block is in mainchain, so we can remove it immediately.
 func (qt *QueueTx) BlockAdded(height uint64) {
 	for _, v := range qt.bq.blocks {
-		if v.Height <= height {
+		if v.Height <= height && v.Height != 0 {
 			v.Expires = 0
 		}
 	}
