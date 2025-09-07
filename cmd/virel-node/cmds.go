@@ -367,7 +367,7 @@ func prompts(bc *blockchain.Blockchain) {
 			bc.DB.View(func(tx adb.Txn) error {
 				stats := bc.GetStats(tx)
 
-				tips := make([]*blockchain.AltchainTip, len(stats.Tips))
+				tips := make([]*blockchain.AltchainTip, 0, len(stats.Tips))
 				for _, v := range stats.Tips {
 					tips = append(tips, v)
 				}
