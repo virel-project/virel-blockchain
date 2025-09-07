@@ -12,6 +12,9 @@ import (
 
 const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 100
 
+const downloaded_expire = 10
+const rerequest_time = 5
+
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
 	return &QueuedBlock{
 		Height:  height,
@@ -62,7 +65,7 @@ func (bq *BlockQueue) Update(fn func(qt *QueueTx)) {
 func (qt *QueueTx) RequestableBlock() *QueuedBlock {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
-		if t-v.LastRequest > 10 {
+		if t-v.LastRequest > rerequest_time {
 			v.LastRequest = t
 			return v
 		}
@@ -102,16 +105,14 @@ func (qt *QueueTx) PurgeHeightBlocks() {
 	qt.bq.cleanup()
 }
 
-const downloaded_expire = 10
-
 // BlockDownloaded is used when a block has been downloaded but it's not in mainchain yet, so we cannot
 // remove it immediately, as that would eventually trigger a redownload.
 func (qt *QueueTx) BlockDownloaded(height uint64, hash [32]byte) {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
 		if (height != 0 && v.Height == height) || v.Hash == hash {
-			v.Expires = t
-			v.LastRequest = t
+			v.Expires = t + downloaded_expire
+			v.LastRequest = t + downloaded_expire
 		}
 	}
 }
@@ -119,8 +120,7 @@ func (qt *QueueTx) BlockRequested(height uint64) {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
 		if v.Height == height {
-			v.Expires = t + downloaded_expire
-			v.LastRequest = t + downloaded_expire
+			v.LastRequest = t
 		}
 	}
 }
