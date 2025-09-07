@@ -452,6 +452,10 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
+		err = bc.checkDeorphanage(tx, bl, hash)
+		if err != nil {
+			Log.Err(err)
+		}
 		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
@@ -460,6 +464,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is orphaned
 	prevBl, err := bc.GetBlock(tx, prevHash)
 	if err != nil {
+		Log.Debug(err)
 		err := bc.addOrphanBlock(tx, bl, hash, false)
 		if err != nil {
 			Log.Err(err)
@@ -512,11 +517,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 func (bc *Blockchain) removeFromQueue(hash [32]byte, height uint64) {
 	bc.BlockQueue.Update(func(qt *QueueTx) {
 		qt.RemoveBlock(height, hash)
-	})
-}
-func (bc *Blockchain) queuedBlockDownloaded(hash [32]byte, height uint64) {
-	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.BlockDownloaded(height, hash)
 	})
 }
 

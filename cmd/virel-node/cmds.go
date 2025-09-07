@@ -480,6 +480,18 @@ func prompts(bc *blockchain.Blockchain) {
 			}
 			Log.SetLogLevel(uint8(num))
 		},
+	}, {
+		Names: []string{"block_queue", "blockqueue"},
+		Args:  "",
+		Action: func(args []string) {
+			bc.BlockQueue.Update(func(qt *blockchain.QueueTx) {
+				Log.Info("block queue size:", qt.Length())
+				bls := qt.GetBlocks()
+				for _, v := range bls {
+					Log.Infof("- height %d hash %x expires %d lastreq %d", v.Height, v.Hash, v.Expires, v.LastRequest)
+				}
+			})
+		},
 	}}...)
 
 	l, err := readline.NewEx(&readline.Config{

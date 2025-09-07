@@ -16,10 +16,15 @@ const downloaded_expire = 5
 const rerequest_time = 5
 
 func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
+	expires := time.Now().Add(1 * time.Minute).Unix()
+	if height == 0 {
+		expires = time.Now().Add(1 * time.Hour).Unix()
+	}
+
 	return &QueuedBlock{
 		Height:  height,
 		Hash:    hash,
-		Expires: time.Now().Add(1 * time.Minute).Unix(),
+		Expires: expires,
 	}
 }
 

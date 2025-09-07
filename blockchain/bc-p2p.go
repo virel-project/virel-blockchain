@@ -110,7 +110,9 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 
 	hash := bl.Hash()
 
-	bc.queuedBlockDownloaded(hash, bl.Height)
+	bc.BlockQueue.Update(func(qt *QueueTx) {
+		qt.BlockDownloaded(bl.Height, hash)
+	})
 
 	err = bc.PrevalidateBlock(bl, txs)
 	if err != nil {
@@ -204,7 +206,7 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 	for _, v := range bls {
 		err := bc.sendBlockToPeer(v, pack.Conn)
 		if err != nil {
-			Log.Debug(err)
+			Log.Net(err)
 		}
 	}
 }
