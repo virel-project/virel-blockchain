@@ -62,6 +62,7 @@ type KnownPeer struct {
 	Type        PeerType
 	Fails       uint16
 	LastConnect int64 // UNIX seconds
+	Priority    bool
 }
 
 func (k KnownPeer) IsBanned() bool {
@@ -139,7 +140,6 @@ func Start(peers []string, dataDir string) *P2P {
 		}
 
 		p.AddPeerToList(splv[0], port, true)
-
 	}
 	return p
 }
@@ -612,9 +612,10 @@ func (p *P2P) AddPeerToList(ip string, port uint16, force bool) bool {
 	Log.Net("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
 	if shouldAdd {
 		p.KnownPeers = append(p.KnownPeers, KnownPeer{
-			IP:   ip,
-			Port: port,
-			Type: PEER_GRAY,
+			IP:       ip,
+			Port:     port,
+			Type:     PEER_WHITE,
+			Priority: force,
 		})
 	}
 	return shouldAdd

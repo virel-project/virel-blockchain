@@ -20,9 +20,9 @@ func (p2 *P2P) startClient(addr string, port uint16, private bool) {
 
 			for i, kp := range p2.KnownPeers {
 				if kp.IP == addr && kp.Port == port {
-					p2.KnownPeers[i].Fails++
+					kp.Fails++
 
-					if p2.KnownPeers[i].Fails > MAX_PEER_FAILURES {
+					if kp.Fails > MAX_PEER_FAILURES {
 						// Remove the peer, it has too many failures
 						p2.KnownPeers[i] = p2.KnownPeers[len(p2.KnownPeers)-1]
 						p2.KnownPeers = p2.KnownPeers[:len(p2.KnownPeers)-1]
@@ -44,10 +44,10 @@ func (p2 *P2P) startClient(addr string, port uint16, private bool) {
 
 			for i, kp := range p2.KnownPeers {
 				if kp.IP == addr && kp.Port == port {
-					p2.KnownPeers[i].Fails = 0
-					if p2.KnownPeers[i].Type == PEER_GRAY {
-						p2.KnownPeers[i].Type = PEER_WHITE
-						p2.KnownPeers[i].LastConnect = time.Now().Unix()
+					kp.Fails = 0
+					if kp.Type == PEER_GRAY {
+						kp.Type = PEER_WHITE
+						kp.LastConnect = time.Now().Unix()
 					}
 
 					p2.KnownPeers[i] = kp

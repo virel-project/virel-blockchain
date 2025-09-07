@@ -129,26 +129,3 @@ func (c *Connection) SendPacket(p *Packet) error {
 		return errors.New("write channel full")
 	}
 }
-func (c *Connection) sendPacket(p pack) error {
-	c.mut.Lock()
-	defer c.mut.Unlock()
-
-	if atomic.LoadInt32(&c.alive) == 0 {
-		return errors.New("connection closed")
-	}
-
-	ser := binary.Ser{}
-	ser.AddUint16(p.Type)
-	ser.AddFixedByteArray(p.Data)
-
-	data, err := c.data.Cipher.Encrypt(ser.Output())
-	if err != nil {
-		return err
-	}
-	ser = binary.Ser{}
-	ser.AddUint32(uint32(len(data)))
-	ser.AddFixedByteArray(data)
-	c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-	_, err = c.data.Conn.Write(ser.Output())
-	return err
-}
