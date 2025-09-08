@@ -165,7 +165,7 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			Log.Err(err)
 			continue
 		}
-		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries)
+		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries, bl.Height)
 		if err != nil {
 			Log.Warn("GetBlockTemplate: validateMempoolTx error:", err)
 			continue
@@ -196,6 +196,14 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 				bl.StakeSignature = stakesig.Signature
 				bl.DelegateId = stakesig.DelegateId
 				bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
+			}
+		}
+		if bl.DelegateId == 0 {
+			stakedbl, err := bc.GetBlock(txn, bl.BlockStakedHash())
+			if err != nil {
+				Log.Debug(err)
+			} else {
+				bl.DelegateId = stakedbl.NextDelegateId
 			}
 		}
 	}

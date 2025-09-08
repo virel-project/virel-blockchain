@@ -303,7 +303,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 
 		tx := &transaction.Transaction{}
-		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V2_HEIGHT)
+		err = tx.Deserialize(params.Hex, stats.TopHeight+1 >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -313,7 +313,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		err = tx.Prevalidate(stats.TopHeight)
+		err = tx.Prevalidate(stats.TopHeight + 1)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -324,7 +324,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		err = bc.DB.Update(func(txn adb.Txn) error {
-			return bc.AddTransaction(txn, tx, tx.Hash(), true)
+			return bc.AddTransaction(txn, tx, tx.Hash(), true, stats.TopHeight+1)
 		})
 		if err != nil {
 			Log.Warn(err)

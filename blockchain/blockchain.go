@@ -457,7 +457,7 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Has
 			return err
 		}
 		if oldblock.NextDelegateId != bl.DelegateId {
-			return fmt.Errorf("block's delegate id %d doesn't match the old block's delegate id %d", bl.DelegateId, oldblock.DelegateId)
+			return fmt.Errorf("block's delegate id %d doesn't match the old block's next delegate id %d", bl.DelegateId, oldblock.NextDelegateId)
 		}
 
 		if bl.StakeSignature != bitcrypto.BlankSignature {

@@ -141,6 +141,7 @@ type SubmitStakeSignatureResponse struct {
 type DelegatedFund struct {
 	Owner  address.Address `json:"owner"`
 	Amount uint64          `json:"amount"`
+	Unlock uint64          `json:"unlock"` // height of unlock of this fund
 }
 
 type GetDelegateRequest struct {

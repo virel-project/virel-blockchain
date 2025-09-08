@@ -362,7 +362,7 @@ func (w *Wallet) SetDelegate(delegateId, previousId uint64) (*transaction.Transa
 }
 
 // This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
+func (w *Wallet) Stake(delegateId, amount, prevUnlock uint64) (*transaction.Transaction, error) {
 	txn := &transaction.Transaction{
 		Version: transaction.TX_VERSION_STAKE,
 		Signer:  w.dbInfo.PrivateKey.Public(),
@@ -370,6 +370,7 @@ func (w *Wallet) Stake(delegateId uint64, amount uint64) (*transaction.Transacti
 		Data: &transaction.Stake{
 			Amount:     amount,
 			DelegateId: delegateId,
+			PrevUnlock: prevUnlock,
 		},
 	}
 

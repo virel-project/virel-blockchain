@@ -22,6 +22,7 @@ var SEED_NODES = []string{"127.0.0.1"}
 // PROOF OF STAKE
 const MIN_STAKE_AMOUNT = 1 * COIN
 const REGISTER_DELEGATE_BURN = 1 * COIN
+const STAKE_UNLOCK_TIME = 10 // staked funds unlock after 10 blocks
 
 // HARD-FORKS
 const HARDFORK_V2_HEIGHT = 1

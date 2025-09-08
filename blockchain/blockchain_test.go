@@ -94,7 +94,7 @@ func TestState(t *testing.T) {
 		for i, v := range staketxs {
 			hash := v.Hash()
 			staketxids[i] = hash
-			err = bc.AddTransaction(txn, v, hash, true)
+			err = bc.AddTransaction(txn, v, hash, true, stats.TopHeight+1)
 			if err != nil {
 				return err
 			}
@@ -150,9 +150,6 @@ func TestState(t *testing.T) {
 		bl.Timestamp = bl3.Timestamp + config.TARGET_BLOCK_TIME*1000
 		bl.Nonce++
 		bl.NextDelegateId = delegate_id
-		if err != nil {
-			return err
-		}
 		err = AddBlock(txn, bc, bl)
 		if err != nil {
 			return err
@@ -264,7 +261,7 @@ func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, heigh
 
 	state.LastNonce++
 	w.ManualRefresh(state, height)
-	tx, err = w.Stake(delegate_id, config.COIN)
+	tx, err = w.Stake(delegate_id, config.COIN, 0)
 	if err != nil {
 		panic(err)
 	}

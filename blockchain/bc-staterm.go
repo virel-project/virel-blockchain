@@ -73,7 +73,7 @@ func (bc *Blockchain) RemoveTxFromState(
 		err = bc.ApplyUnstake(txn, &transaction.Unstake{
 			Amount:     stakeData.Amount,
 			DelegateId: stakeData.DelegateId,
-		}, signerAddr, txid, stats)
+		}, signerAddr, txid, stats, true)
 		if err != nil {
 			return fmt.Errorf("could not remove stake: %w", err)
 		}

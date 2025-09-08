@@ -219,6 +219,7 @@ func (t *SetDelegate) StateOutputs(tx *Transaction, sender address.Address) []St
 type Stake struct {
 	Amount     uint64
 	DelegateId uint64
+	PrevUnlock uint64
 }
 
 func (t *Stake) AssociatedTransactionVersion() uint8 {
@@ -227,14 +228,16 @@ func (t *Stake) AssociatedTransactionVersion() uint8 {
 func (t *Stake) Serialize(s *binary.Ser) {
 	s.AddUvarint(t.Amount)
 	s.AddUvarint(t.DelegateId)
+	s.AddUvarint(t.PrevUnlock)
 }
 func (t *Stake) Deserialize(d *binary.Des) error {
 	t.Amount = d.ReadUvarint()
 	t.DelegateId = d.ReadUvarint()
+	t.PrevUnlock = d.ReadUvarint()
 	return d.Error()
 }
 func (t *Stake) String() string {
-	return fmt.Sprintf("Stake: amount %s delegate %d", util.FormatCoin(t.Amount), t.DelegateId)
+	return fmt.Sprintf("Stake: amount %s delegate %d prev unlock %d", util.FormatCoin(t.Amount), t.DelegateId, t.PrevUnlock)
 }
 func (t *Stake) TotalAmount(_ *Transaction) (uint64, error) {
 	return t.Amount, nil

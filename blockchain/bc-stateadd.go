@@ -8,6 +8,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/block"
+	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
@@ -59,7 +60,7 @@ func (bc *Blockchain) ApplyTxToState(
 			return fmt.Errorf("unstake transaction delegate id %d does not match with state %d",
 				unstakeData.DelegateId, signerState.DelegateId)
 		}
-		err = bc.ApplyUnstake(txn, unstakeData, signerAddr, txid, stats)
+		err = bc.ApplyUnstake(txn, unstakeData, signerAddr, txid, stats, false)
 		if err != nil {
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
@@ -170,6 +171,11 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		if fund.Owner != signerAddr {
 			continue
 		}
+		if fund.Unlock != stakeData.PrevUnlock {
+			return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+		}
+		fund.Unlock = stats.TopHeight + config.STAKE_UNLOCK_TIME
+		Log.Err("TODO fund unlock time:", fund.Unlock)
 		fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
 		if err != nil {
 			return err
@@ -197,7 +203,8 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 	return nil
 }
 
-func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
+func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake, signerAddr address.Address,
+	txid transaction.TXID, stats *Stats, reverse bool) error {
 	delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
 	if err != nil {
 		return err
@@ -207,6 +214,13 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 	for i, fund := range delegate.Funds {
 		if fund.Owner != signerAddr {
 			continue
+		}
+
+		// check unlock time only if we aren't reversing a stake transaction
+		if !reverse {
+			if stats.TopHeight < fund.Unlock {
+				return fmt.Errorf("transaction %s trying to unstake funds locked until %d, current height %d", txid, fund.Unlock, stats.TopHeight)
+			}
 		}
 
 		if fund.Amount < unstakeData.Amount {

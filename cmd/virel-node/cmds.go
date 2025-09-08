@@ -468,6 +468,32 @@ func prompts(bc *blockchain.Blockchain) {
 			}
 			Log.SetLogLevel(uint8(num))
 		},
+	}, {
+		Names: []string{"print_delegate", "printdelegate", "delegate"},
+		Args:  "<delegate id / address>",
+		Action: func(args []string) {
+			if len(args) < 1 {
+				Log.Err("invalid delegate id / address", args)
+				return
+			}
+			args[0] = strings.TrimPrefix(args[0], config.DELEGATE_ADDRESS_PREFIX)
+			delid, err := strconv.ParseUint(args[0], 10, 64)
+			if err != nil {
+				Log.Err("invalid delegate address:", err)
+				return
+			}
+
+			var delegate *blockchain.Delegate
+			err = bc.DB.View(func(txn adb.Txn) error {
+				delegate, err = bc.GetDelegate(txn, delid)
+				return err
+			})
+			if err != nil {
+				Log.Err("failed to get delegate:", err)
+				return
+			}
+			Log.Info(delegate)
+		},
 	}}...)
 
 	l, err := readline.NewEx(&readline.Config{

@@ -20,7 +20,7 @@ import (
 // Adds a transaction to mempool.
 // Transaction must be already prevalidated.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, mempool bool) error {
+func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, mempool bool, height uint64) error {
 	// check that transaction is not duplicate
 	if txn.Get(bc.Index.Tx, hash[:]) != nil {
 		Log.Debug("transaction is already in database")
@@ -35,7 +35,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 		mem = bc.GetMempool(txn)
 
 		// validate the transaction
-		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries)
+		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries, height)
 		if err != nil {
 			Log.Err("validateMempoolTx error:", err)
 			return err
@@ -156,7 +156,7 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 
 // Use this method to validate that a transaction in mempool is valid.
 // previousEntries are expected to be correctly ordered and valid. If they aren't, something is wrong elsewhere.
-func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
+func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry, nextheight uint64) error {
 	// relay rule: check fee is enough for FEE_PER_BYTE_V2
 	minFee := config.FEE_PER_BYTE_V2 * tx.GetVirtualSize()
 	if tx.Fee < minFee {
@@ -278,6 +278,9 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			found := false
 			for _, fund := range delegate.Funds {
 				if fund.Owner == entry.Signer {
+					if fund.Unlock != stakeData.PrevUnlock {
+						return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+					}
 					fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
 					if err != nil {
 						return err
@@ -366,9 +369,19 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	// Validate stake transaction if applicable
 	if tx.Version == transaction.TX_VERSION_STAKE {
 		stakeData := tx.Data.(*transaction.Stake)
-		_, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
+		delegate, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
 		if err != nil {
 			return err
+		}
+
+		// Check stake PrevUnlock
+		for _, fund := range delegate.Funds {
+			if fund.Owner == signer {
+				if fund.Unlock != stakeData.PrevUnlock {
+					return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+				}
+				break
+			}
 		}
 
 		// Check delegate ID matches signer's current delegate
@@ -395,12 +408,21 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 		// Check sufficient staked amount
 		var stakedAmount uint64
+		var unlockHeight uint64
 		for _, fund := range delegate.Funds {
 			if fund.Owner == signer {
 				stakedAmount = fund.Amount
+				unlockHeight = fund.Unlock
 				break
 			}
 		}
+		if stakedAmount == 0 && unlockHeight == 0 {
+			return fmt.Errorf("unstake failed: there's no such stake in the delegate funds")
+		}
+		if unlockHeight > nextheight {
+			return fmt.Errorf("can't unstake: unlock height is %d, next height %d", unlockHeight, nextheight)
+		}
+
 		if stakedAmount < unstakeData.Amount {
 			return fmt.Errorf("insufficient stake: need %d, have %d",
 				unstakeData.Amount, stakedAmount)

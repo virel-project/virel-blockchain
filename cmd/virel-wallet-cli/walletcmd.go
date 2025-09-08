@@ -7,6 +7,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
 	"github.com/virel-project/virel-blockchain/v2/wallet"
@@ -257,7 +258,27 @@ func prompts(w *wallet.Wallet) {
 				return
 			}
 
-			txn, err := w.Stake(w.GetDelegateId(), amt)
+			if w.GetDelegateId() == 0 {
+				Log.Err("you must have a delegate set to stake. Use set_delegate to set your delegate")
+				return
+			}
+
+			delegate, err := w.Rpc().GetDelegate(daemonrpc.GetDelegateRequest{
+				DelegateId: w.GetDelegateId(),
+			})
+			if err != nil {
+				Log.Err(err)
+				return
+			}
+			addr := w.GetAddress().Addr
+			var prevUnlock uint64
+			for _, v := range delegate.Funds {
+				if v.Owner == addr {
+					prevUnlock = v.Unlock
+				}
+			}
+
+			txn, err := w.Stake(w.GetDelegateId(), amt, prevUnlock)
 			if err != nil {
 				Log.Err(err)
 				return

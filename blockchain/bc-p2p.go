@@ -90,14 +90,14 @@ func (bc *Blockchain) packetTx(pack p2p.Packet) {
 		Log.Warn(err)
 		return
 	}
-	err = tx.Prevalidate(stats.TopHeight)
+	err = tx.Prevalidate(stats.TopHeight + 1)
 	if err != nil {
 		Log.Warn(err)
 		return
 	}
 
 	err = bc.DB.Update(func(txn adb.Txn) error {
-		return bc.AddTransaction(txn, tx, tx.Hash(), true)
+		return bc.AddTransaction(txn, tx, tx.Hash(), true, stats.TopHeight+1)
 	})
 	if err != nil {
 		Log.Warn(err)

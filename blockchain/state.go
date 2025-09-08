@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
@@ -117,6 +118,7 @@ func (g *Delegate) Serialize() []byte {
 	for _, v := range g.Funds {
 		s.AddFixedByteArray(v.Owner[:])
 		s.AddUvarint(v.Amount)
+		s.AddUvarint(v.Unlock)
 	}
 
 	return s.Output()
@@ -143,7 +145,20 @@ func (g *Delegate) Deserialize(b []byte) error {
 		g.Funds[i] = &daemonrpc.DelegatedFund{
 			Owner:  address.Address(d.ReadFixedByteArray(address.SIZE)),
 			Amount: d.ReadUvarint(),
+			Unlock: d.ReadUvarint(),
 		}
 	}
 	return d.Error()
+}
+
+func (g *Delegate) String() string {
+	s := fmt.Sprintf("Delegate id: %d", g.Id) + "\n" +
+		fmt.Sprintf("Name: %s", strconv.Quote(string(g.Name))) + "\n" +
+		fmt.Sprintf("Owner: %s", address.FromPubKey(g.Owner)) + "\n" +
+		"Funds:\n"
+
+	for _, v := range g.Funds {
+		s += fmt.Sprintf(" - Owner %s Amount %d Unlock %d", v.Owner, v.Amount, v.Unlock)
+	}
+	return s
 }
