@@ -48,9 +48,22 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		if err != nil {
 			return
 		}
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "failed to refresh wallet",
+			})
+			return
+		}
+
 		c.SuccessResponse(walletrpc.GetBalanceResponse{
-			Balance:        w.GetBalance(),
-			MempoolBalance: w.GetMempoolBalance(),
+			Balance:          w.GetBalance(),
+			MempoolBalance:   w.GetMempoolBalance(),
+			LastNonce:        w.GetLastNonce(),
+			MempoolLastNonce: w.GetMempoolBalance(),
+			DelegateId:       w.GetDelegateId(),
 		})
 	})
 
