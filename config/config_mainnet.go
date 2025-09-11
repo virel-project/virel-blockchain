@@ -30,6 +30,7 @@ const STAKE_UNLOCK_TIME = 60 * 60 * 24 * 30 / TARGET_BLOCK_TIME // staked funds 
 // Tx version: 1, block version: 0
 const HARDFORK_V2_HEIGHT = 100_000
 
-// Hardfork V3: Hybrid PoW/PoS
+// Hardfork V3: Hybrid PoW/PoS.
+// Hardfork date set for 2025-09-20 14:45:00 GMT.
 // Tx version: 1-5, block version: 1
-const HARDFORK_V3_HEIGHT = 100_000 // TODO
+const HARDFORK_V3_HEIGHT = 191_500
