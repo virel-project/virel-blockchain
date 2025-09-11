@@ -504,6 +504,7 @@ func prompts(bc *blockchain.Blockchain) {
 				return
 			}
 			Log.Info(delegate)
+		},
 	}, {
 		Names: []string{"block_queue", "blockqueue"},
 		Args:  "",
