@@ -22,7 +22,7 @@ var SEED_NODES = []string{"82.153.138.24", "45.38.20.159"}
 // PROOF OF STAKE
 const MIN_STAKE_AMOUNT = 100 * COIN
 const REGISTER_DELEGATE_BURN = 1_000 * COIN
-const STAKE_UNLOCK_TIME = 60 * 60 * 24 * 30 / TARGET_BLOCK_TIME // staked funds unlock after 1 month
+const STAKE_UNLOCK_TIME = 60 * 60 * 24 * 30 * 2 / TARGET_BLOCK_TIME // staked funds unlock after 2 months
 
 // HARD-FORKS
 
