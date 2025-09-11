@@ -17,7 +17,7 @@ const GENESIS_ADDRESS = "v139diixrpv0ftmip4mgpuy92u51iq4pnmgjsfn"
 const GENESIS_TIMESTAMP = 1755522000 * 1000
 const BLOCK_REWARD_FEE_PERCENT = 10
 
-var SEED_NODES = []string{"82.153.138.24"}
+var SEED_NODES = []string{"82.153.138.24", "45.38.20.159"}
 
 // PROOF OF STAKE
 const MIN_STAKE_AMOUNT = 100 * COIN

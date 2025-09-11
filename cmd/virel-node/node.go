@@ -6,6 +6,7 @@ import (
 	"os"
 	"runtime/pprof"
 	"strings"
+	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
@@ -43,6 +44,7 @@ func main() {
 	exclusive := flag.Bool("exclusive", false, "if set, the node will not connect to suggested nodes")
 	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
 	data_dir := flag.String("data-dir", defaultDataDir, "sets the data directory which contains blockchain and peer list")
+	add_nodes := flag.String("add-nodes", "", "comma separated list of node P2P addresses")
 
 	var slavechains_stratums *string
 	var stratum_wallet *string
@@ -110,16 +112,32 @@ func main() {
 		bind_ip = "0.0.0.0"
 	}
 
+	nodes := config.SEED_NODES
+
+	if len(*add_nodes) > 0 {
+		nodes = append(nodes, strings.Split(*add_nodes, ",")...)
+	}
+
 	go startRpc(bc, bind_ip, uint16(*rpc_bind_port), *public_rpc)
 	go bc.StartStratum(*stratum_bind_ip, uint16(*stratum_bind_port))
-	bc.StartP2P(config.SEED_NODES, uint16(*p2p_bind_port), *private, *exclusive)
+	bc.StartP2P(nodes, uint16(*p2p_bind_port), *private, *exclusive)
 	go bc.NewStratumJob(true)
 
 	if !*non_interactive {
+		go CheckPeers(bc)
 		prompts(bc)
 	} else {
-		// wait forever
-		c := make(chan bool)
-		Log.Err(<-c)
+		CheckPeers(bc)
+	}
+}
+
+func CheckPeers(bc *blockchain.Blockchain) {
+	for {
+		time.Sleep(30 * time.Second)
+		bc.P2P.RLock()
+		if len(bc.P2P.Connections) == 0 {
+			Log.Warn("no connections, make sure you are connected to the network")
+		}
+		bc.P2P.RUnlock()
 	}
 }

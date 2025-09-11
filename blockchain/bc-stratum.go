@@ -15,6 +15,8 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/p2p"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/rpc"
 	"github.com/virel-project/virel-blockchain/v2/stratum"
 	"github.com/virel-project/virel-blockchain/v2/stratum/stratumsrv"
@@ -257,6 +259,25 @@ func (bc *Blockchain) handleConn(v *stratumsrv.Conn) error {
 			Log.Warn(err)
 			return err
 		}
+	}
+
+	err = bc.DB.View(func(txn adb.Txn) error {
+		memp := bc.GetMempool(txn)
+		topheight := bc.GetStats(txn).TopHeight
+		for _, me := range memp.Entries {
+			tx, _, err := bc.GetTx(txn, me.TXID, topheight)
+			if err != nil {
+				return err
+			}
+			v.WriteJSON(&p2p.Packet{
+				Type: packet.TX,
+				Data: tx.Serialize(),
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		Log.Warn("failed to send mempool:", err)
 	}
 
 	for {

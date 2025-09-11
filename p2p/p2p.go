@@ -62,13 +62,14 @@ type KnownPeer struct {
 	Type        PeerType
 	Fails       uint16
 	LastConnect int64 // UNIX seconds
+	Priority    bool
 }
 
 func (k KnownPeer) IsBanned() bool {
 	if k.Type != PEER_RED {
 		return false
 	}
-	return time.Now().Unix() < k.LastConnect
+	return time.Now().Unix() < k.LastConnect+config.BAN_DURATION
 }
 
 type Packet struct { // exported
@@ -139,7 +140,6 @@ func Start(peers []string, dataDir string) *P2P {
 		}
 
 		p.AddPeerToList(splv[0], port, true)
-
 	}
 	return p
 }
@@ -147,10 +147,7 @@ func Start(peers []string, dataDir string) *P2P {
 func (p *P2P) Close() {
 	p.listener.Close()
 	for _, v := range p.Connections {
-		v.View(func(c *ConnData) error {
-			c.Close()
-			return nil
-		})
+		v.Close()
 	}
 
 	err := p.savePeerlist()
@@ -205,7 +202,16 @@ func (p *P2P) ListenServer(port uint16, private bool) {
 func (p *P2P) StartClients(private bool) {
 	for {
 		p.Lock()
-		if len(p.Connections) < config.P2P_CONNECTIONS {
+		connCount := 0
+		for _, v := range p.Connections {
+			v.View(func(c *ConnData) error {
+				if c.Outgoing {
+					connCount++
+				}
+				return nil
+			})
+		}
+		if connCount < config.P2P_CONNECTIONS {
 			p.connectToRandomPeer(private)
 		}
 		p.Unlock()
@@ -220,8 +226,26 @@ scanning:
 		if len(p.KnownPeers) == 0 {
 			return
 		}
-		randPeer := p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+
+		// 1/3 chance of trying to pick a priority node
+		priority := util.RandomInt(3) == 0
+
+		var randPeer KnownPeer
+
+		randPeer = p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+		if priority {
+			for range len(p.KnownPeers)/2 + 1 {
+				if randPeer.Priority {
+					break
+				}
+				randPeer = p.KnownPeers[mrand.IntN(len(p.KnownPeers))]
+			}
+		}
 		if randPeer.IsBanned() {
+			continue
+		}
+
+		if randPeer.Type == PEER_BLACK && time.Now().Unix() < randPeer.LastConnect+config.BLACK_DURATION {
 			continue
 		}
 
@@ -238,6 +262,7 @@ scanning:
 			}
 		}
 
+		Log.Debug("connecting to peer", randPeer.IP, randPeer.Port)
 		go p.startClient(randPeer.IP, randPeer.Port, private)
 	}
 }
@@ -245,12 +270,7 @@ scanning:
 // p2p must NOT be locked before calling this
 func (p *P2P) Kick(c *Connection) {
 	var ip string
-	c.Update(func(c *ConnData) error {
-		ip = c.Conn.RemoteAddr().String()
-		Log.Debugf("p2p kick %s %x", ip, c.PeerId)
-		c.Close()
-		return nil
-	})
+	c.Close()
 	p.Lock()
 	delete(p.Connections, ip)
 	p.Unlock()
@@ -273,18 +293,17 @@ func (p *P2P) sendPeerList(conn *Connection) error {
 			v.LastConnect = time.Now().Unix()
 			p.KnownPeers[i] = v
 		} else if v.Type == PEER_WHITE {
-			Log.Debugf("sendPeerList: sending %v:%v", v.IP, v.Port)
+			Log.NetDevf("sendPeerList: sending %v:%v", v.IP, v.Port)
 			s.AddUint16(v.Port)
 			s.AddString(v.IP)
 		}
 	}
 	p.RUnlock()
-	return conn.Update(func(c *ConnData) error {
-		return c.sendPacket(pack{
-			Type: 1,
-			Data: s.Output(),
-		})
+	return conn.sendPacketLock(pack{
+		Type: 1,
+		Data: s.Output(),
 	})
+
 }
 
 func (p *P2P) handleConnection(conn *Connection, private bool) error {
@@ -304,12 +323,11 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		return nil
 	}()
 	if err != nil {
-		conn.Update(func(c *ConnData) error {
-			c.Close()
-			return nil
-		})
+		conn.Close()
 		return err
 	}
+
+	go conn.Writer()
 
 	go func() {
 		err := p.connectionMainHandling(conn, private, ipPort)
@@ -634,18 +652,23 @@ func (p *P2P) AddPeerToList(ip string, port uint16, force bool) bool {
 	}
 
 	shouldAdd := true
-	for _, v := range p.KnownPeers {
+	for i, v := range p.KnownPeers {
 		if v.IP == ip {
 			shouldAdd = false
+			if force {
+				v.Priority = true
+				p.KnownPeers[i] = v
+			}
 			break
 		}
 	}
-	Log.Debug("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
+	Log.Net("AddPeerToList", ip, port, "shouldAdd:", shouldAdd)
 	if shouldAdd {
 		p.KnownPeers = append(p.KnownPeers, KnownPeer{
-			IP:   ip,
-			Port: port,
-			Type: PEER_GRAY,
+			IP:       ip,
+			Port:     port,
+			Type:     PEER_WHITE,
+			Priority: force,
 		})
 	}
 	return shouldAdd

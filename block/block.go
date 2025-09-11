@@ -285,12 +285,10 @@ func (b *Block) Deserialize(data []byte) error {
 	// read difficulty
 	diff := make([]byte, 16)
 	copy(diff, d.ReadByteSlice())
-	// Note: This is not a correct Little-Endian decoding. Will keep as-is for compatibility.
 	b.Difficulty = uint128.FromBytes(diff)
 	// read cumulative difficulty
 	diff = make([]byte, 16)
 	copy(diff, d.ReadByteSlice())
-	// Note: This is not a correct Little-Endian decoding. Will keep as-is for compatibility.
 	b.CumulativeDiff = uint128.FromBytes(diff)
 	if d.Error() != nil {
 		return d.Error()

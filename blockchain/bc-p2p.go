@@ -22,7 +22,7 @@ func (bc *Blockchain) pinger() {
 			bc.P2P.RLock()
 
 			for _, v := range bc.P2P.Connections {
-				go v.SendPacket(&p2p.Packet{
+				v.SendPacket(&p2p.Packet{
 					Type: packet.PING,
 					Data: []byte{},
 				})
@@ -62,12 +62,10 @@ func (bc *Blockchain) incomingP2P() {
 		case packet.BLOCK:
 			bc.Validator.ProcessBlock(pack)
 		case packet.TX:
-			Log.Debug("Received new transaction packet")
 			bc.packetTx(pack)
 		case packet.STATS:
 			bc.packetStats(pack)
 		case packet.BLOCK_REQUEST:
-			Log.Debug("Received block request packet")
 			go bc.packetBlockRequest(pack)
 		case packet.STAKE_SIGNATURE:
 			Log.Debug("Received stake signature packet")
@@ -118,7 +116,9 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 
 	hash := bl.Hash()
 
-	bc.queuedBlockDownloaded(hash, bl.Height)
+	bc.BlockQueue.Update(func(qt *QueueTx) {
+		qt.BlockDownloaded(bl.Height, hash)
+	})
 
 	err = bc.PrevalidateBlock(bl, txs)
 	if err != nil {
@@ -167,7 +167,8 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 
 	Log.Devf("received block request with height %d count %d hash %x", st.Height, st.Count, st.Hash)
 
-	if st.Count > config.PARALLEL_BLOCKS_DOWNLOAD {
+	// TODO: we allow 50 parallel blocks for compatibility, replace 50 with PARALLEL_BLOCKS_DOWNLOAD when we can expect everyone to have upgraded
+	if st.Count > 50 {
 		Log.Warn("invalid block request count", st.Count)
 		return
 	}
@@ -211,7 +212,7 @@ func (bc *Blockchain) packetBlockRequest(pack p2p.Packet) {
 	for _, v := range bls {
 		err := bc.sendBlockToPeer(v, pack.Conn)
 		if err != nil {
-			Log.Debug(err)
+			Log.Net(err)
 		}
 	}
 }
@@ -291,7 +292,7 @@ func (bc *Blockchain) SendStats(stats *Stats) {
 	defer bc.P2P.RUnlock()
 
 	for _, v := range bc.P2P.Connections {
-		go v.SendPacket(&p2p.Packet{
+		v.SendPacket(&p2p.Packet{
 			Type: packet.STATS,
 			Data: packet.PacketStats{
 				Height:         stats.TopHeight,
@@ -316,14 +317,15 @@ func (bc *Blockchain) BroadcastBlock(bl *block.Block) {
 	}
 
 	// if remote peers have a cumulative difficulty larger than this, then most likely they aren't interested in the block
-	maxCumDiff := bl.CumulativeDiff.Add(bl.Difficulty.Mul64(config.MINIDAG_ANCESTORS + 2))
+	maxCumDiff := bl.CumulativeDiff.Add(bl.Difficulty.Mul64(config.MINIDAG_ANCESTORS + 10))
 
 	bc.P2P.RLock()
 	defer bc.P2P.RUnlock()
 	for _, v := range bc.P2P.Connections {
 		// only send the block if the peer has a smaller cumulative difficulty
+		// and its height is not too old
 		go v.PeerData(func(d *p2p.PeerData) {
-			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 {
+			if d.Stats.CumulativeDiff.Cmp(maxCumDiff) <= 0 && d.Stats.Height+10 >= bl.Height {
 				v.SendPacket(&p2p.Packet{
 					Type: packet.BLOCK,
 					Data: ser,

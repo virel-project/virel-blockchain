@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"encoding/hex"
 	"fmt"
 	"math"
@@ -91,9 +92,8 @@ func prompts(bc *blockchain.Blockchain) {
 			Log.Infof("Height: %d; Cumulative diff: %.3fk; next diff: %s; hashrate: %s", stats.TopHeight,
 				stats.CumulativeDiff.Float64()/1000,
 				diff, diff.Div64(config.TARGET_BLOCK_TIME))
-
+			Log.Infof("Sync height: %d", bc.SyncHeight)
 			Log.Infof("%d tips (use print_tips for the list of tips)", len(stats.Tips))
-
 			Log.Infof("Mempool: %d entries", len(mem.Entries))
 
 			for i, v := range mem.Entries {
@@ -145,7 +145,7 @@ func prompts(bc *blockchain.Blockchain) {
 			}
 
 			slices.SortStableFunc(cns, func(a, b *p2p.Connection) int {
-				return int(a.Time - b.Time)
+				return int(a.Time.Sub(b.Time))
 			})
 
 			for _, conn := range cns {
@@ -365,7 +365,16 @@ func prompts(bc *blockchain.Blockchain) {
 		Action: func(args []string) {
 			bc.DB.View(func(tx adb.Txn) error {
 				stats := bc.GetStats(tx)
+
+				tips := make([]*blockchain.AltchainTip, 0, len(stats.Tips))
 				for _, v := range stats.Tips {
+					tips = append(tips, v)
+				}
+				slices.SortFunc(tips, func(a, b *blockchain.AltchainTip) int {
+					return cmp.Compare(a.Height, b.Height)
+				})
+
+				for _, v := range tips {
 					Log.Infof("- %x: Cumulative diff %s; height: %d", v.Hash, v.CumulativeDiff, v.Height)
 				}
 				return nil
@@ -383,7 +392,9 @@ func prompts(bc *blockchain.Blockchain) {
 				times := []float64{}
 				var sum float64
 
-				for i := 0; i < 100; i++ {
+				const block_time_window = 60 / config.TARGET_BLOCK_TIME * 60 * 4
+
+				for i := 0; i < 4*block_time_window; i++ {
 					bl, err := bc.GetBlock(tx, hash)
 					if err != nil {
 						return err
@@ -404,8 +415,8 @@ func prompts(bc *blockchain.Blockchain) {
 					hash = bl.PrevHash()
 				}
 
-				Log.Info("block times:", times)
-				Log.Info("average block time:", sum/float64(len(times)))
+				Log.Debug("block times:", times)
+				Log.Infof("average block time in the last 4 hours (%d blocks): %.2f", block_time_window, sum/float64(len(times)))
 
 				return nil
 			})
@@ -493,6 +504,17 @@ func prompts(bc *blockchain.Blockchain) {
 				return
 			}
 			Log.Info(delegate)
+	}, {
+		Names: []string{"block_queue", "blockqueue"},
+		Args:  "",
+		Action: func(args []string) {
+			bc.BlockQueue.Update(func(qt *blockchain.QueueTx) {
+				Log.Info("block queue size:", qt.Length())
+				bls := qt.GetBlocks()
+				for _, v := range bls {
+					Log.Infof("- height %d hash %x expires %d lastreq %d", v.Height, v.Hash, v.Expires, v.LastRequest)
+				}
+			})
 		},
 	}}...)
 

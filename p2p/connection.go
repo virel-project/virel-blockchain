@@ -1,34 +1,64 @@
 package p2p
 
 import (
+	"errors"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 func NewConnection(c net.Conn, outgoing bool) *Connection {
-	return &Connection{
+	conn := &Connection{
 		data: &ConnData{
-			Conn:     c,
-			Outgoing: outgoing,
-			LastPing: time.Now().Unix(),
+			Conn:      c,
+			Outgoing:  outgoing,
+			LastPing:  time.Now().Unix(),
+			WriteChan: make(chan pack, config.PARALLEL_BLOCKS_DOWNLOAD*2),
 		},
 		peerData: &PeerData{},
-		Time:     time.Now().UnixMilli(),
+		Time:     time.Now(),
+		alive:    1,
+	}
+	go conn.Writer()
+	return conn
+}
+
+func (c *Connection) Writer() {
+	for {
+		pack, ok := <-c.data.WriteChan
+		if !ok {
+			return
+		}
+		err := c.sendPacketLock(pack)
+		if err != nil {
+			Log.Warn("writer failed:", err)
+			c.data.Conn.Close()
+			return
+		}
 	}
 }
 
-// a concurrency-safe wrapper for ConnData
+func (c *Connection) Close() {
+	if atomic.SwapInt32(&c.alive, 0) == 1 {
+		c.mut.Lock()
+		close(c.data.WriteChan)
+		c.data.Conn.Close()
+		c.mut.Unlock()
+	}
+}
+
 type Connection struct {
 	data     *ConnData
 	peerData *PeerData
-	Time     int64 // UNIX millisecond timestamp of when connection started
-
-	mut   util.RWMutex
-	pdMut util.Mutex
+	Time     time.Time // when the connection was started
+	alive    int32     // Use atomic for alive flag
+	mut      util.RWMutex
+	pdMut    util.Mutex
 }
 
 func (c *Connection) View(f func(c *ConnData) error) error {
@@ -56,50 +86,13 @@ type ConnData struct {
 	LastPing      int64            // last packet received from peer
 	LastOutPacket int64            // when the last packet has been sent to the peer
 	Cipher        bitcrypto.Cipher
-
-	Conn     net.Conn
-	writeMut util.Mutex
+	WriteChan     chan pack
+	Conn          net.Conn
 }
 
 // returns the connection IP address (without port)
 func (c *ConnData) IP() string {
 	return c.Conn.RemoteAddr().(*net.TCPAddr).IP.String()
-}
-func (c *ConnData) Close() {
-	c.Conn.Close()
-}
-
-func (c *ConnData) sendPacket(p pack) error {
-	c.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
-
-	c.LastOutPacket = time.Now().Unix()
-
-	ser := binary.Ser{}
-
-	ser.AddUint16(p.Type)
-	ser.AddFixedByteArray(p.Data)
-
-	data, err := c.Cipher.Encrypt(ser.Output())
-
-	if err != nil {
-		return err
-	}
-
-	ser = binary.Ser{}
-	ser.AddUint32(uint32(len(data)))
-	ser.AddFixedByteArray(data)
-
-	err = func() error {
-		c.writeMut.Lock()
-		defer c.writeMut.Unlock()
-		_, err := c.Conn.Write(ser.Output())
-		return err
-	}()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (c *Connection) sendPacketLock(p pack) error {
@@ -119,18 +112,20 @@ func (c *Connection) sendPacketLock(p pack) error {
 	ser.AddUint32(uint32(len(data)))
 	ser.AddFixedByteArray(data)
 
-	c.data.writeMut.Lock()
-	defer c.data.writeMut.Unlock()
 	c.data.Conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	_, err = c.data.Conn.Write(ser.Output())
 	return err
 }
 
-func (c *ConnData) SendPacket(p *Packet) error {
-	Log.NetDevf("Sending packet of type %s to peer %x data %x", p.Type.String(), c.PeerId, p.Data)
-	return c.sendPacket(pack{Data: p.Data, Type: uint16(p.Type) + 2})
-}
-
 func (c *Connection) SendPacket(p *Packet) error {
-	return c.sendPacketLock(pack{Data: p.Data, Type: uint16(p.Type) + 2})
+	if atomic.LoadInt32(&c.alive) == 0 {
+		return errors.New("connection closed")
+	}
+	pack := pack{Data: p.Data, Type: uint16(p.Type) + 2}
+	select {
+	case c.data.WriteChan <- pack:
+		return nil
+	default:
+		return errors.New("write channel full")
+	}
 }

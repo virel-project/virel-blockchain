@@ -122,6 +122,12 @@ func New(dataDir string, db adb.DB) *Blockchain {
 
 	bc.BlockQueue = NewBlockQueue(bc)
 
+	// check for reorgs
+	bc.DB.Update(func(txn adb.Txn) error {
+		_, err := bc.CheckReorgs(txn, stats)
+		return err
+	})
+
 	return bc
 }
 
@@ -147,10 +153,6 @@ func (bc *Blockchain) Synchronize() {
 				reqbl := qt.RequestableBlock()
 				if reqbl == nil {
 					break
-				}
-				if reqbl.Height != 0 && reqbl.Height < stats.TopHeight {
-					qt.BlockRequested(reqbl.Height)
-					continue
 				}
 				lastIdx := len(reqbls) - 1
 				if len(reqbls) > 0 && reqbls[lastIdx].Height != 0 && reqbls[lastIdx].Height+uint64(reqbls[lastIdx].Count) == reqbl.Height-1 {
@@ -205,7 +207,8 @@ func (bc *Blockchain) Synchronize() {
 
 							last := reqbls[len(reqbls)-1]
 
-							if last.Height == 0 || d.Stats.Height >= last.Height {
+							if last.Height == 0 ||
+								(d.Stats.Height >= last.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
 								peer = conn
 								found = true
 							}
@@ -230,11 +233,9 @@ func (bc *Blockchain) Synchronize() {
 			}()
 		})
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(250 * time.Millisecond)
 	}
 }
-
-// TODO: clean up expired queue
 
 // Blockchain MUST be locked before calling this
 func (bc *Blockchain) fillQueue(qt *QueueTx, topHeight uint64) {
@@ -483,9 +484,17 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Has
 // If the block doesn't fit in the mainchain, it is either added to an altchain or orphaned.
 // Blockchain MUST be locked before calling this
 func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) error {
+	stats := bc.GetStats(tx)
+
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
+		if bl.PrevHash() == stats.TopHash {
+			err = bc.checkDeorphanage(tx, bl, hash)
+			if err != nil {
+				Log.Err(err)
+			}
+		}
 		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
@@ -494,6 +503,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is orphaned
 	prevBl, err := bc.GetBlock(tx, prevHash)
 	if err != nil {
+		Log.Debug(err)
 		err := bc.addOrphanBlock(tx, bl, hash, false)
 		if err != nil {
 			Log.Err(err)
@@ -503,7 +513,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	}
 
 	// check if parent block is orphaned
-	stats := bc.GetStats(tx)
 	if stats.Orphans[prevHash] != nil {
 		// this block's parent is orphaned; add this block as an orphan
 		err := bc.addOrphanBlock(tx, bl, hash, true)
@@ -522,9 +531,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// add block to chain
 	var isMainchain = prevHash == stats.TopHash
 	if isMainchain {
-		// remove block from queue
-		bc.removeFromQueue(hash, bl.Height)
-
 		err = bc.addMainchainBlock(tx, bl, hash)
 	} else {
 		err = bc.addAltchainBlock(tx, bl, hash)
@@ -540,17 +546,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	}
 
 	return nil
-}
-
-func (bc *Blockchain) removeFromQueue(hash [32]byte, height uint64) {
-	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.RemoveBlock(height, hash)
-	})
-}
-func (bc *Blockchain) queuedBlockDownloaded(hash [32]byte, height uint64) {
-	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.BlockDownloaded(height, hash)
-	})
 }
 
 // addOrphanBlock should only be called by the addBlock method
@@ -574,7 +569,7 @@ func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte
 	// add orphan prevhash to queued blocks, if it is not known already
 	if !parentKnown {
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.SetBlock(NewQueuedBlock(0, bl.PrevHash()), false)
+			qt.SetBlock(NewQueuedBlock(0, bl.PrevHash()), true)
 		})
 	}
 
@@ -827,6 +822,10 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 		txn.Put(bc.Index.Info, []byte("stats"), stats.Serialize())
 
+		bc.BlockQueue.Update(func(qt *QueueTx) {
+			qt.BlockAdded(stats.TopHeight)
+		})
+
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
 		return nil
@@ -848,6 +847,9 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 		return err
 	}
 
+	bc.BlockQueue.Update(func(qt *QueueTx) {
+		qt.BlockAdded(bl.Height)
+	})
 	Log.Infof("Adding mainchain block %d %x diff: %s sides: %d", bl.Height, hash, bl.Difficulty, len(bl.SideBlocks))
 	stats := bc.GetStats(tx)
 

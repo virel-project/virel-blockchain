@@ -6,7 +6,7 @@ const NAME = "virel"
 
 const VERSION_MAJOR = 2
 const VERSION_MINOR = 0
-const VERSION_PATCH = 1
+const VERSION_PATCH = 10
 
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // 0.0615 coins for an 1-output tx
@@ -19,7 +19,7 @@ const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 91 // block reward reduces by 10% ev
 const MAX_SUPPLY = REDUCTION_INTERVAL*BLOCK_REWARD*10 +
 	(BLOCK_REWARD * REDUCTION_INTERVAL) // also include initial flat-reward phase
 
-const P2P_CONNECTIONS = 12
+const P2P_CONNECTIONS = 16
 const P2P_PING_INTERVAL = 5
 const P2P_TIMEOUT = 20
 
