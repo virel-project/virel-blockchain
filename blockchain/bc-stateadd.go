@@ -342,7 +342,10 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 	for _, v := range delegate.Funds {
 		if v.Owner == delegateAddr {
 			ownerFound = true
-			v.Amount += roundingError
+			v.Amount, err = util.SafeAdd(v.Amount, roundingError)
+			if err != nil {
+				return err
+			}
 			break
 		}
 	}
