@@ -59,7 +59,6 @@ func (bc *Blockchain) RemoveTxFromState(
 	// NOTE: The following functions must be careful not to read/write the signer state again,
 	// as it is saved later and this could cause conflicts.
 
-	// TODO: undo stake if the tx is an stake transaction
 	if tx.Version == transaction.TX_VERSION_STAKE {
 		stakeData := tx.Data.(*transaction.Stake)
 		if stakeData.DelegateId == 0 {
@@ -73,7 +72,7 @@ func (bc *Blockchain) RemoveTxFromState(
 		err = bc.ApplyUnstake(txn, &transaction.Unstake{
 			Amount:     stakeData.Amount,
 			DelegateId: stakeData.DelegateId,
-		}, signerAddr, txid, stats, true)
+		}, signerAddr, txid, stats, true, stakeData.PrevUnlock)
 		if err != nil {
 			return fmt.Errorf("could not remove stake: %w", err)
 		}

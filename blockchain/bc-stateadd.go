@@ -60,7 +60,7 @@ func (bc *Blockchain) ApplyTxToState(
 			return fmt.Errorf("unstake transaction delegate id %d does not match with state %d",
 				unstakeData.DelegateId, signerState.DelegateId)
 		}
-		err = bc.ApplyUnstake(txn, unstakeData, signerAddr, txid, stats, false)
+		err = bc.ApplyUnstake(txn, unstakeData, signerAddr, txid, stats, false, 0)
 		if err != nil {
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
@@ -175,7 +175,6 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 			return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
 		}
 		fund.Unlock = stats.TopHeight + config.STAKE_UNLOCK_TIME
-		Log.Err("TODO fund unlock time:", fund.Unlock)
 		fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
 		if err != nil {
 			return err
@@ -204,7 +203,7 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 }
 
 func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake, signerAddr address.Address,
-	txid transaction.TXID, stats *Stats, reverse bool) error {
+	txid transaction.TXID, stats *Stats, reverse bool, prevUnlock uint64) error {
 	delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
 	if err != nil {
 		return err
@@ -228,6 +227,7 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 				txid, util.FormatCoin(unstakeData.Amount), util.FormatCoin(fund.Amount))
 		}
 		fund.Amount -= unstakeData.Amount
+		fund.Unlock = prevUnlock
 
 		if fund.Amount == 0 {
 			delegate.Funds = append(delegate.Funds[:i], delegate.Funds[i+1:]...)
