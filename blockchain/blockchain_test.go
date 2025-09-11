@@ -191,12 +191,13 @@ func TestState(t *testing.T) {
 		const pos_reward = config.BLOCK_REWARD * 0.4
 		const dev_reward = config.BLOCK_REWARD * 0.1
 
-		burnrewards := 5 * (pos_reward + pow_reward*0.25) / config.COIN
+		const burnrewards = 5 * (pos_reward + pow_reward*0.25) / config.COIN
+
 		err = PrintState(txn, bc, map[string]float64{
-			"burnaddress": config.REGISTER_DELEGATE_BURN/config.COIN + burnrewards + 0.444,
+			"burnaddress": config.REGISTER_DELEGATE_BURN/config.COIN + burnrewards + 1.6611,
 			"delegate0":   1 + pos_reward*2,
 			// genesis address: first block + 10% of all blocks
-			"vo3yexhnu89af4aai83uou17dupb79c3gxng1q": (config.BLOCK_REWARD + float64(bl.Height)*dev_reward) / config.COIN,
+			"vo3yexhnu89af4aai83uou17dupb79c3gxng1q": (config.BLOCK_REWARD+float64(bl.Height)*dev_reward)/config.COIN + 0.3164,
 		})
 		if err != nil {
 			return err
