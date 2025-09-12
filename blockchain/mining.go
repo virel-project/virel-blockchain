@@ -231,15 +231,6 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		bl.SortOtherChains()
 	}
 
-	// calculating NextDelegateId should be the last thing, because we require a correct block hash.
-	if bl.Version > 0 {
-		nextdelegate, err := bc.GetStaker(txn, bl.Hash(), stats)
-		if err != nil {
-			return nil, 0, err
-		}
-		bl.NextDelegateId = nextdelegate.Id
-	}
-
 	return bl, min_diff, nil
 }
 
@@ -330,6 +321,20 @@ func (bc *Blockchain) blockFound(bl *block.Block, powHash [16]byte) ([]stratum.F
 		err := bc.PrevalidateBlock(bl, nil)
 		if err != nil {
 			Log.Warn(err)
+			return nil, err
+		}
+		err = bc.DB.View(func(txn adb.Txn) error {
+			// calculate NextDelegateId (we can't do it with the block template, as it requires to know the block hash)
+			if bl.Version > 0 {
+				nextdelegate, err := bc.GetStaker(txn, bl.Hash(), bc.GetStats(txn))
+				if err != nil {
+					return err
+				}
+				bl.NextDelegateId = nextdelegate.Id
+			}
+			return nil
+		})
+		if err != nil {
 			return nil, err
 		}
 		go bc.BroadcastBlock(bl)
