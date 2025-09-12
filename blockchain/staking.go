@@ -11,7 +11,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/util/uint128"
 )
 
-// GetStaker returns the correct staker for a given block hash.
+// GetStaker returns the correct staker for a given block PrevHash.
 // Can only be called when the stakedhash is at chain tip.
 func (bc *Blockchain) GetStaker(txn adb.Txn, hash util.Hash, stats *Stats) (*Delegate, error) {
 	if stats.StakedAmount == 0 {

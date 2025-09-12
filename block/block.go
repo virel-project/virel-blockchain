@@ -378,9 +378,7 @@ func (bl *Block) ContributionToCumulativeDiff() uint128.Uint128 {
 	return bl.Difficulty.Add(sideDiff)
 }
 
-// Block's hash does not include the next delegate id.
 func (b *Block) Hash() util.Hash {
-	b.NextDelegateId = 0
 	return blake3.Sum256(b.Serialize()[:])
 }
 
