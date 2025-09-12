@@ -231,9 +231,9 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		bl.SortOtherChains()
 	}
 
-	// calculating NextDelegateId should be the last thing, because we require a correct block basehash.
+	// calculating NextDelegateId should be the last thing, because we require a correct block hash.
 	if bl.Version > 0 {
-		nextdelegate, err := bc.GetStaker(txn, bl, stats)
+		nextdelegate, err := bc.GetStaker(txn, bl.Hash(), stats)
 		if err != nil {
 			return nil, 0, err
 		}

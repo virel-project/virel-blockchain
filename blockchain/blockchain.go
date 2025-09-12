@@ -349,7 +349,7 @@ func (bc *Blockchain) addGenesis() {
 // checkBlock validates things like height, diff, etc. for a block. It doesn't validate PoW (that's done by
 // bl.Prevalidate()) or transactions.
 // Can only be used when bl is at chain tip (the state is before applying it).
-func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Hash) error {
+func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, hash util.Hash) error {
 	// validate difficulty
 	expectDiff, err := bc.GetNextDifficulty(tx, prevBl)
 	if err != nil {
@@ -441,7 +441,7 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Has
 	// Verify that the block's NextDelegateId is valid.
 	stats := bc.GetStats(tx)
 	if bl.Version > 0 {
-		nextstaker, err := bc.GetStaker(tx, bl, stats)
+		nextstaker, err := bc.GetStaker(tx, hash, stats)
 		if err != nil {
 			return fmt.Errorf("failed to get next staker: %w", err)
 		}
