@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -135,4 +136,11 @@ func IsHex(s string) bool {
 		}
 	}
 	return true
+}
+
+func SafeAdd(a, b uint64) (uint64, error) {
+	if a+b < a {
+		return 0, errors.New("overflow")
+	}
+	return a + b, nil
 }

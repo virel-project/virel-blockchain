@@ -93,6 +93,22 @@ func (t *Txn) Del(d adb.Index, key []byte) error {
 func (t *Txn) ForEach(d adb.Index, f func(k, v []byte) error) error {
 	return t.txn.Bucket(d.([]byte)).ForEach(f)
 }
+func (t *Txn) ForEachInterrupt(d adb.Index, f func(k, v []byte) (bool, error)) error {
+	b := t.txn.Bucket(d.([]byte))
+
+	c := b.Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		interrupt, err := f(k, v)
+		if err != nil {
+			return err
+		}
+		if interrupt {
+			break
+		}
+	}
+
+	return nil
+}
 
 func (t *Txn) Entries(d adb.Index) (uint64, error) {
 	buck := t.txn.Bucket(d.([]byte))

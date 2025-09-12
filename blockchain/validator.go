@@ -151,7 +151,7 @@ func (v *Validator) selectAndPostprocess() {
 func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*transaction.Transaction) {
 	err := v.bc.DB.Update(func(txn adb.Txn) error {
 		for _, tx := range txs {
-			err := v.bc.AddTransaction(txn, tx, tx.Hash(), false)
+			err := v.bc.AddTransaction(txn, tx, tx.Hash(), false, bl.Height)
 			if err != nil {
 				return err
 			}

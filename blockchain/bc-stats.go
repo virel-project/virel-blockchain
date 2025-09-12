@@ -3,6 +3,8 @@ package blockchain
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"io"
 
 	"github.com/virel-project/virel-blockchain/v2/address"
@@ -17,6 +19,11 @@ type Stats struct {
 	CumulativeDiff uint128.Uint128
 	Tips           map[util.Hash]*AltchainTip
 	Orphans        map[util.Hash]*Orphan // hash -> orphan
+	StakedAmount   uint64
+}
+
+func (s *Stats) String() string {
+	return fmt.Sprintf("top hash: %s height: %d cumulativediff %s staked amount %s", s.TopHash, s.TopHeight, s.CumulativeDiff, util.FormatCoin(s.StakedAmount))
 }
 
 type AltchainTip struct {
@@ -71,16 +78,33 @@ func DeserializeStats(d []byte) (*Stats, error) {
 	return &s, err
 }
 
+func (s *Stats) Staked(amount uint64) error {
+	if s.StakedAmount+amount < s.StakedAmount {
+		return errors.New("add overflow")
+	}
+	s.StakedAmount += amount
+	return nil
+}
+func (s *Stats) Unstaked(amount uint64) error {
+	if s.StakedAmount-amount > s.StakedAmount {
+		return errors.New("sub overflow")
+	}
+	s.StakedAmount -= amount
+	return nil
+}
+
 type Mempool struct {
 	Entries []*MempoolEntry
 }
 type MempoolEntry struct {
-	TXID    [32]byte
-	Size    uint64
-	Fee     uint64
-	Expires int64
-	Sender  address.Address
-	Outputs []transaction.Output
+	TXID      [32]byte
+	TxVersion uint8
+	Size      uint64
+	Fee       uint64
+	Expires   int64
+	Signer    address.Address
+	Inputs    []transaction.StateInput
+	Outputs   []transaction.Output
 }
 
 func (s *Mempool) Serialize() []byte {

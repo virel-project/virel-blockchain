@@ -8,6 +8,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
 	"github.com/virel-project/virel-blockchain/v2/util"
@@ -28,6 +29,19 @@ type BlockHeader struct {
 	Recipient   address.Address `json:"recipient"`   // recipient of block's coinbase reward
 	Ancestors   Ancestors       `json:"prev_hash"`   // previous block hash
 	SideBlocks  []Commitment    `json:"side_blocks"` // list of block previous side blocks (most recent block first)
+
+	// Proof-of-Stake data
+
+	// Id of the delegate staker that rewards this block
+	DelegateId uint64
+	// Id of the delegate staker (for the next block)
+	NextDelegateId uint64
+	// Signature of the stake
+	StakeSignature bitcrypto.Signature
+}
+
+func (b BlockHeader) BlockStakedHash() util.Hash {
+	return b.Ancestors[len(b.Ancestors)-1]
 }
 
 func (b BlockHeader) PrevHash() util.Hash {
@@ -42,7 +56,7 @@ type Block struct {
 	Transactions   []transaction.TXID `json:"transactions"`    // list of transaction hashes
 }
 
-func (b Block) String() string {
+func (b *Block) String() string {
 	hash := b.Hash()
 
 	var x string
@@ -75,6 +89,10 @@ func (b Block) String() string {
 	x += "Side blocks: " + strconv.FormatUint(uint64(len(b.SideBlocks)), 10) + "\n"
 	for _, v := range b.SideBlocks {
 		x += fmt.Sprintf(" - %v\n", v)
+	}
+	if b.Version > 0 {
+		x += fmt.Sprintf("Delegate id: %d Next delegate id: %d\n", b.DelegateId, b.NextDelegateId)
+		x += fmt.Sprintf("Stake signature: %x", b.StakeSignature[:])
 	}
 
 	return x
@@ -157,6 +175,12 @@ func (b BlockHeader) Serialize() []byte {
 		s.AddFixedByteArray(v.Serialize())
 	}
 
+	if b.Version > 0 {
+		s.AddUvarint(b.DelegateId)
+		s.AddUvarint(b.NextDelegateId)
+		s.AddFixedByteArray(b.StakeSignature[:])
+	}
+
 	return s.Output()
 }
 func (b *BlockHeader) Deserialize(data []byte) ([]byte, error) {
@@ -208,10 +232,16 @@ func (b *BlockHeader) Deserialize(data []byte) ([]byte, error) {
 		}
 	}
 
+	if b.Version > 0 {
+		b.DelegateId = d.ReadUvarint()
+		b.NextDelegateId = d.ReadUvarint()
+		b.StakeSignature = bitcrypto.Signature(d.ReadFixedByteArray(bitcrypto.SIGNATURE_SIZE))
+	}
+
 	return d.RemainingData(), d.Error()
 }
 
-func (b Block) Serialize() []byte {
+func (b *Block) Serialize() []byte {
 	s := binary.NewSer(make([]byte, 80))
 
 	s.AddFixedByteArray(b.BlockHeader.Serialize())
@@ -260,7 +290,6 @@ func (b *Block) Deserialize(data []byte) error {
 	diff = make([]byte, 16)
 	copy(diff, d.ReadByteSlice())
 	b.CumulativeDiff = uint128.FromBytes(diff)
-
 	if d.Error() != nil {
 		return d.Error()
 	}
@@ -325,7 +354,7 @@ func (b *Block) DeserializeFull(data []byte) ([]*transaction.Transaction, error)
 		sl := d.ReadByteSlice()
 
 		tx := transaction.Transaction{}
-		err := tx.Deserialize(sl, b.Height >= config.HARDFORK_V1_HEIGHT)
+		err := tx.Deserialize(sl, b.Height >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			return nil, err
 		}
@@ -339,11 +368,21 @@ func (b *Block) DeserializeFull(data []byte) ([]*transaction.Transaction, error)
 	return txs, d.Error()
 }
 
-func (b Block) Hash() util.Hash {
+func (bl *Block) ContributionToCumulativeDiff() uint128.Uint128 {
+	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
+
+	if bl.Version > 0 && bl.StakeSignature == bitcrypto.BlankSignature {
+		// blocks that are not staked only have 50% contribution to cumulative difficulty
+		return bl.Difficulty.Add(sideDiff).Div64(2)
+	}
+	return bl.Difficulty.Add(sideDiff)
+}
+
+func (b *Block) Hash() util.Hash {
 	return blake3.Sum256(b.Serialize()[:])
 }
 
-func (b Block) ValidPowHash(hash [16]byte) bool {
+func (b *Block) ValidPowHash(hash [16]byte) bool {
 	val := uint128.FromBytes(hash[:])
 	return val.Cmp(uint128.Max.Div(b.Difficulty)) <= 0
 }

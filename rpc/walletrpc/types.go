@@ -26,8 +26,11 @@ type TxData struct {
 type GetBalanceRequest struct {
 }
 type GetBalanceResponse struct {
-	Balance        uint64 `json:"balance"`
-	MempoolBalance uint64 `json:"mempool_balance"`
+	Balance          uint64 `json:"balance"`
+	MempoolBalance   uint64 `json:"mempool_balance"`
+	LastNonce        uint64 `json:"last_nonce"`
+	MempoolLastNonce uint64 `json:"mempool_last_nonce"`
+	DelegateId       uint64 `json:"delegate_id"`
 }
 
 type GetHistoryRequest struct {

@@ -9,7 +9,8 @@ const VERSION_MINOR = 0
 const VERSION_PATCH = 10
 
 const COIN = 1_000_000_000                     // 1e9
-const FEE_PER_BYTE = 500_000                   // ~0.06 coins per tx
+const FEE_PER_BYTE = 500_000                   // 0.0615 coins for an 1-output tx
+const FEE_PER_BYTE_V2 = 2_000_000              // 0.246 coins for an 1-output tx
 const BLOCK_REWARD = 175 * COIN                // initial block reward
 const REDUCTION_INTERVAL = BLOCKS_PER_DAY * 91 // block reward reduces by 10% every 91 days (4 times a year)
 
@@ -22,14 +23,13 @@ const P2P_CONNECTIONS = 16
 const P2P_PING_INTERVAL = 5
 const P2P_TIMEOUT = 20
 
-const P2P_VERSION = 1
+const P2P_VERSION = 2
 
 const MAX_TX_PER_BLOCK = 1_000
 const MAX_HEIGHT = 5_000_000_000
 
 const TARGET_BLOCK_TIME = 15
 const FUTURE_TIME_LIMIT = 10
-const DIFFICULTY_N = 30 * 60 / TARGET_BLOCK_TIME // DAA half-life (30 minutes).
 
 const MEMPOOL_EXPIRATION = 2 * time.Hour
 
@@ -41,3 +41,5 @@ const MAX_SIDE_BLOCKS = 2   // max number of side blocks that can be referenced 
 const MAX_OUTPUTS = 32 // max output count for a transaction
 
 const UPDATE_CHECK_URL = "https://api.github.com/repos/virel-project/virel-blockchain/releases/latest"
+
+const DELEGATE_ADDRESS_PREFIX = "delegate"

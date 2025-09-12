@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/big"
+	"strconv"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
@@ -17,6 +19,12 @@ const SIZE = 22
 
 type Address [SIZE]byte
 
+func NewDelegateAddress(id uint64) (a Address) {
+	// we use BigEndian to allow lexicographical sorting
+	binary.BigEndian.PutUint64(a[len(a)-8:], id)
+	return a
+}
+
 // The zero-value of address is considered invalid
 var INVALID_ADDRESS = Address{}
 
@@ -27,6 +35,23 @@ func FromPubKey(p bitcrypto.Pubkey) Address {
 	return Address(hash[:SIZE]) // the first SIZE bytes of the hash are the actual address
 }
 func FromString(p string) (Integrated, error) {
+	if p == "burnaddress" {
+		return INVALID_ADDRESS.Integrated(), nil
+	}
+	if strings.HasPrefix(p, config.DELEGATE_ADDRESS_PREFIX) {
+		if len(p) < len(config.DELEGATE_ADDRESS_PREFIX)+1 {
+			return Integrated{}, errors.New("delegate address is too short")
+		}
+		p = p[len(config.DELEGATE_ADDRESS_PREFIX):]
+
+		num, err := strconv.ParseUint(p, 10, 64)
+		if err != nil {
+			return Integrated{}, fmt.Errorf("failed to read address prefix: %w", err)
+		}
+
+		return NewDelegateAddress(num).Integrated(), nil
+	}
+
 	if p[0] != config.WALLET_PREFIX[0] || len(p) < 4 {
 		return Integrated{}, errors.New("invalid address prefix")
 	}
@@ -78,6 +103,46 @@ func (a Address) String() string {
 	return a.Integrated().String()
 }
 
+func (a *Address) Marshal() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
+}
+
+func (a Address) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + a.String() + `"`), nil
+}
+
+func (a *Address) UnmarshalJSON(c []byte) error {
+	if len(c) < 2 {
+		return errors.New("value is too short")
+	}
+
+	if c[0] != '"' || c[len(c)-1] != '"' {
+		return errors.New("invalid string literal")
+	}
+
+	addr, err := FromString(string(c[1 : len(c)-1]))
+
+	if err != nil {
+		return err
+	}
+
+	copy(a[:], addr.Addr[:])
+
+	return nil
+}
+func (a *Address) IsDelegate() bool {
+	c := a[:len(a)-8]
+	for _, v := range c {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+func (a *Address) DecodeDelegateId() uint64 {
+	return binary.BigEndian.Uint64(a[len(a)-8:])
+}
+
 type Integrated struct {
 	Addr      Address
 	PaymentId uint64
@@ -92,6 +157,13 @@ func (a Integrated) bytes() []byte {
 }
 
 func (a Integrated) String() string {
+	if a.Addr == INVALID_ADDRESS {
+		return "burnaddress"
+	}
+	if a.Addr.IsDelegate() {
+		return config.DELEGATE_ADDRESS_PREFIX + strconv.FormatUint(a.Addr.DecodeDelegateId(), 10)
+	}
+
 	return config.WALLET_PREFIX + big.NewInt(0).SetBytes(a.bytes()).Text(36)
 }
 

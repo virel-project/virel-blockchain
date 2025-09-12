@@ -13,15 +13,16 @@ type GetTransactionRequest struct {
 }
 
 type GetTransactionResponse struct {
-	Sender      *address.Integrated  `json:"sender"`
-	Outputs     []transaction.Output `json:"outputs"`
-	TotalAmount uint64               `json:"total_amount"`
-	Fee         uint64               `json:"fee"`
-	Nonce       uint64               `json:"nonce"`
-	Signature   enc.Hex              `json:"signature"`
-	Height      uint64               `json:"height"`
-	Coinbase    bool                 `json:"coinbase"`
-	VirtualSize uint64               `json:"virtual_size"`
+	Signer      *address.Integrated       `json:"sender"`
+	Inputs      []transaction.StateInput  `json:"inputs"`
+	Outputs     []transaction.StateOutput `json:"outputs"`
+	TotalAmount uint64                    `json:"total_amount"`
+	Fee         uint64                    `json:"fee"`
+	Nonce       uint64                    `json:"nonce"`
+	Signature   enc.Hex                   `json:"signature"`
+	Height      uint64                    `json:"height"`
+	Coinbase    bool                      `json:"coinbase"`
+	VirtualSize uint64                    `json:"virtual_size"`
 }
 
 type GetInfoRequest struct {
@@ -50,6 +51,9 @@ type GetAddressResponse struct {
 	MempoolBalance  uint64 `json:"mempool_balance"`    // unconfirmed balance, from mempool
 	MempoolNonce    uint64 `json:"mempool_last_nonce"` // unconfirmed nonce, from mempool
 	MempoolIncoming uint64 `json:"mempool_incoming"`
+	DelegateId      uint64 `json:"delegate_id"`
+	TotalStaked     uint64 `json:"total_staked"`   // The total amount staked since the last delegate change.
+	TotalUnstaked   uint64 `json:"total_unstaked"` // The total amount unstaked since the last delegate change.
 	Height          uint64 `json:"height"`
 }
 
@@ -77,11 +81,13 @@ type GetBlockByHeightRequest struct {
 	Height uint64 `json:"height"`
 }
 type GetBlockResponse struct {
-	Block       block.Block `json:"block"`
-	Hash        string      `json:"hash"`
-	TotalReward uint64      `json:"total_reward"`
-	MinerReward uint64      `json:"miner_reward"`
-	Miner       string      `json:"miner"`
+	Block        block.Block     `json:"block"`
+	Hash         string          `json:"hash"`
+	TotalReward  uint64          `json:"total_reward"`
+	MinerReward  uint64          `json:"miner_reward"`
+	Miner        string          `json:"miner"`
+	Delegate     address.Address `json:"delegate"`
+	NextDelegate address.Address `json:"next_delegate"`
 }
 
 type CalcPowRequest struct {
@@ -104,9 +110,12 @@ type ValidateAddressResponse struct {
 }
 
 type State struct {
-	Balance      uint64
-	LastNonce    uint64
-	LastIncoming uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	Balance       uint64
+	LastNonce     uint64
+	LastIncoming  uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	DelegateId    uint64
+	TotalStaked   uint64
+	TotalUnstaked uint64
 }
 type StateInfo struct {
 	Address string
@@ -117,4 +126,32 @@ type RichListRequest struct {
 }
 type RichListResponse struct {
 	Richest []StateInfo
+}
+
+type SubmitStakeSignatureRequest struct {
+	DelegateId uint64  `json:"delegate_id"` // the delegate who signed this hash
+	Hash       enc.Hex `json:"hash"`        // the block hash
+	Signature  enc.Hex `json:"signature"`   // the signature
+}
+type SubmitStakeSignatureResponse struct {
+	Accepted     bool   `json:"accepted"`
+	ErrorMessage string `json:"error_message"`
+}
+
+type DelegatedFund struct {
+	Owner  address.Address `json:"owner"`
+	Amount uint64          `json:"amount"`
+	Unlock uint64          `json:"unlock"` // height of unlock of this fund
+}
+
+type GetDelegateRequest struct {
+	DelegateId      uint64 `json:"delegate_id"`
+	DelegateAddress string `json:"delegate_address"`
+}
+type GetDelegateResponse struct {
+	Id      uint64           `json:"id"`
+	Address address.Address  `json:"address"`
+	Owner   address.Address  `json:"owner"`
+	Name    string           `json:"name"`
+	Funds   []*DelegatedFund `json:"funds"`
 }

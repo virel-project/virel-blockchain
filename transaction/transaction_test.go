@@ -29,30 +29,33 @@ func TestTransaction(t *testing.T) {
 
 	tx := transaction.Transaction{
 		Version: 1,
-		Sender:  pubk,
-		Outputs: []transaction.Output{
-			{
-				Recipient: recipient,
-				PaymentId: 1337,
-				Amount:    config.COIN,
+		Signer:  pubk,
+		Data: &transaction.Transfer{
+			Outputs: []transaction.Output{
+				{
+					Recipient: recipient,
+					PaymentId: 1337,
+					Amount:    config.COIN,
+				},
 			},
 		},
 		Signature: bitcrypto.Signature{},
 		Nonce:     1,
 		Fee:       0,
 	}
-	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE
+	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE_V2
 
-	tx.Sign(bitcrypto.Privkey(privk))
-
-	tx.Serialize()
+	err := tx.Sign(bitcrypto.Privkey(privk))
+	if err != nil {
+		t.Error(err)
+	}
 
 	ser := tx.Serialize()
 
 	t.Logf("transaction size: %d, data: %x", len(ser), ser)
 
 	tx2 := transaction.Transaction{}
-	err := tx2.Deserialize(ser, true)
+	err = tx2.Deserialize(ser, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -63,9 +66,13 @@ func TestTransaction(t *testing.T) {
 
 	if !slices.Equal(ser, ser2) {
 		t.Error("second serialized transaction differs from original")
+		t.Log("tx 1")
+		t.Log(tx.String())
+		t.Log("tx 2")
+		t.Log(tx2.String())
 	}
 
-	err = tx.Prevalidate()
+	err = tx.Prevalidate(config.HARDFORK_V3_HEIGHT)
 
 	if err != nil {
 		t.Error("transaction verification failed:", err)

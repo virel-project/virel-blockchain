@@ -9,6 +9,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
@@ -21,11 +22,16 @@ type Wallet struct {
 
 	rpc *daemonrpc.RpcClient
 
-	height       uint64
-	balance      uint64
-	lastNonce    uint64
-	mempoolBal   uint64
-	mempoolNonce uint64
+	height        uint64
+	balance       uint64
+	lastNonce     uint64
+	mempoolBal    uint64
+	mempoolNonce  uint64
+	delegateId    uint64
+	delegateName  string
+	stakedBalance uint64
+	totalStaked   uint64
+	totalUnstaked uint64
 
 	password []byte
 }
@@ -158,9 +164,51 @@ func (w *Wallet) Refresh() error {
 	w.lastNonce = res.LastNonce
 	w.mempoolBal = res.MempoolBalance
 	w.mempoolNonce = res.MempoolNonce
+	w.delegateId = res.DelegateId
+	w.totalStaked = res.TotalStaked
+	w.totalUnstaked = res.TotalUnstaked
 	w.height = res.Height
 
+	if res.DelegateId != 0 {
+		delegateRes, err := w.rpc.GetDelegate(daemonrpc.GetDelegateRequest{
+			DelegateId: w.delegateId,
+		})
+		if err != nil {
+			return fmt.Errorf("could not get delegate: %w", err)
+		}
+		w.delegateName = delegateRes.Name
+		if len(w.delegateName) > 20 {
+			w.delegateName = w.delegateName[:20] + "..."
+		}
+
+		for _, v := range delegateRes.Funds {
+			if v.Owner == w.GetAddress().Addr {
+				w.stakedBalance = v.Amount
+				break
+			}
+		}
+	} else {
+		w.stakedBalance = 0
+		w.delegateName = ""
+	}
+
 	return nil
+}
+
+// Only for unit tests
+func (w *Wallet) ManualRefresh(state *blockchain.State, height uint64) {
+	w.balance = state.Balance
+	w.lastNonce = state.LastNonce
+	w.mempoolBal = state.Balance
+	w.mempoolNonce = state.LastNonce
+	w.delegateId = state.DelegateId
+	w.totalStaked = state.TotalStaked
+	w.totalUnstaked = state.TotalUnstaked
+	w.height = height
+}
+
+func (w *Wallet) Rpc() *daemonrpc.RpcClient {
+	return w.rpc
 }
 
 func (w *Wallet) GetPassword() []byte {
@@ -183,6 +231,21 @@ func (w *Wallet) GetMempoolLastNonce() uint64 {
 }
 func (w *Wallet) GetAddress() address.Integrated {
 	return w.dbInfo.Address
+}
+func (w *Wallet) GetDelegateId() uint64 {
+	return w.delegateId
+}
+func (w *Wallet) GetDelegateName() string {
+	return w.delegateName
+}
+func (w *Wallet) GetStakedBalance() uint64 {
+	return w.stakedBalance
+}
+func (w *Wallet) GetTotalStaked() uint64 {
+	return w.totalStaked
+}
+func (w *Wallet) GetTotalUnstaked() uint64 {
+	return w.totalUnstaked
 }
 func (w *Wallet) GetTransactions(inc bool, page uint64) (*daemonrpc.GetTxListResponse, error) {
 	r := daemonrpc.GetTxListRequest{
@@ -215,13 +278,27 @@ func (w *Wallet) SetRpcDaemonAddress(a string) {
 	w.rpc.DaemonAddress = a
 }
 
-// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
-func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*transaction.Transaction, error) {
-	err := w.Refresh()
-	if err != nil {
-		return nil, fmt.Errorf("wallet is not connected to daemon: %w", err)
+func (w *Wallet) checkAndSignTx(tx *transaction.Transaction) error {
+	tx.Fee = tx.GetVirtualSize() * config.FEE_PER_BYTE_V2
+
+	addr := w.GetAddress().Addr
+
+	var amt uint64
+	for _, v := range tx.Data.StateInputs(tx, addr) {
+		if v.Sender == addr {
+			amt += v.Amount
+		}
 	}
 
+	if amt > w.mempoolBal {
+		return errors.New("transaction spends too much money")
+	}
+
+	return tx.Sign(w.dbInfo.PrivateKey)
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*transaction.Transaction, error) {
 	for _, out := range outputs {
 		if w.GetAddress().Addr == out.Recipient {
 			return nil, fmt.Errorf("cannot transfer funds to self")
@@ -240,24 +317,87 @@ func (w *Wallet) Transfer(outputs []transaction.Output, hasVersion bool) (*trans
 	}
 
 	txn := &transaction.Transaction{
-		Sender:  w.dbInfo.PrivateKey.Public(),
-		Nonce:   w.GetMempoolLastNonce() + 1,
-		Outputs: outputs,
+		Signer: w.dbInfo.PrivateKey.Public(),
+		Nonce:  w.GetMempoolLastNonce() + 1,
+		Data: &transaction.Transfer{
+			Outputs: outputs,
+		},
 	}
 
 	if hasVersion {
 		txn.Version = 1
 	}
 
-	txn.Fee = txn.GetVirtualSize() * config.FEE_PER_BYTE
+	return txn, w.checkAndSignTx(txn)
+}
 
-	err = txn.Sign(w.dbInfo.PrivateKey)
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) RegisterDelegate(name string, id uint64) (*transaction.Transaction, error) {
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_REGISTER_DELEGATE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.RegisterDelegate{
+			Name: []byte(name),
+			Id:   id,
+		},
+	}
 
-	return txn, err
+	return txn, w.checkAndSignTx(txn)
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) SetDelegate(delegateId, previousId uint64) (*transaction.Transaction, error) {
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_SET_DELEGATE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.SetDelegate{
+			DelegateId:       delegateId,
+			PreviousDelegate: previousId,
+		},
+	}
+
+	return txn, w.checkAndSignTx(txn)
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) Stake(delegateId, amount, prevUnlock uint64) (*transaction.Transaction, error) {
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_STAKE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.Stake{
+			Amount:     amount,
+			DelegateId: delegateId,
+			PrevUnlock: prevUnlock,
+		},
+	}
+
+	return txn, w.checkAndSignTx(txn)
+}
+
+// This method doesn't submit the transaction. Use the SubmitTx method to submit it to the network.
+func (w *Wallet) Unstake(delegateId uint64, amount uint64) (*transaction.Transaction, error) {
+	txn := &transaction.Transaction{
+		Version: transaction.TX_VERSION_UNSTAKE,
+		Signer:  w.dbInfo.PrivateKey.Public(),
+		Nonce:   w.GetMempoolLastNonce() + 1,
+		Data: &transaction.Unstake{
+			Amount:     amount,
+			DelegateId: delegateId,
+		},
+	}
+
+	return txn, w.checkAndSignTx(txn)
 }
 
 func (w *Wallet) SubmitTx(txn *transaction.Transaction) (*daemonrpc.SubmitTransactionResponse, error) {
 	return w.rpc.SubmitTransaction(daemonrpc.SubmitTransactionRequest{
 		Hex: txn.Serialize(),
 	})
+}
+
+func (w *Wallet) SignBlockHash(hash util.Hash) (bitcrypto.Signature, error) {
+	return bitcrypto.Sign(append(config.STAKE_SIGN_PREFIX, hash[:]...), w.dbInfo.PrivateKey)
 }

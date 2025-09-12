@@ -1,10 +1,9 @@
 package blockchain
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
@@ -13,13 +12,15 @@ import (
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/p2p"
 	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
+	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v2/util"
 )
 
 // Adds a transaction to mempool.
 // Transaction must be already prevalidated.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, mempool bool) error {
+func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, mempool bool, height uint64) error {
 	// check that transaction is not duplicate
 	if txn.Get(bc.Index.Tx, hash[:]) != nil {
 		Log.Debug("transaction is already in database")
@@ -34,9 +35,9 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 		mem = bc.GetMempool(txn)
 
 		// validate the transaction
-		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries)
+		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries, height)
 		if err != nil {
-			Log.Err("transaction is not valid in mempool:", err)
+			Log.Err("validateMempoolTx error:", err)
 			return err
 		}
 
@@ -55,13 +56,25 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 			Log.Warn(err)
 			return nil
 		}
+		signerAddr := address.FromPubKey(tx.Signer)
+		sout := tx.Data.StateOutputs(tx, signerAddr)
+		out := make([]transaction.Output, len(sout))
+		for i, v := range sout {
+			out[i] = transaction.Output{
+				Recipient: v.Recipient,
+				PaymentId: v.PaymentId,
+				Amount:    v.Amount,
+			}
+		}
 		mem.Entries = append(mem.Entries, &MempoolEntry{
-			TXID:    hash,
-			Size:    tx.GetVirtualSize(),
-			Fee:     tx.Fee,
-			Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-			Sender:  address.FromPubKey(tx.Sender),
-			Outputs: tx.Outputs,
+			TXID:      hash,
+			TxVersion: tx.Version,
+			Size:      tx.GetVirtualSize(),
+			Fee:       tx.Fee,
+			Expires:   time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
+			Signer:    signerAddr,
+			Inputs:    tx.Data.StateInputs(tx, signerAddr),
+			Outputs:   out,
 		})
 		err = bc.SetMempool(txn, mem)
 		if err != nil {
@@ -91,7 +104,7 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte, topheight uint64) (*tran
 	}
 
 	if includedIn == 0 {
-		if topheight > config.HARDFORK_V1_HEIGHT {
+		if topheight > config.HARDFORK_V2_HEIGHT {
 			err := tx.Deserialize(des.RemainingData(), true)
 			if err == nil {
 				return tx, includedIn, nil
@@ -110,7 +123,7 @@ func (bc *Blockchain) GetTx(txn adb.Txn, hash [32]byte, topheight uint64) (*tran
 		}
 	}
 
-	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V1_HEIGHT)
+	return tx, includedIn, tx.Deserialize(des.RemainingData(), includedIn >= config.HARDFORK_V2_HEIGHT)
 }
 
 func (bc *Blockchain) SetTx(txn adb.Txn, tx *transaction.Transaction, hash transaction.TXID, height uint64) error {
@@ -141,79 +154,303 @@ func (bc *Blockchain) SetTxHeight(txn adb.Txn, hash transaction.TXID, height uin
 	return nil
 }
 
-// use this method to validate that a transaction in mempool is valid
-func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry) error {
-	senderAddr := address.FromPubKey(tx.Sender)
-
-	stats := bc.GetStats(txn)
-
-	// get sender state
-	senderState, err := bc.GetState(txn, senderAddr)
-	if err != nil {
-		Log.Err(err)
-		return err
+// Use this method to validate that a transaction in mempool is valid.
+// previousEntries are expected to be correctly ordered and valid. If they aren't, something is wrong elsewhere.
+func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction, hash [32]byte, previousEntries []*MempoolEntry, nextheight uint64) error {
+	// relay rule: check fee is enough for FEE_PER_BYTE_V2
+	minFee := config.FEE_PER_BYTE_V2 * tx.GetVirtualSize()
+	if tx.Fee < minFee {
+		return fmt.Errorf("invalid tx fee %s, expected at least %s", util.FormatCoin(tx.Fee), util.FormatCoin(minFee))
 	}
 
-	// apply all the previous mempool transactions to sender state
-	Log.Dev("sender state before applying all the mempool transactions:", senderState)
-	for _, v := range previousEntries {
-		if v.TXID == hash {
-			// avoid applying this tx (or future transactions) - mempool is guaranteed to be ordered correctly
-			break
+	signer := address.FromPubKey(tx.Signer)
+
+	// Calculate total transaction amount (outputs + fee)
+	_, err := tx.TotalAmount()
+	if err != nil {
+		return fmt.Errorf("invalid total amount: %w", err)
+	}
+
+	// Get all inputs and outputs for the current transaction
+	inputs := tx.Data.StateInputs(tx, signer)
+	outputs := tx.Data.StateOutputs(tx, signer)
+
+	// Verify input and output sums match
+	var totalInputs, totalOutputs uint64
+	for _, inp := range inputs {
+		totalInputs += inp.Amount
+	}
+	for _, out := range outputs {
+		totalOutputs += out.Amount
+	}
+	if totalInputs != totalOutputs+tx.Fee {
+		return fmt.Errorf("input sum %d doesn't match output sum %d + fee %d",
+			totalInputs, totalOutputs, tx.Fee)
+	}
+
+	// Collect all affected addresses
+	affectedAddrs := make(map[address.Address]bool)
+	affectedAddrs[signer] = true
+	for _, inp := range inputs {
+		affectedAddrs[inp.Sender] = true
+	}
+	for _, out := range outputs {
+		affectedAddrs[out.Recipient] = true
+	}
+
+	// Initialize simulated states and delegates
+	simulatedStates := make(map[address.Address]*State)
+	simulatedDelegates := make(map[uint64]*Delegate)
+
+	// Load initial states from database
+	for addr := range affectedAddrs {
+		state, err := bc.GetState(txn, addr)
+		if err != nil {
+			if strings.Contains(err.Error(), "not in state") {
+				Log.Debug("address", addr, "not previously in state")
+				state = &State{}
+			} else {
+				return err
+			}
+		}
+		simulatedStates[addr] = state
+	}
+
+	// Process previous entries to update simulated states and delegates
+	for _, entry := range previousEntries {
+		// stop if we have reached this transaction (should not happen)
+		if entry.TXID == hash {
+			return errors.New("previousEntries contains the transaction")
 		}
 
-		// apply this transaction if it modifies sender state
-		if v.Sender == senderAddr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == senderAddr }) {
-			vt, _, err := bc.GetTx(txn, v.TXID, stats.TopHeight)
+		// Update nonce for entry's signer
+		simulatedStates[entry.Signer].LastNonce++
+
+		// Apply state changes from inputs
+		for _, inp := range entry.Inputs {
+			state := simulatedStates[inp.Sender]
+			if state.Balance < inp.Amount {
+				return fmt.Errorf("insufficient balance in previous entry %x", entry.TXID)
+			}
+			state.Balance -= inp.Amount
+		}
+
+		// Apply state changes from outputs
+		for _, out := range entry.Outputs {
+			state := simulatedStates[out.Recipient]
+			if state != nil {
+				state.Balance += out.Amount
+				state.LastIncoming++
+			}
+		}
+
+		stats := bc.GetStats(txn)
+		// Handle register delegate transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_REGISTER_DELEGATE {
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
 			if err != nil {
-				Log.Err(err)
+				return fmt.Errorf("failed to get register delegate transaction: %w", err)
+			}
+
+			registerData := tx.Data.(*transaction.RegisterDelegate)
+
+			simulatedDelegates[registerData.Id] = &Delegate{
+				Id:    registerData.Id,
+				Owner: tx.Signer,
+				Name:  registerData.Name,
+				Funds: []*daemonrpc.DelegatedFund{},
+			}
+		}
+		// Handle stake transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_STAKE {
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
+			if err != nil {
+				return fmt.Errorf("failed to get stake transaction: %w", err)
+			}
+
+			stakeData := tx.Data.(*transaction.Stake)
+			delegate, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
+			if err != nil {
 				return err
 			}
 
-			if v.Sender == senderAddr {
-				totalAmount, err := vt.TotalAmount()
+			// Find and update the fund for the entry signer
+			found := false
+			for _, fund := range delegate.Funds {
+				if fund.Owner == entry.Signer {
+					if fund.Unlock != stakeData.PrevUnlock {
+						return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+					}
+					fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
+					if err != nil {
+						return err
+					}
+					found = true
+					break
+				}
+			}
+			if !found {
+				delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
+					Owner:  signer,
+					Amount: stakeData.Amount,
+				})
+			}
+
+			// Update simulated delegate
+			simulatedDelegates[stakeData.DelegateId] = delegate
+		}
+		// Handle unstake transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_UNSTAKE {
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
+			if err != nil {
+				return fmt.Errorf("failed to get unstake transaction: %w", err)
+			}
+
+			unstakeData := tx.Data.(*transaction.Unstake)
+			delegate, err := bc.getOrLoadDelegate(txn, unstakeData.DelegateId, simulatedDelegates)
+			if err != nil {
+				return err
+			}
+
+			// Find and update the fund for the entry signer
+			found := false
+			for _, fund := range delegate.Funds {
+				if fund.Owner == entry.Signer {
+					if fund.Amount < unstakeData.Amount {
+						return fmt.Errorf("insufficient stake in previous entry %x", entry.TXID)
+					}
+					fund.Amount -= unstakeData.Amount
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("no stake found for %s in previous entry %x", entry.Signer, entry.TXID)
+			}
+
+			// Update simulated delegate
+			simulatedDelegates[unstakeData.DelegateId] = delegate
+		}
+		// Handle set delegate transactions in previous entries
+		if entry.TxVersion == transaction.TX_VERSION_SET_DELEGATE {
+			tx, _, err := bc.GetTx(txn, entry.TXID, stats.TopHeight)
+			if err != nil {
+				return fmt.Errorf("failed to get unstake transaction: %w", err)
+			}
+
+			setDelegateData := tx.Data.(*transaction.SetDelegate)
+
+			if simulatedStates[signer] == nil {
+				simulatedStates[signer], err = bc.GetState(txn, signer)
 				if err != nil {
-					Log.Err(err)
 					return err
 				}
-
-				if totalAmount > senderState.Balance {
-					err := fmt.Errorf("previous tx entry %x total amount %d > sender balance %v", v.TXID, totalAmount, senderState.Balance)
-					Log.Errf(err.Error())
-					return err
-				}
-				senderState.Balance -= totalAmount
-				senderState.LastNonce++
 			}
 
-			for _, out := range v.Outputs {
-				if out.Recipient == senderAddr {
-					senderState.Balance += out.Amount
-				}
-			}
+			simulatedStates[signer].DelegateId = setDelegateData.DelegateId
 		}
 	}
-	Log.Debug("sender state after applying all the mempool transactions:", senderState)
 
-	totalAmount, err := tx.TotalAmount()
-	if err != nil {
-		Log.Err(err)
-		return err
+	// Validate nonce for current transaction
+	if tx.Nonce != simulatedStates[signer].LastNonce+1 {
+		return fmt.Errorf("invalid nonce: expected %d, got %d",
+			simulatedStates[signer].LastNonce+1, tx.Nonce)
 	}
-	if senderState.Balance < totalAmount {
-		err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount: %d, fee: %d", hex.EncodeToString(hash[:]),
-			senderState.Balance, totalAmount, tx.Fee)
-		Log.Warn(err)
-		return err
+
+	// Validate sufficient balances for inputs
+	for _, inp := range inputs {
+		state := simulatedStates[inp.Sender]
+		if state.Balance < inp.Amount {
+			return fmt.Errorf("insufficient balance for %s: need %d, have %d",
+				inp.Sender, inp.Amount, state.Balance)
+		}
 	}
-	if tx.Nonce != senderState.LastNonce+1 {
-		err = fmt.Errorf("transaction %x has unexpected nonce: %d, previous nonce: %d", hash,
-			tx.Nonce, senderState.LastNonce)
-		Log.Warn(err)
-		return err
+
+	// Validate stake transaction if applicable
+	if tx.Version == transaction.TX_VERSION_STAKE {
+		stakeData := tx.Data.(*transaction.Stake)
+		delegate, err := bc.getOrLoadDelegate(txn, stakeData.DelegateId, simulatedDelegates)
+		if err != nil {
+			return err
+		}
+
+		// Check stake PrevUnlock
+		for _, fund := range delegate.Funds {
+			if fund.Owner == signer {
+				if fund.Unlock != stakeData.PrevUnlock {
+					return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+				}
+				break
+			}
+		}
+
+		// Check delegate ID matches signer's current delegate
+		signerState := simulatedStates[signer]
+		if signerState.DelegateId != stakeData.DelegateId {
+			return fmt.Errorf("signer delegate ID %d doesn't match stake delegate ID %d",
+				signerState.DelegateId, stakeData.DelegateId)
+		}
+	}
+	// Validate unstake transaction if applicable
+	if tx.Version == transaction.TX_VERSION_UNSTAKE {
+		unstakeData := tx.Data.(*transaction.Unstake)
+		delegate, err := bc.getOrLoadDelegate(txn, unstakeData.DelegateId, simulatedDelegates)
+		if err != nil {
+			return err
+		}
+
+		// Check delegate ID matches signer's current delegate
+		signerState := simulatedStates[signer]
+		if signerState.DelegateId != unstakeData.DelegateId {
+			return fmt.Errorf("signer delegate ID %d doesn't match unstake delegate ID %d",
+				signerState.DelegateId, unstakeData.DelegateId)
+		}
+
+		// Check sufficient staked amount
+		var stakedAmount uint64
+		var unlockHeight uint64
+		for _, fund := range delegate.Funds {
+			if fund.Owner == signer {
+				stakedAmount = fund.Amount
+				unlockHeight = fund.Unlock
+				break
+			}
+		}
+		if stakedAmount == 0 && unlockHeight == 0 {
+			return fmt.Errorf("unstake failed: there's no such stake in the delegate funds")
+		}
+		if unlockHeight > nextheight {
+			return fmt.Errorf("can't unstake: unlock height is %d, next height %d", unlockHeight, nextheight)
+		}
+
+		if stakedAmount < unstakeData.Amount {
+			return fmt.Errorf("insufficient stake: need %d, have %d",
+				unstakeData.Amount, stakedAmount)
+		}
+	}
+	// Validate register delegate transaction if applicable
+	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
+		registerDelegateData := tx.Data.(*transaction.RegisterDelegate)
+
+		_, err := bc.getOrLoadDelegate(txn, registerDelegateData.Id, simulatedDelegates)
+		if err == nil {
+			return fmt.Errorf("delegate %d is already registered", registerDelegateData.Id)
+		}
 	}
 
 	return nil
+}
+
+// Helper function to get delegate from simulatedDelegates or database
+func (bc *Blockchain) getOrLoadDelegate(txn adb.Txn, delegateId uint64, simulatedDelegates map[uint64]*Delegate) (*Delegate, error) {
+	if delegate, exists := simulatedDelegates[delegateId]; exists {
+		return delegate, nil
+	}
+	delegate, err := bc.GetDelegate(txn, delegateId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get delegate %d: %w", delegateId, err)
+	}
+	return delegate, nil
 }
 
 func (bc *Blockchain) BroadcastTx(hash [32]byte, tx *transaction.Transaction) {

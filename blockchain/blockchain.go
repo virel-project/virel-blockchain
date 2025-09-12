@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
-	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v2/address"
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/logger"
@@ -54,13 +54,16 @@ type Blockchain struct {
 	SyncMut    util.RWMutex
 }
 type Index struct {
-	Info  adb.Index
-	Block adb.Index
-	Topo  adb.Index
-	State adb.Index
-	Tx    adb.Index
-	InTx  adb.Index
-	OutTx adb.Index
+	Info            adb.Index
+	Block           adb.Index
+	Topo            adb.Index
+	State           adb.Index
+	Tx              adb.Index
+	InTx            adb.Index
+	OutTx           adb.Index
+	Delegate        adb.Index // Delegate Id -> Delegate
+	StakeSig        adb.Index // Block hash -> Stake signature
+	DelegateHistory adb.Index // Block hash -> Delegate (before applying block reward)
 }
 
 func (bc *Blockchain) IsShuttingDown() bool {
@@ -70,7 +73,7 @@ func (bc *Blockchain) IsShuttingDown() bool {
 	return bc.shutdownInfo.ShuttingDown
 }
 
-func New(dataDir string) *Blockchain {
+func New(dataDir string, db adb.DB) *Blockchain {
 	bc := &Blockchain{
 		Stratum: &stratumsrv.Server{
 			NewConnections: make(chan *stratumsrv.Conn),
@@ -78,21 +81,19 @@ func New(dataDir string) *Blockchain {
 	}
 
 	bc.DataDir = dataDir
-	var err error
-	bc.DB, err = lmdb.New(bc.DataDir+"/lmdb/", 0755, Log)
-	// bc.DB, err = boltdb.New("./"+config.NETWORK_NAME+".db", 0755)
-	if err != nil {
-		panic(err)
-	}
+	bc.DB = db
 
 	bc.Index = Index{
-		Info:  bc.DB.Index("info"),
-		Block: bc.DB.Index("block"),
-		Topo:  bc.DB.Index("topo"),
-		State: bc.DB.Index("state"),
-		Tx:    bc.DB.Index("tx"),
-		InTx:  bc.DB.Index("intx"),
-		OutTx: bc.DB.Index("outtx"),
+		Info:            bc.DB.Index("info"),
+		Block:           bc.DB.Index("block"),
+		Topo:            bc.DB.Index("topo"),
+		State:           bc.DB.Index("state"),
+		Tx:              bc.DB.Index("tx"),
+		InTx:            bc.DB.Index("intx"),
+		OutTx:           bc.DB.Index("outtx"),
+		Delegate:        bc.DB.Index("delegate"),
+		StakeSig:        bc.DB.Index("stakesig"),
+		DelegateHistory: bc.DB.Index("delegatehistory"),
 	}
 
 	bc.Validator = bc.NewValidator(runtime.NumCPU())
@@ -347,7 +348,8 @@ func (bc *Blockchain) addGenesis() {
 
 // checkBlock validates things like height, diff, etc. for a block. It doesn't validate PoW (that's done by
 // bl.Prevalidate()) or transactions.
-func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
+// Can only be used when bl is at chain tip (the state is before applying it).
+func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Hash) error {
 	// validate difficulty
 	expectDiff, err := bc.GetNextDifficulty(tx, prevBl)
 	if err != nil {
@@ -371,8 +373,6 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 	}
 
 	// validate block's SideBlocks
-	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
-	newCumDiff := prevBl.CumulativeDiff.Add(bl.Difficulty).Add(sideDiff)
 	// since SideBlocks's Ancestors are derived from height, we don't have to check them here
 	for _, side := range bl.SideBlocks {
 
@@ -432,9 +432,48 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block) error {
 		}
 	}
 
+	newCumDiff := prevBl.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 	if !bl.CumulativeDiff.Equals(newCumDiff) {
 		return fmt.Errorf("block has invalid cumulative diff: %s, expected: %s", bl.CumulativeDiff,
 			newCumDiff)
+	}
+
+	// Verify that the block's NextDelegateId is valid.
+	stats := bc.GetStats(tx)
+	if bl.Version > 0 {
+		nextstaker, err := bc.GetStaker(tx, bl, stats)
+		if err != nil {
+			return fmt.Errorf("failed to get next staker: %w", err)
+		}
+		if nextstaker.Id != bl.NextDelegateId {
+			return fmt.Errorf("block has invalid NextDelegateId %d, expected %d", bl.NextDelegateId, nextstaker.Id)
+		}
+	}
+	// Verify if the signature is valid. If it is blank, this block is not considered staked.
+	if bl.Version > 0 && bl.Height > config.MINIDAG_ANCESTORS {
+		stakedhash := bl.BlockStakedHash()
+
+		oldblock, err := bc.GetBlock(tx, stakedhash)
+		if err != nil {
+			return err
+		}
+		if oldblock.NextDelegateId != bl.DelegateId {
+			return fmt.Errorf("block's delegate id %d doesn't match the old block's next delegate id %d", bl.DelegateId, oldblock.NextDelegateId)
+		}
+
+		if bl.StakeSignature != bitcrypto.BlankSignature {
+			// signature is always invalid if the network has nothing at stake
+			if stats.StakedAmount == 0 {
+				return fmt.Errorf("invalid stake signature: the network has not staked any coins")
+			}
+			delegate, err := bc.GetDelegate(tx, bl.DelegateId)
+			if err != nil {
+				return fmt.Errorf("failed to get delegate %d: %w", bl.DelegateId, err)
+			}
+			if !bitcrypto.VerifySignature(delegate.Owner, append(config.STAKE_SIGN_PREFIX, stakedhash[:]...), bl.StakeSignature) {
+				return errors.New("invalid stake signature")
+			}
+		}
 	}
 
 	return nil
@@ -484,10 +523,9 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 		return nil
 	}
 
-	err = bc.checkBlock(tx, bl, prevBl)
+	err = bc.checkBlock(tx, bl, prevBl, hash)
 	if err != nil {
-		Log.Warn("block is invalid:", err)
-		return err
+		return fmt.Errorf("block %d is invalid: %w", bl.Height, err)
 	}
 
 	// add block to chain
@@ -747,7 +785,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 				return err
 			}
 
-			err = bc.checkBlock(txn, bl, prevBl)
+			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash)
 			if err != nil {
 				Log.Warn("reorg invalid block:", err)
 				return err
@@ -836,7 +874,10 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 }
 
 // Validates a block, and then adds it to the state
-func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte) error {
+func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte) error {
+	stats := bc.GetStats(txn)
+	defer bc.SetStats(txn, stats)
+
 	// remove transactions from mempool
 	pool := bc.GetMempool(txn)
 	for _, t := range bl.Transactions {
@@ -853,140 +894,48 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 	for _, v := range bl.Transactions {
 		tx, _, err := bc.GetTx(txn, v, bl.Height)
 		if err != nil {
-			Log.Err(err)
-			return err
+			return fmt.Errorf("transaction is not in state: %w", err)
 		}
-		senderAddr := address.FromPubKey(tx.Sender)
+		signerAddr := address.FromPubKey(tx.Signer)
 
-		Log.Debugf("Applying transaction %x to mainchain", v)
+		Log.Debugf("Applying transaction %s to mainchain", v)
 
-		// check sender state
-		senderState, err := bc.GetState(txn, senderAddr)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		Log.Dev("sender state before:", senderState)
-
-		totalAmount, err := tx.TotalAmount()
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
-		if senderState.Balance < totalAmount {
-			err = fmt.Errorf("transaction %s spends too much money: balance: %d, amount+fee: %d", v,
-				senderState.Balance, totalAmount)
-			Log.Warn(err)
-			return err
-		}
-		if tx.Nonce != senderState.LastNonce+1 {
-			err = fmt.Errorf("transaction %s has unexpected nonce: %d, previous nonce: %d", v,
-				tx.Nonce, senderState.LastNonce)
-			Log.Warn(err)
-			return err
-		}
-
-		// apply sender state
-		senderState.Balance -= totalAmount
-		senderState.LastNonce++
-		err = bc.SetState(txn, senderAddr, senderState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
-		Log.Dev("sender state after:", senderState)
-
-		// add the funds to recipient
-		for _, out := range tx.Outputs {
-			recState, err := bc.GetState(txn, out.Recipient)
-			if err != nil {
-				Log.Debug("recipient state not previously known:", err)
-				recState = &State{
-					Balance: 0, LastNonce: 0,
-				}
-			}
-			Log.Devf("recipient %s state before: %v", out.Recipient, recState)
-
-			recState.Balance += out.Amount
-			recState.LastIncoming++ // also increase recipient's LastIncoming
-
-			Log.Devf("recipient %s state after: %v", out.Recipient, recState)
-
-			// add tx hash to recipient's incoming list
-			err = bc.SetTxTopoInc(txn, v, out.Recipient, recState.LastIncoming)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			err = bc.SetState(txn, out.Recipient, recState)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-		}
-
-		// add tx hash to sender's outgoing list
-		err = bc.SetTxTopoOut(txn, v, senderAddr, senderState.LastNonce)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// update tx height
-		err = bc.SetTxHeight(txn, v, bl.Height)
+		err = bc.ApplyTxToState(txn, tx, signerAddr, bl, blockhash, stats, v)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
 
 		// apply tx to total fee
-		prev := tx.Fee
+		prev := totalFee
 		totalFee += tx.Fee
 		if totalFee < prev {
-			return errors.New("invalid TX fees in block")
+			return errors.New("reward tx fee overflow in block")
 		}
 	}
 
 	// add block reward to coinbase transaction
-	{
-		totalReward := bl.Reward() + totalFee
-		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
-		minerReward := totalReward - governanceReward
+	totalReward := bl.Reward() + totalFee
+	if totalReward < bl.Reward() {
+		return errors.New("reward overflow in block")
+	}
 
-		Log.Debug("adding block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
+	coinbaseOuts := bl.CoinbaseTransaction(totalReward)
+	outs := make([]transaction.StateOutput, len(coinbaseOuts))
+	for i, v := range coinbaseOuts {
+		outs[i] = transaction.StateOutput{
+			Type:      v.Type,
+			Amount:    v.Amount,
+			Recipient: v.Recipient,
+			PaymentId: 0,
+			ExtraData: v.DelegateId,
+		}
+	}
 
-		// apply miner reward
-		minerState, err := bc.GetState(txn, bl.Recipient)
-		if err != nil {
-			Log.Debugf("coinbase reward account not previously known: %s", err)
-		}
-		minerState.Balance += minerReward
-		minerState.LastIncoming++
-		err = bc.SetState(txn, bl.Recipient, minerState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// add block hash to recipient's incoming list
-		err = bc.SetTxTopoInc(txn, bl.Hash(), bl.Recipient, minerState.LastIncoming)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-
-		// apply governance reward
-		governanceState, err := bc.GetState(txn, address.GenesisAddress)
-		if err != nil {
-			Log.Debugf("governance reward account not previously known: %s", err)
-		}
-		governanceState.Balance += governanceReward
-		err = bc.SetState(txn, address.GenesisAddress, governanceState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// governance reward transactions aren't saved in incoming tx list
+	err = bc.ApplyTxOutputsToState(txn, blockhash, outs, blockhash, stats)
+	if err != nil {
+		Log.Err(err)
+		return err
 	}
 
 	// update some stats
@@ -1002,6 +951,9 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, _ [32]byte
 
 // Reverses the transaction of a block from the blockchain state
 func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
+	stats := bc.GetStats(txn)
+	defer bc.SetStats(txn, stats)
+
 	type txCache struct {
 		Hash [32]byte
 		Tx   *transaction.Transaction
@@ -1025,13 +977,25 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 			}
 			// add removed transactions back to mempool
 			if memp.GetEntry(v) == nil {
+				signerAddr := address.FromPubKey(tx.Signer)
+				sout := tx.Data.StateOutputs(tx, signerAddr)
+				out := make([]transaction.Output, len(sout))
+				for i, v := range sout {
+					out[i] = transaction.Output{
+						Recipient: v.Recipient,
+						PaymentId: v.PaymentId,
+						Amount:    v.Amount,
+					}
+				}
 				memp.Entries = append(memp.Entries, &MempoolEntry{
-					TXID:    v,
-					Size:    tx.GetVirtualSize(),
-					Fee:     tx.Fee,
-					Expires: time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
-					Sender:  address.FromPubKey(tx.Sender),
-					Outputs: tx.Outputs,
+					TXID:      v,
+					TxVersion: tx.Version,
+					Size:      tx.GetVirtualSize(),
+					Fee:       tx.Fee,
+					Expires:   time.Now().Add(config.MEMPOOL_EXPIRATION).Unix(),
+					Signer:    signerAddr,
+					Inputs:    tx.Data.StateInputs(tx, signerAddr),
+					Outputs:   out,
 				})
 			}
 		}
@@ -1042,62 +1006,26 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 	}
 
-	// undo coinbase transaction
-	{
-		totalReward := bl.Reward() + totalFee
-		governanceReward := totalReward * config.BLOCK_REWARD_FEE_PERCENT / 100
-		minerReward := totalReward - governanceReward
-
-		Log.Debug("removing block reward", totalReward, "miner:", minerReward, "governance:", governanceReward)
-
-		// undo miner transaction
-		minerState, err := bc.GetState(txn, bl.Recipient)
-		if err != nil {
-			err := fmt.Errorf("coinbase reward account unknown: %s", err)
-			Log.Err(err)
-			return err
+	// remove coinbase transacton
+	totalReward := bl.Reward() + totalFee
+	if totalReward < bl.Reward() {
+		return errors.New("reward overflow in block")
+	}
+	coinbaseOuts := bl.CoinbaseTransaction(totalReward)
+	outs := make([]transaction.StateOutput, len(coinbaseOuts))
+	for i, v := range coinbaseOuts {
+		outs[i] = transaction.StateOutput{
+			Type:      v.Type,
+			Amount:    v.Amount,
+			Recipient: v.Recipient,
+			PaymentId: 0,
+			ExtraData: v.DelegateId,
 		}
-		if minerState.Balance < minerReward {
-			err := fmt.Errorf("balance of coinbase account is too small! balance: %d, block reward: %d",
-				minerState.Balance, minerReward)
-			Log.Err(err)
-			return err
-		}
-		if minerState.LastIncoming == 0 {
-			err = fmt.Errorf("coinbase %s LastIncoming must not be zero in block %x", bl.Recipient, blhash)
-			Log.Err(err)
-			return err
-		}
-		minerState.Balance -= minerReward
-		minerState.LastIncoming--
-		err = bc.SetState(txn, bl.Recipient, minerState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// removing coinbase transaction from incoming tx list is not necessary - since it's never read, and
-		// later overwritten
-
-		// undo governance reward
-		governanceState, err := bc.GetState(txn, address.GenesisAddress)
-		if err != nil {
-			err := fmt.Errorf("coinbase reward account unknown: %s", err)
-			Log.Err(err)
-			return err
-		}
-		if governanceState.Balance < governanceReward {
-			err := fmt.Errorf("balance of coinbase account is too small! balance: %d, block reward: %d",
-				governanceState.Balance, governanceReward)
-			Log.Err(err)
-			return err
-		}
-		governanceState.Balance -= governanceReward
-		err = bc.SetState(txn, address.GenesisAddress, governanceState)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		// governance reward transactions aren't saved in incoming tx list
+	}
+	err := bc.RemoveTxOutputsFromState(txn, blhash, outs, blhash, stats)
+	if err != nil {
+		Log.Err(err)
+		return err
 	}
 
 	// remove transactions in reverse order
@@ -1107,72 +1035,11 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 
 		Log.Devf("removing transaction %x (index %d) from state", txhash, i)
 
-		senderAddr := address.FromPubKey(tx.Sender)
-
-		// decrease recipient balance and LastIncoming
-		for _, out := range tx.Outputs {
-			recState, err := bc.GetState(txn, out.Recipient)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			if recState.Balance < out.Amount {
-				err := fmt.Errorf("recipient balance is smaller than output amount: %d < %d",
-					recState.Balance, out.Amount)
-				if err != nil {
-					Log.Err(err)
-					return err
-				}
-			}
-			if recState.LastIncoming == 0 {
-				err = fmt.Errorf("recipient %s LastIncoming must not be zero in tx %x", out.Recipient, txhash)
-				Log.Err(err)
-				return err
-			}
-			recState.Balance -= out.Amount
-			recState.LastIncoming--
-			err = bc.SetState(txn, out.Recipient, recState)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-		}
-
-		// increase sender balance and decrease nonce
-		{
-			senderState, err := bc.GetState(txn, senderAddr)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-			if senderState.LastNonce == 0 {
-				err = fmt.Errorf("sender %s last nonce must not be zero in tx %x", senderAddr, txhash)
-				Log.Err(err)
-				return err
-			}
-
-			amount, err := tx.TotalAmount()
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-
-			senderState.Balance += amount
-			senderState.LastNonce--
-			err = bc.SetState(txn, senderAddr, senderState)
-			if err != nil {
-				Log.Err(err)
-				return err
-			}
-		}
-
-		// set tx height to zero
-		err := bc.SetTxHeight(txn, txhash, 0)
+		err := bc.RemoveTxFromState(txn, tx, address.FromPubKey(tx.Signer), bl, blhash, stats, txhash)
 		if err != nil {
 			Log.Err(err)
 			return err
 		}
-
 	}
 
 	return nil
@@ -1277,9 +1144,7 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 
 			// Here we don't fully validate the block, as we don't know the current state. Instead we only
 			// update the cumulative difficulty, as it's needed for the tips
-			cdiff := prev.CumulativeDiff.Add(bl.Difficulty)
-			sideDiff := bl.Difficulty.Mul64(uint64(len(bl.SideBlocks)) * 2).Div64(3)
-			cdiff = cdiff.Add(sideDiff)
+			cdiff := prev.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 			if !cdiff.Equals(bl.CumulativeDiff) {
 				Log.Devf("deorphanBlock: block cumulative difficulty updated: %s -> %s", bl.CumulativeDiff,
@@ -1309,8 +1174,8 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 }
 
 // Blockchain MUST be RLocked before calling this
-func (bc *Blockchain) GetStats(tx adb.Txn) *Stats {
-	d := tx.Get(bc.Index.Info, []byte("stats"))
+func (bc *Blockchain) GetStats(txn adb.Txn) *Stats {
+	d := txn.Get(bc.Index.Info, []byte("stats"))
 
 	if len(d) == 0 {
 		Log.Fatal("stats are empty")

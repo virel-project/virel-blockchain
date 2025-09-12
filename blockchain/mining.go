@@ -45,18 +45,24 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		return nil, 0, err
 	}
 
+	height := stats.TopHeight + 1
+
+	var version uint8 = 0
+	if height >= config.HARDFORK_V3_HEIGHT {
+		version = 1
+	}
+
 	bl := &block.Block{
 		BlockHeader: block.BlockHeader{
-			Version:    0,
-			Height:     stats.TopHeight + 1,
+			Version:    version,
+			Height:     height,
 			Timestamp:  max(util.Time()+1, prevBl.Timestamp), // we ensure that the timestamp is always sequential
 			Recipient:  addr,
 			Ancestors:  prevBl.Ancestors.AddHash(stats.TopHash),
 			SideBlocks: make([]block.Commitment, 0),
 		},
-		Difficulty:     uint128.From64(config.MIN_DIFFICULTY),
-		CumulativeDiff: stats.CumulativeDiff,
-		Transactions:   []transaction.TXID{},
+		Difficulty:   uint128.From64(config.MIN_DIFFICULTY),
+		Transactions: []transaction.TXID{},
 	}
 	_, err = rand.Read(bl.NonceExtra[:])
 	if err != nil {
@@ -67,8 +73,6 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 	if err != nil {
 		return nil, 0, err
 	}
-
-	bl.CumulativeDiff = bl.CumulativeDiff.Add(bl.Difficulty)
 
 	for _, v := range stats.Tips {
 		if len(bl.SideBlocks) == config.MAX_SIDE_BLOCKS {
@@ -146,9 +150,6 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		}
 	}
 
-	sideDiff := bl.Difficulty.Mul64(2 * uint64(len(bl.SideBlocks))).Div64(3)
-	bl.CumulativeDiff = bl.CumulativeDiff.Add(sideDiff)
-
 	// TODO: sort mempool transactions by Fee Per Kilobyte, to prioritize the transactions with higher fee
 	// possibly also take in account transaction age in the sorting algorithm
 	mem := bc.GetMempool(txn)
@@ -164,9 +165,9 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 			Log.Err(err)
 			continue
 		}
-		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries)
+		err = bc.validateMempoolTx(txn, memtx, v.TXID, validEntries, bl.Height)
 		if err != nil {
-			Log.Warn("GetBlockTemplate: mempool tx is not valid:", err)
+			Log.Warn("GetBlockTemplate: validateMempoolTx error:", err)
 			continue
 		}
 
@@ -179,6 +180,31 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		err = bc.SetMempool(txn, mem)
 		if err != nil {
 			Log.Warn(err)
+		}
+	}
+
+	bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
+
+	if bl.Version > 0 {
+		stakesig, err := bc.GetStakeSig(txn, bl.BlockStakedHash())
+		if err != nil {
+			Log.Debug("block template: no stake sig found:", err)
+		} else {
+			if stakesig.Hash != bl.BlockStakedHash() {
+				Log.Warn("stakeSig.Hash and block staked hash do not match:", stakesig.Hash, bl.BlockStakedHash())
+			} else {
+				bl.StakeSignature = stakesig.Signature
+				bl.DelegateId = stakesig.DelegateId
+				bl.CumulativeDiff = stats.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
+			}
+		}
+		if bl.DelegateId == 0 {
+			stakedbl, err := bc.GetBlock(txn, bl.BlockStakedHash())
+			if err != nil {
+				Log.Debug(err)
+			} else {
+				bl.DelegateId = stakedbl.NextDelegateId
+			}
 		}
 	}
 
@@ -203,6 +229,15 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		bc.MergesMut.Unlock()
 
 		bl.SortOtherChains()
+	}
+
+	// calculating NextDelegateId should be the last thing, because we require a correct block basehash.
+	if bl.Version > 0 {
+		nextdelegate, err := bc.GetStaker(txn, bl, stats)
+		if err != nil {
+			return nil, 0, err
+		}
+		bl.NextDelegateId = nextdelegate.Id
 	}
 
 	return bl, min_diff, nil

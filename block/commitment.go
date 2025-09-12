@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/config"
 	"github.com/virel-project/virel-blockchain/v2/util"
 
@@ -14,10 +15,13 @@ import (
 // BaseHash() returns the base block hash, used for pruning unnecessary data from commitments.
 // It essentially contains everything except nonce, nonce extra & timestamp, since it has to be used as part
 // of the HashingID, which in turn is part of the MiningBlob. It also makes sure not to include OtherChains.
+// Additionally, it does not include the block's NextDelegateId, as the BaseHash is also used for staking.
 func (b Block) BaseHash() util.Hash {
 	b.Timestamp = 0
 	b.Nonce = 0
 	b.NonceExtra = [16]byte{}
+	b.StakeSignature = bitcrypto.Signature{}
+	b.NextDelegateId = 0
 	if len(b.OtherChains) != 0 {
 		b.OtherChains = make([]HashingID, 0)
 	}

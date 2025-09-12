@@ -8,6 +8,7 @@ const (
 	TX
 	STATS
 	BLOCK_REQUEST
+	STAKE_SIGNATURE
 )
 
 func (p Type) String() string {
@@ -22,6 +23,8 @@ func (p Type) String() string {
 		return "STATS"
 	case BLOCK_REQUEST:
 		return "BLOCK_REQUEST"
+	case STAKE_SIGNATURE:
+		return "STAKE_SIGNATURE"
 	}
 	return "UNKNOWN"
 }

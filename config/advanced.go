@@ -40,6 +40,8 @@ const BLACK_DURATION = 60 * 60 * 24
 // fork coins should not change this if they want to be easily merge mined
 const HD_COIN_TYPE = 6310
 
+var STAKE_SIGN_PREFIX = []byte("stakesig.")
+
 var BinaryNetworkID = make([]byte, 8)
 
 func init() {

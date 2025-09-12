@@ -6,12 +6,16 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/virel-project/virel-blockchain/v2/adb"
 	"github.com/virel-project/virel-blockchain/v2/address"
+	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v2/block"
 	"github.com/virel-project/virel-blockchain/v2/blockchain"
 	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v2/rpc"
 	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v2/rpc/rpcserver"
@@ -98,13 +102,59 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		c.SuccessResponse(daemonrpc.GetBlockResponse{
+		res := daemonrpc.GetBlockResponse{
 			Block:       *bl,
 			Hash:        hex.EncodeToString(hash[:]),
 			TotalReward: bl.Reward(),
 			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
 			Miner:       bl.Recipient.String(),
+		}
+		if bl.Version > 0 {
+			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
+			res.NextDelegate = address.NewDelegateAddress(bl.NextDelegateId)
+		}
+
+		c.SuccessResponse(res)
+	})
+
+	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {
+		params := daemonrpc.GetBlockByHeightRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		var bl *block.Block
+		err = bc.DB.View(func(txn adb.Txn) (err error) {
+			bl, err = bc.GetBlockByHeight(txn, params.Height)
+			if err != nil {
+				return err
+			}
+
+			return
 		})
+		if err != nil {
+			Log.Debug(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "block not found",
+			})
+			return
+		}
+
+		res := daemonrpc.GetBlockResponse{
+			Block:       *bl,
+			Hash:        bl.Hash().String(),
+			TotalReward: bl.Reward(),
+			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
+			Miner:       bl.Recipient.String(),
+		}
+		if bl.Version > 0 {
+			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
+			res.NextDelegate = address.NewDelegateAddress(bl.NextDelegateId)
+		}
+
+		c.SuccessResponse(res)
 	})
 
 	rs.Handle("get_transaction", func(c *rpcserver.Context) {
@@ -155,28 +205,34 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return
 			}
 
-			rewardFee := bl.Reward() * config.BLOCK_REWARD_FEE_PERCENT / 100
+			reward := bl.Reward()
+
+			cout := bl.CoinbaseTransaction(reward)
+			out := make([]transaction.StateOutput, len(cout))
+			for i, v := range cout {
+				out[i] = transaction.StateOutput{
+					Recipient: v.Recipient,
+					PaymentId: 0,
+					Amount:    v.Amount,
+					Type:      v.Type,
+				}
+			}
 
 			c.SuccessResponse(daemonrpc.GetTransactionResponse{
-				Sender:      nil,
-				TotalAmount: bl.Reward(),
-				Outputs: []transaction.Output{
-					{
-						Amount:    bl.Reward() - rewardFee,
-						Recipient: bl.Recipient,
-						PaymentId: 0,
-					},
-				},
-				Fee:       rewardFee,
-				Nonce:     0,
-				Signature: nil,
-				Height:    bl.Height,
-				Coinbase:  true,
+				Signer:      nil,
+				TotalAmount: reward,
+				Inputs:      []transaction.StateInput{},
+				Outputs:     out,
+				Fee:         0,
+				Nonce:       0,
+				Signature:   nil,
+				Height:      bl.Height,
+				Coinbase:    true,
 			})
 			return
 		}
 
-		integr := address.FromPubKey(tx.Sender).Integrated()
+		signer := address.FromPubKey(tx.Signer).Integrated()
 
 		amount, err := tx.TotalAmount()
 		if err != nil {
@@ -189,9 +245,10 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		c.SuccessResponse(daemonrpc.GetTransactionResponse{
-			Sender:      &integr,
+			Signer:      &signer,
 			TotalAmount: amount,
-			Outputs:     tx.Outputs,
+			Inputs:      tx.Data.StateInputs(tx, signer.Addr),
+			Outputs:     tx.Data.StateOutputs(tx, signer.Addr),
 			Fee:         tx.Fee,
 			Nonce:       tx.Nonce,
 			Signature:   tx.Signature[:],
@@ -239,15 +296,14 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		Log.Debugf("submit_transaction hex: %s", params.Hex)
 
-		tx := &transaction.Transaction{}
-
 		var stats *blockchain.Stats
 		bc.DB.View(func(txn adb.Txn) error {
 			stats = bc.GetStats(txn)
 			return nil
 		})
 
-		err = tx.Deserialize(params.Hex, stats.TopHeight >= config.HARDFORK_V1_HEIGHT)
+		tx := &transaction.Transaction{}
+		err = tx.Deserialize(params.Hex, stats.TopHeight+1 >= config.HARDFORK_V2_HEIGHT)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -257,7 +313,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
-		err = tx.Prevalidate()
+		err = tx.Prevalidate(stats.TopHeight + 1)
 		if err != nil {
 			Log.Warn(err)
 			c.ErrorResponse(&rpc.Error{
@@ -268,7 +324,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		err = bc.DB.Update(func(txn adb.Txn) error {
-			return bc.AddTransaction(txn, tx, tx.Hash(), true)
+			return bc.AddTransaction(txn, tx, tx.Hash(), true, stats.TopHeight+1)
 		})
 		if err != nil {
 			Log.Warn(err)
@@ -313,6 +369,9 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				result.Balance = state.Balance
 				result.LastNonce = state.LastNonce
 				result.LastIncoming = state.LastIncoming
+				result.DelegateId = state.DelegateId
+				result.TotalStaked = state.TotalStaked
+				result.TotalUnstaked = state.TotalUnstaked
 			}
 
 			stats := bc.GetStats(tx)
@@ -335,30 +394,21 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			for _, v := range mem.Entries {
-				if v.Sender == addr.Addr || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
+				if slices.ContainsFunc(v.Inputs, func(e transaction.StateInput) bool { return e.Sender == addr.Addr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
 					Log.Devf("adding txn %x", v.TXID)
-					txn, _, err := bc.GetTx(txn, v.TXID, result.Height)
-					if err != nil {
-						Log.Err(err)
-						return err
-					}
-					if v.Sender == addr.Addr {
 
-						amount, err := txn.TotalAmount()
-						if err != nil {
-							Log.Err(err)
-							return err
-						}
-
-						result.MempoolBalance -= amount
-						result.MempoolNonce++
-						// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
-						// as we consider them more trustworthy (to avoid double sending money by mistake)
-						if amount > result.Balance {
-							Log.Warnf("invalid mempool transaction %x", v.TXID)
-						} else {
-							result.Balance -= amount
-							result.LastNonce++
+					for _, inp := range v.Inputs {
+						if inp.Sender == addr.Addr {
+							result.MempoolBalance -= inp.Amount
+							result.MempoolNonce++
+							// NOTE: Outgoing mempool transactions are removed from the displayed balance immediately,
+							// as we consider them more trustworthy (to avoid double sending money by mistake)
+							if inp.Amount > result.Balance {
+								Log.Warnf("invalid mempool transaction %x", v.TXID)
+							} else {
+								result.Balance -= inp.Amount
+								result.LastNonce++
+							}
 						}
 					}
 
@@ -470,36 +520,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 	})
 
-	rs.Handle("get_block_by_height", func(c *rpcserver.Context) {
-		params := daemonrpc.GetBlockByHeightRequest{}
-		err := c.GetParams(&params)
-		if err != nil {
-			return
-		}
-
-		var bl *block.Block
-		err = bc.DB.View(func(tx adb.Txn) (err error) {
-			bl, err = bc.GetBlockByHeight(tx, params.Height)
-			return
-		})
-		if err != nil {
-			Log.Debug(err)
-			c.ErrorResponse(&rpc.Error{
-				Code:    internalReadFailed,
-				Message: "block not found",
-			})
-			return
-		}
-
-		c.SuccessResponse(daemonrpc.GetBlockResponse{
-			Block:       *bl,
-			Hash:        bl.Hash().String(),
-			TotalReward: bl.Reward(),
-			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
-			Miner:       bl.Recipient.String(),
-		})
-	})
-
 	rs.Handle("validate_address", func(c *rpcserver.Context) {
 		params := daemonrpc.ValidateAddressRequest{}
 		err := c.GetParams(&params)
@@ -531,6 +551,96 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			Valid:       true,
 			MainAddress: addr.Addr.String(),
 			PaymentId:   addr.PaymentId,
+		})
+	})
+
+	rs.Handle("submit_stake_signature", func(c *rpcserver.Context) {
+		params := daemonrpc.SubmitStakeSignatureRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		if len(params.Hash) != 32 || len(params.Signature) != bitcrypto.SIGNATURE_SIZE {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "invalid hash or signature length",
+			})
+			return
+		}
+
+		hash := util.Hash(params.Hash)
+		sig := bitcrypto.Signature(params.Signature)
+
+		err = bc.HandleStakeSignature(&packet.PacketStakeSignature{
+			DelegateId: params.DelegateId,
+			Hash:       hash,
+			Signature:  sig,
+		})
+
+		if err != nil {
+			Log.Warn(err)
+			c.SuccessResponse(daemonrpc.SubmitStakeSignatureResponse{
+				Accepted:     false,
+				ErrorMessage: err.Error(),
+			})
+			return
+		}
+
+		c.SuccessResponse(daemonrpc.SubmitStakeSignatureResponse{
+			Accepted: true,
+		})
+	})
+
+	rs.Handle("get_delegate", func(c *rpcserver.Context) {
+		params := daemonrpc.GetDelegateRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		if params.DelegateId == 0 {
+			if !strings.HasPrefix(params.DelegateAddress, config.DELEGATE_ADDRESS_PREFIX) {
+				c.ErrorResponse(&rpc.Error{
+					Code:    -1,
+					Message: "invalid delegate address prefix",
+				})
+				return
+			}
+
+			params.DelegateAddress = strings.TrimPrefix(params.DelegateAddress, config.DELEGATE_ADDRESS_PREFIX)
+
+			params.DelegateId, err = strconv.ParseUint(params.DelegateAddress, 10, 64)
+			if err != nil {
+				Log.Debug(err)
+				c.ErrorResponse(&rpc.Error{
+					Code:    -1,
+					Message: "invalid delegate address",
+				})
+				return
+			}
+		}
+
+		var delegate *blockchain.Delegate
+		err = bc.DB.View(func(txn adb.Txn) error {
+			delegate, err = bc.GetDelegate(txn, params.DelegateId)
+			return err
+		})
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    internalReadFailed,
+				Message: "failed to get delegate",
+			})
+			return
+		}
+
+		c.SuccessResponse(daemonrpc.GetDelegateResponse{
+			Id:      params.DelegateId,
+			Address: address.NewDelegateAddress(params.DelegateId),
+			Owner:   delegate.OwnerAddress(),
+			Name:    string(delegate.Name),
+			Funds:   delegate.Funds,
 		})
 	})
 
