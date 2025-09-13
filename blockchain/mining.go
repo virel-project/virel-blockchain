@@ -214,17 +214,19 @@ func (bc *Blockchain) GetBlockTemplate(txn adb.Txn, addr address.Address) (*bloc
 		// add merge mining templates
 		bc.MergesMut.Lock()
 		for _, v := range bc.Merges {
-			v.RLock()
-			if v.Difficulty == 0 {
-				// skip merges that don't have first job yet
-				continue
-			}
-			bl.OtherChains = append(bl.OtherChains, v.HashingID)
-			if v.Difficulty < min_diff {
-				Log.Debug("min_diff reduces from", min_diff, "to", v.Difficulty)
-				min_diff = v.Difficulty
-			}
-			v.RUnlock()
+			func() {
+				v.RLock()
+				defer v.RUnlock()
+				if v.Difficulty == 0 {
+					// skip merges that don't have first job yet
+					return
+				}
+				bl.OtherChains = append(bl.OtherChains, v.HashingID)
+				if v.Difficulty < min_diff {
+					Log.Debug("min_diff reduces from", min_diff, "to", v.Difficulty)
+					min_diff = v.Difficulty
+				}
+			}()
 		}
 		bc.MergesMut.Unlock()
 
