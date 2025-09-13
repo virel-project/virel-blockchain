@@ -52,7 +52,7 @@ func FromString(p string) (Integrated, error) {
 		return NewDelegateAddress(num).Integrated(), nil
 	}
 
-	if p[0] != config.WALLET_PREFIX[0] || len(p) < 4 {
+	if len(p) < 4 || p[0] != config.WALLET_PREFIX[0] {
 		return Integrated{}, errors.New("invalid address prefix")
 	}
 	p = p[1:]
