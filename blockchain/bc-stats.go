@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/uint128"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/uint128"
 )
 
 type Stats struct {

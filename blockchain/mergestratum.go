@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/block"
-	"github.com/virel-project/virel-blockchain/v2/stratum"
-	"github.com/virel-project/virel-blockchain/v2/stratum/stratumclient"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/uint128"
+	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/stratum"
+	"github.com/virel-project/virel-blockchain/v3/stratum/stratumclient"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/uint128"
 )
 
 // The purpose of mergestratum is to connect to other nodes to receive merge-mining jobs.

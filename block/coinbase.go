@@ -3,10 +3,10 @@ package block
 import (
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
 )
 
 // CoinbaseReward is a virtual transaction type: it is invalid for the network, but it is used

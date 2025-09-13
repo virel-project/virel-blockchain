@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/binary"
-	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
-	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
 )
 
 type State struct {

@@ -5,12 +5,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/wallet"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/wallet"
 
 	"github.com/ergochat/readline"
 )

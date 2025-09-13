@@ -3,8 +3,8 @@ package transaction
 import (
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/binary"
 )
 
 type Output struct {

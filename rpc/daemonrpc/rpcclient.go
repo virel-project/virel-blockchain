@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/virel-project/virel-blockchain/v2/rpc"
+	"github.com/virel-project/virel-blockchain/v3/rpc"
 )
 
 type RpcClient struct {

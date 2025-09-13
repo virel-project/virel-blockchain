@@ -1,10 +1,10 @@
 package walletrpc
 
 import (
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/enc"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/enc"
 )
 
 type TxInfo struct {

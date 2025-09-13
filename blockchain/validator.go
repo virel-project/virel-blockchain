@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/adb"
-	"github.com/virel-project/virel-blockchain/v2/block"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/p2p"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
-	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v3/adb"
+	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/p2p"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
+	"github.com/virel-project/virel-blockchain/v3/util"
 )
 
 const POSTPROCESS_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD

@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/rpc"
-	"github.com/virel-project/virel-blockchain/v2/stratum"
-	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v3/rpc"
+	"github.com/virel-project/virel-blockchain/v3/stratum"
+	"github.com/virel-project/virel-blockchain/v3/util"
 )
 
 type StratumResponse struct {

@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
-	"github.com/virel-project/virel-blockchain/v2/blockchain"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/rpc/daemonrpc"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
-	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
+	"github.com/virel-project/virel-blockchain/v3/util"
 )
 
 // wallet is not concurrency-safe, it should be used on a single thread

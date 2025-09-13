@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/config"
+	"github.com/virel-project/virel-blockchain/v3/config"
 
 	"github.com/zeebo/blake3"
 )

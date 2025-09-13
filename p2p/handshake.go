@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/virel-project/virel-blockchain/v2/binary"
+	"github.com/virel-project/virel-blockchain/v3/binary"
 )
 
 const MAX_HANDSHAKE_SIZE = 1024

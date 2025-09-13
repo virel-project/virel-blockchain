@@ -8,14 +8,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/address"
-	"github.com/virel-project/virel-blockchain/v2/block"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/logger"
-	"github.com/virel-project/virel-blockchain/v2/rpc"
-	"github.com/virel-project/virel-blockchain/v2/stratum"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/uint128"
+	"github.com/virel-project/virel-blockchain/v3/address"
+	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/logger"
+	"github.com/virel-project/virel-blockchain/v3/rpc"
+	"github.com/virel-project/virel-blockchain/v3/stratum"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/uint128"
 
 	"github.com/virel-project/go-randomvirel"
 )

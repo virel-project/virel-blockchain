@@ -3,10 +3,10 @@ package packet
 import (
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/v2/binary"
-	"github.com/virel-project/virel-blockchain/v2/bitcrypto"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/uint128"
+	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/uint128"
 )
 
 type Uint128 = uint128.Uint128

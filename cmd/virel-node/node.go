@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/virel-project/virel-blockchain/v2/adb/lmdb"
-	"github.com/virel-project/virel-blockchain/v2/blockchain"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/logger"
-	"github.com/virel-project/virel-blockchain/v2/util/updatechecker"
+	"github.com/virel-project/virel-blockchain/v3/adb/lmdb"
+	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/logger"
+	"github.com/virel-project/virel-blockchain/v3/util/updatechecker"
 )
 
 var Log = logger.New()

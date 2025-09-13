@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/virel-project/virel-blockchain/v2/adb"
-	"github.com/virel-project/virel-blockchain/v2/p2p/packet"
-	"github.com/virel-project/virel-blockchain/v2/util"
-	"github.com/virel-project/virel-blockchain/v2/util/uint128"
+	"github.com/virel-project/virel-blockchain/v3/adb"
+	"github.com/virel-project/virel-blockchain/v3/p2p/packet"
+	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/uint128"
 )
 
 // GetStaker returns the correct staker for a given block PrevHash.

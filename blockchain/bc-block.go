@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/virel-project/go-randomvirel"
-	"github.com/virel-project/virel-blockchain/v2/adb"
-	"github.com/virel-project/virel-blockchain/v2/binary"
-	"github.com/virel-project/virel-blockchain/v2/block"
-	"github.com/virel-project/virel-blockchain/v2/checkpoints"
-	"github.com/virel-project/virel-blockchain/v2/config"
-	"github.com/virel-project/virel-blockchain/v2/transaction"
-	"github.com/virel-project/virel-blockchain/v2/util"
+	"github.com/virel-project/virel-blockchain/v3/adb"
+	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/checkpoints"
+	"github.com/virel-project/virel-blockchain/v3/config"
+	"github.com/virel-project/virel-blockchain/v3/transaction"
+	"github.com/virel-project/virel-blockchain/v3/util"
 )
 
 func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, error) {
