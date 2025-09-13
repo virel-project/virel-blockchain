@@ -122,6 +122,11 @@ func (t Transaction) GetVirtualSize() uint64 {
 func (t Transaction) SignatureData() []byte {
 	t.Signature = bitcrypto.Signature{}
 
+	// Prevent replay attacks
+	if config.NETWORK_ID != 0xd38dab1d4676d0c5 {
+		binary.LittleEndian.PutUint64(t.Signature[:], config.NETWORK_ID)
+	}
+
 	return t.Serialize()
 }
 
