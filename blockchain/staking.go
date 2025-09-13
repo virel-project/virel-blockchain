@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/virel-project/virel-blockchain/v3/adb"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v3/util"
 	"github.com/virel-project/virel-blockchain/v3/util/uint128"
@@ -13,10 +14,10 @@ import (
 
 // GetStaker returns the correct staker for a given block PrevHash.
 // Can only be called when the stakedhash is at chain tip.
-func (bc *Blockchain) GetStaker(txn adb.Txn, hash util.Hash, stats *Stats) (*Delegate, error) {
+func (bc *Blockchain) GetStaker(txn adb.Txn, hash util.Hash, stats *Stats) (*chaintype.Delegate, error) {
 	if stats.StakedAmount == 0 {
 		// return dummy delegate
-		return &Delegate{
+		return &chaintype.Delegate{
 			Id:   0,
 			Name: []byte("no delegate"),
 		}, nil
@@ -26,10 +27,10 @@ func (bc *Blockchain) GetStaker(txn adb.Txn, hash util.Hash, stats *Stats) (*Del
 
 	var coinsSeen uint64
 
-	var delegate *Delegate
+	var delegate *chaintype.Delegate
 
 	// find the correct delegate who should stake
-	err := bc.GetDelegates(txn, func(d *Delegate) (bool, error) {
+	err := bc.GetDelegates(txn, func(d *chaintype.Delegate) (bool, error) {
 		t := d.TotalAmount()
 
 		ocs := coinsSeen
@@ -56,12 +57,12 @@ func (bc *Blockchain) GetStaker(txn adb.Txn, hash util.Hash, stats *Stats) (*Del
 	return delegate, nil
 }
 
-func (bc *Blockchain) SetDelegate(txn adb.Txn, delegate *Delegate) error {
+func (bc *Blockchain) SetDelegate(txn adb.Txn, delegate *chaintype.Delegate) error {
 	idb := make([]byte, 8)
 	binary.LittleEndian.PutUint64(idb, delegate.Id)
 	return txn.Put(bc.Index.Delegate, idb, delegate.Serialize())
 }
-func (bc *Blockchain) GetDelegate(txn adb.Txn, id uint64) (*Delegate, error) {
+func (bc *Blockchain) GetDelegate(txn adb.Txn, id uint64) (*chaintype.Delegate, error) {
 	idb := make([]byte, 8)
 	binary.LittleEndian.PutUint64(idb, id)
 
@@ -69,7 +70,7 @@ func (bc *Blockchain) GetDelegate(txn adb.Txn, id uint64) (*Delegate, error) {
 	if len(delegatedata) < 1 {
 		return nil, errors.New("no delegate found")
 	}
-	delegate := &Delegate{}
+	delegate := &chaintype.Delegate{}
 	err := delegate.Deserialize(delegatedata)
 	if err != nil {
 		return nil, err
@@ -81,9 +82,9 @@ func (bc *Blockchain) RemoveDelegate(txn adb.Txn, delegateId uint64) error {
 	binary.LittleEndian.PutUint64(idb, delegateId)
 	return txn.Del(bc.Index.Delegate, idb)
 }
-func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error)) error {
+func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *chaintype.Delegate) (bool, error)) error {
 	return txn.ForEachInterrupt(bc.Index.Delegate, func(k, v []byte) (bool, error) {
-		d := &Delegate{}
+		d := &chaintype.Delegate{}
 
 		err := d.Deserialize(v)
 		if err != nil {
@@ -94,15 +95,15 @@ func (bc *Blockchain) GetDelegates(txn adb.Txn, f func(d *Delegate) (bool, error
 	})
 }
 
-func (bc *Blockchain) SetDelegateHistory(txn adb.Txn, blockhash util.Hash, delegate *Delegate) error {
+func (bc *Blockchain) SetDelegateHistory(txn adb.Txn, blockhash util.Hash, delegate *chaintype.Delegate) error {
 	return txn.Put(bc.Index.DelegateHistory, blockhash[:], delegate.Serialize())
 }
-func (bc *Blockchain) GetDelegateHistory(txn adb.Txn, blockhash util.Hash) (*Delegate, error) {
+func (bc *Blockchain) GetDelegateHistory(txn adb.Txn, blockhash util.Hash) (*chaintype.Delegate, error) {
 	delegatedata := txn.Get(bc.Index.DelegateHistory, blockhash[:])
 	if len(delegatedata) < 1 {
 		return nil, errors.New("no delegate found")
 	}
-	delegate := &Delegate{}
+	delegate := &chaintype.Delegate{}
 	err := delegate.Deserialize(delegatedata)
 	if err != nil {
 		return nil, err

@@ -9,10 +9,10 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/adb"
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/p2p"
 	"github.com/virel-project/virel-blockchain/v3/p2p/packet"
-	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
 	"github.com/virel-project/virel-blockchain/v3/util"
 )
@@ -199,8 +199,8 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	}
 
 	// Initialize simulated states and delegates
-	simulatedStates := make(map[address.Address]*State)
-	simulatedDelegates := make(map[uint64]*Delegate)
+	simulatedStates := make(map[address.Address]*chaintype.State)
+	simulatedDelegates := make(map[uint64]*chaintype.Delegate)
 
 	// Load initial states from database
 	for addr := range affectedAddrs {
@@ -208,7 +208,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		if err != nil {
 			if strings.Contains(err.Error(), "not in state") {
 				Log.Debug("address", addr, "not previously in state")
-				state = &State{}
+				state = &chaintype.State{}
 			} else {
 				return err
 			}
@@ -254,11 +254,11 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 			registerData := tx.Data.(*transaction.RegisterDelegate)
 
-			simulatedDelegates[registerData.Id] = &Delegate{
+			simulatedDelegates[registerData.Id] = &chaintype.Delegate{
 				Id:    registerData.Id,
 				Owner: tx.Signer,
 				Name:  registerData.Name,
-				Funds: []*daemonrpc.DelegatedFund{},
+				Funds: []*chaintype.DelegatedFund{},
 			}
 		}
 		// Handle stake transactions in previous entries
@@ -290,7 +290,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 				}
 			}
 			if !found {
-				delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
+				delegate.Funds = append(delegate.Funds, &chaintype.DelegatedFund{
 					Owner:  signer,
 					Amount: stakeData.Amount,
 				})
@@ -442,7 +442,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 }
 
 // Helper function to get delegate from simulatedDelegates or database
-func (bc *Blockchain) getOrLoadDelegate(txn adb.Txn, delegateId uint64, simulatedDelegates map[uint64]*Delegate) (*Delegate, error) {
+func (bc *Blockchain) getOrLoadDelegate(txn adb.Txn, delegateId uint64, simulatedDelegates map[uint64]*chaintype.Delegate) (*chaintype.Delegate, error) {
 	if delegate, exists := simulatedDelegates[delegateId]; exists {
 		return delegate, nil
 	}

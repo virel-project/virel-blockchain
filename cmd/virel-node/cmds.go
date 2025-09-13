@@ -15,6 +15,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/block"
 	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/p2p"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
@@ -277,7 +278,7 @@ func prompts(bc *blockchain.Blockchain) {
 
 				err := txn.ForEach(bc.Index.State, func(k, v []byte) error {
 					addr := address.Address(k)
-					state := &blockchain.State{}
+					state := &chaintype.State{}
 
 					err := state.Deserialize(v)
 					if err != nil {
@@ -494,7 +495,7 @@ func prompts(bc *blockchain.Blockchain) {
 				return
 			}
 
-			var delegate *blockchain.Delegate
+			var delegate *chaintype.Delegate
 			err = bc.DB.View(func(txn adb.Txn) error {
 				delegate, err = bc.GetDelegate(txn, delid)
 				return err

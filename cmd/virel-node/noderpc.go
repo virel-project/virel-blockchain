@@ -14,6 +14,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v3/block"
 	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v3/rpc"
@@ -621,7 +622,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			}
 		}
 
-		var delegate *blockchain.Delegate
+		var delegate *chaintype.Delegate
 		err = bc.DB.View(func(txn adb.Txn) error {
 			delegate, err = bc.GetDelegate(txn, params.DelegateId)
 			return err
@@ -654,17 +655,12 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 			err := bc.DB.View(func(txn adb.Txn) error {
 				return txn.ForEach(bc.Index.State, func(k, v []byte) error {
-					s := &blockchain.State{}
-					err := s.Deserialize(v)
+					st := &chaintype.State{}
+					err := st.Deserialize(v)
 					if err != nil {
 						return err
 					}
 
-					st := &daemonrpc.State{
-						Balance:      s.Balance,
-						LastIncoming: s.LastIncoming,
-						LastNonce:    s.LastNonce,
-					}
 					if len(resp.Richest) < COUNT {
 						resp.Richest = append(resp.Richest, daemonrpc.StateInfo{
 							Address: address.Address(k).String(),
@@ -678,7 +674,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 						}
 					} else {
 						// Check if this address has a higher balance than the smallest in our list
-						if s.Balance > resp.Richest[COUNT-1].State.Balance {
+						if st.Balance > resp.Richest[COUNT-1].State.Balance {
 							// Replace the smallest balance
 							resp.Richest[COUNT-1] = daemonrpc.StateInfo{
 								Address: address.Address(k).String(),

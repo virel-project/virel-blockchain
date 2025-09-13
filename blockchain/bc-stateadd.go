@@ -8,8 +8,8 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/adb"
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
-	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
 	"github.com/virel-project/virel-blockchain/v3/util"
 	"github.com/virel-project/virel-blockchain/v3/util/uint128"
@@ -77,11 +77,11 @@ func (bc *Blockchain) ApplyTxToState(
 
 		Log.Debug("registering delegate", registerData.Id, "with name", strconv.Quote(string(registerData.Name)))
 
-		bc.SetDelegate(txn, &Delegate{
+		bc.SetDelegate(txn, &chaintype.Delegate{
 			Id:    registerData.Id,
 			Owner: tx.Signer,
 			Name:  registerData.Name,
-			Funds: make([]*daemonrpc.DelegatedFund, 0),
+			Funds: make([]*chaintype.DelegatedFund, 0),
 		})
 	}
 	// set delegate if the tx is a set_delegate transaction
@@ -183,7 +183,7 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		break
 	}
 	if !staked {
-		delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
+		delegate.Funds = append(delegate.Funds, &chaintype.DelegatedFund{
 			Owner:  signerAddr,
 			Amount: stakeData.Amount,
 		})
@@ -258,7 +258,7 @@ func (bc *Blockchain) ApplyTxOutputsToState(txn adb.Txn, blockhash util.Hash, ou
 		recState, err := bc.GetState(txn, out.Recipient)
 		if err != nil {
 			Log.Debug("recipient state not previously known:", err)
-			recState = &State{}
+			recState = &chaintype.State{}
 		}
 		Log.Devf("recipient %s state before: %v", out.Recipient, recState)
 
@@ -350,7 +350,7 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 		}
 	}
 	if !ownerFound {
-		delegate.Funds = append(delegate.Funds, &daemonrpc.DelegatedFund{
+		delegate.Funds = append(delegate.Funds, &chaintype.DelegatedFund{
 			Owner:  delegateAddr,
 			Amount: roundingError,
 		})

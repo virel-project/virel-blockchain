@@ -3,6 +3,7 @@ package daemonrpc
 import (
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
 	"github.com/virel-project/virel-blockchain/v3/util"
 	"github.com/virel-project/virel-blockchain/v3/util/enc"
@@ -109,17 +110,9 @@ type ValidateAddressResponse struct {
 	PaymentId    uint64 `json:"payment_id"`
 }
 
-type State struct {
-	Balance       uint64
-	LastNonce     uint64
-	LastIncoming  uint64 // not used in consensus, but we store it to list the wallet incoming transactions
-	DelegateId    uint64
-	TotalStaked   uint64
-	TotalUnstaked uint64
-}
 type StateInfo struct {
-	Address string
-	State   *State
+	Address string           `json:"address"`
+	State   *chaintype.State `json:"state"`
 }
 
 type RichListRequest struct {
@@ -138,20 +131,14 @@ type SubmitStakeSignatureResponse struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-type DelegatedFund struct {
-	Owner  address.Address `json:"owner"`
-	Amount uint64          `json:"amount"`
-	Unlock uint64          `json:"unlock"` // height of unlock of this fund
-}
-
 type GetDelegateRequest struct {
 	DelegateId      uint64 `json:"delegate_id"`
 	DelegateAddress string `json:"delegate_address"`
 }
 type GetDelegateResponse struct {
-	Id      uint64           `json:"id"`
-	Address address.Address  `json:"address"`
-	Owner   address.Address  `json:"owner"`
-	Name    string           `json:"name"`
-	Funds   []*DelegatedFund `json:"funds"`
+	Id      uint64                     `json:"id"`
+	Address address.Address            `json:"address"`
+	Owner   address.Address            `json:"owner"`
+	Name    string                     `json:"name"`
+	Funds   []*chaintype.DelegatedFund `json:"funds"`
 }

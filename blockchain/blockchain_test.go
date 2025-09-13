@@ -10,6 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/block"
 	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/logger"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
@@ -275,7 +276,7 @@ func PrintState(txn adb.Txn, bc *blockchain.Blockchain, check map[string]float64
 	sum := uint64(0)
 	err := txn.ForEach(bc.Index.State, func(k, v []byte) error {
 		addr := address.Address(k)
-		state := &blockchain.State{}
+		state := &chaintype.State{}
 
 		err := state.Deserialize(v)
 		if err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/binary"
 	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v3/block"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/logger"
 	"github.com/virel-project/virel-blockchain/v3/p2p"
@@ -1045,8 +1046,8 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 	return nil
 }
 
-func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*State, error) {
-	s := &State{}
+func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*chaintype.State, error) {
+	s := &chaintype.State{}
 	bin := tx.Get(bc.Index.State, addr[:])
 	if bin == nil {
 		return s, fmt.Errorf("address %s not in state", addr)
@@ -1054,7 +1055,7 @@ func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*State, error)
 	err := s.Deserialize(bin)
 	return s, err
 }
-func (bc *Blockchain) SetState(tx adb.Txn, addr address.Address, state *State) (err error) {
+func (bc *Blockchain) SetState(tx adb.Txn, addr address.Address, state *chaintype.State) (err error) {
 	return tx.Put(bc.Index.State, addr[:], state.Serialize())
 }
 
@@ -1301,7 +1302,7 @@ func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive b
 func (bc *Blockchain) GetSupply(tx adb.Txn) uint64 {
 	var sum uint64 = 0
 	err := tx.ForEach(bc.Index.State, func(k, v []byte) error {
-		state := &State{}
+		state := &chaintype.State{}
 		err := state.Deserialize(v)
 		if err != nil {
 			Log.Warn(address.Address(k), err)

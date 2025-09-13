@@ -9,7 +9,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
-	"github.com/virel-project/virel-blockchain/v3/blockchain"
+	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/rpc/daemonrpc"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
@@ -196,7 +196,7 @@ func (w *Wallet) Refresh() error {
 }
 
 // Only for unit tests
-func (w *Wallet) ManualRefresh(state *blockchain.State, height uint64) {
+func (w *Wallet) ManualRefresh(state *chaintype.State, height uint64) {
 	w.balance = state.Balance
 	w.lastNonce = state.LastNonce
 	w.mempoolBal = state.Balance
