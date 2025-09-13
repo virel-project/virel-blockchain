@@ -14,13 +14,13 @@ type info struct {
 func New(maxPerMinute int) *Limit {
 	return &Limit{
 		maxPerMinute: maxPerMinute,
-		info:         make(map[string]info),
+		info:         make(map[string]*info),
 	}
 }
 
 type Limit struct {
 	maxPerMinute int
-	info         map[string]info
+	info         map[string]*info
 
 	sync.RWMutex
 }
@@ -32,6 +32,11 @@ func (l *Limit) CanAct(ip string, amount int) bool {
 	defer l.Unlock()
 
 	inf := l.info[ip]
+	if inf == nil {
+		inf = &info{}
+		l.info[ip] = inf
+	}
+
 	if inf.BanEnds > t {
 		return false
 	}
@@ -43,10 +48,9 @@ func (l *Limit) CanAct(ip string, amount int) bool {
 
 	inf.Count += amount
 
-	if inf.Count <= l.maxPerMinute {
-		return true
-	} else {
+	if inf.Count > l.maxPerMinute {
 		inf.BanEnds = t + 120
 		return false
 	}
+	return true
 }
