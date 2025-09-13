@@ -659,7 +659,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		commonBlockHash := altHash
 		commonBlock, err := bc.GetBlock(txn, commonBlockHash)
 		if err != nil {
-			Log.Err(err)
 			return err
 		}
 
@@ -675,15 +674,12 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			commonBlockHash = commonBlock.PrevHash()
 			commonBlock, err = bc.GetBlock(txn, commonBlockHash)
 			if err != nil {
-				err := fmt.Errorf("reorg step 1: failed to get common block %x: %v", commonBlockHash, err)
-				return err
+				return fmt.Errorf("reorg step 1: failed to get common block %x: %v", commonBlockHash, err)
 			}
 			Log.Debugf("reorg step 1: scanning altchain block %d %x", commonBlock.Height, commonBlockHash)
 
 			if commonBlock.Height == 0 {
-				err = errors.New("could not find common block")
-				Log.Err(err)
-				return err
+				return errors.New("could not find common block")
 			}
 
 			topohash, err := bc.GetTopo(txn, commonBlock.Height)
@@ -710,7 +706,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			nHash := stats.TopHash
 			n, err := bc.GetBlock(txn, nHash)
 			if err != nil {
-				Log.Err(err)
 				return err
 			}
 
@@ -723,34 +718,27 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 						break
 					}
 					if n.Height == 0 {
-						err := fmt.Errorf("reorg: Block has height 0! Could not find common hash %x; nHash %x",
+						return fmt.Errorf("reorg: Block has height 0! Could not find common hash %x; nHash %x",
 							commonBlockHash, nHash)
-						Log.Err(err)
-						return err
 					}
 
 					n, err = bc.GetBlock(txn, nHash)
 					if err != nil {
 						err := fmt.Errorf("failed to get block %x: %v", nHash, err)
-						Log.Err(err)
 						return err
 					}
 
 					Log.Debugf("reorg step 2: reversing changes of block %d %x", n.Height, nHash)
 
 					// delete this block's topo
-					heightBin := make([]byte, 8)
-					binary.LittleEndian.PutUint64(heightBin, n.Height)
-					err := txn.Del(bc.Index.Topo, heightBin)
+					err := bc.DelTopo(txn, n.Height)
 					if err != nil {
-						Log.Err(err)
 						return err
 					}
 
 					// remove block from state
 					err = bc.RemoveBlockFromState(txn, n, nHash)
 					if err != nil {
-						Log.Err(err)
 						return err
 					}
 
@@ -773,7 +761,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			binary.LittleEndian.PutUint64(heightBin, hashes[i].Block.Height)
 			err := txn.Put(bc.Index.Topo, heightBin, hashes[i].Hash[:])
 			if err != nil {
-				Log.Err(err)
 				return err
 			}
 
@@ -782,19 +769,16 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			// set the block's cumulative difficulty
 			prevBl, err := bc.GetBlock(txn, bl.PrevHash())
 			if err != nil {
-				Log.Err(err)
 				return err
 			}
 
 			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash)
 			if err != nil {
-				Log.Warn("reorg invalid block:", err)
 				return err
 			}
 
 			err = bc.ApplyBlockToState(txn, bl, hashes[i].Hash)
 			if err != nil {
-				Log.Err(err)
 				return err
 			}
 
@@ -805,8 +789,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 		// step 4: update the stats
 		Log.Devf("starting reorg step 4")
-
-		stats = bc.GetStats(txn)
 
 		// add the old mainchain as an altchain tip
 		delete(stats.Tips, altHash)
@@ -821,7 +803,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		stats.CumulativeDiff = altDiff
 		stats.TopHeight = altHeight
 
-		txn.Put(bc.Index.Info, []byte("stats"), stats.Serialize())
+		bc.setStatsNoBroadcast(txn, stats)
 
 		bc.BlockQueue.Update(func(qt *QueueTx) {
 			qt.BlockAdded(stats.TopHeight)
@@ -1276,6 +1258,12 @@ func (bc *Blockchain) GetTopo(tx adb.Txn, height uint64) ([32]byte, error) {
 	}
 	blHash = [32]byte(topoHash)
 	return blHash, nil
+}
+
+func (bc *Blockchain) DelTopo(txn adb.Txn, height uint64) error {
+	heightBin := make([]byte, 8)
+	binary.LittleEndian.PutUint64(heightBin, height)
+	return txn.Del(bc.Index.Topo, heightBin)
 }
 
 func (bc *Blockchain) GetBlockByHeight(tx adb.Txn, height uint64) (*block.Block, error) {
