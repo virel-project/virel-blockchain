@@ -25,7 +25,7 @@ func (p PacketStats) Serialize() []byte {
 
 	diff := make([]byte, 16)
 	p.CumulativeDiff.PutBytes(diff)
-	for diff[len(diff)-1] == 0 {
+	for len(diff) > 0 && diff[len(diff)-1] == 0 {
 		diff = diff[:len(diff)-1]
 	}
 	s.AddByteSlice(diff)

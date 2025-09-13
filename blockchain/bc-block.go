@@ -22,14 +22,14 @@ func (bc *Blockchain) SerializeFullBlock(txn adb.Txn, b *block.Block) ([]byte, e
 	// difficulty is encoded as a little-endian byte slice, with leading zero bytes removed
 	diff := make([]byte, 16)
 	b.Difficulty.PutBytes(diff)
-	for diff[len(diff)-1] == 0 {
+	for len(diff) > 0 && diff[len(diff)-1] == 0 {
 		diff = diff[:len(diff)-1]
 	}
 	s.AddByteSlice(diff)
 	// cumulative diff is encoded the same way as difficulty
 	diff = make([]byte, 16)
 	b.CumulativeDiff.PutBytes(diff)
-	for diff[len(diff)-1] == 0 {
+	for len(diff) > 0 && diff[len(diff)-1] == 0 {
 		diff = diff[:len(diff)-1]
 	}
 	s.AddByteSlice(diff)
