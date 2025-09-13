@@ -123,9 +123,15 @@ func ByteTargetToDiff(t []byte) uint128.Uint128 {
 const max_uint64 = 0xffffffffffffffff
 
 func TargetToDiff64(t uint64) uint128.Uint128 {
+	if t == 0 {
+		return uint128.Uint128{Lo: 1}
+	}
 	return uint128.New(max_uint64, 0).Div64(t)
 }
 func TargetToDiff(t uint128.Uint128) uint128.Uint128 {
+	if t.Lo == 0 && t.Hi == 0 {
+		return uint128.Uint128{Lo: 1}
+	}
 	return uint128.New(max_uint64, max_uint64).Div(t)
 }
 
