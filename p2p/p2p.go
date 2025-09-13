@@ -268,8 +268,13 @@ scanning:
 }
 
 // p2p must NOT be locked before calling this
+// connection must NOT be locked before calling this
 func (p *P2P) Kick(c *Connection) {
 	var ip string
+	c.View(func(c *ConnData) error {
+		ip = c.IP()
+		return nil
+	})
 	c.Close()
 	p.Lock()
 	delete(p.Connections, ip)
