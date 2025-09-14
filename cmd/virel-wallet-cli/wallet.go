@@ -10,6 +10,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/logger"
 	"github.com/virel-project/virel-blockchain/v3/util"
+	"github.com/virel-project/virel-blockchain/v3/util/updatechecker"
 	"github.com/virel-project/virel-blockchain/v3/wallet"
 
 	"github.com/ergochat/readline"
@@ -161,7 +162,9 @@ func main() {
 
 	Log.SetLogLevel(uint8(*log_level))
 
-	Log.Info("Starting Virel Wallet CLI")
+	Log.Infof("Starting Virel Wallet CLI v%v.%v.%v", config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
+
+	go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
 
 	var w *wallet.Wallet
 
