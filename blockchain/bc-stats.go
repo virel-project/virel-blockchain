@@ -116,9 +116,11 @@ func (s *Mempool) Serialize() []byte {
 	t := time.Now().Unix()
 	i := 0
 	for _, v := range s.Entries {
-		if v.Expires <= t { // keep non-expired entries
+		if v.Expires >= t { // keep non-expired entries
 			s.Entries[i] = v
 			i++
+		} else {
+			Log.Debugf("removing expired mempool transaction %x", v.TXID)
 		}
 	}
 	s.Entries = s.Entries[:i]
