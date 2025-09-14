@@ -280,6 +280,7 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			})
 			return
 		}
+		Log.Info("Created transaction from RPC:", tx.String())
 
 		c.SuccessResponse(walletrpc.CreateTransactionResponse{
 			TxBlob: tx.Serialize(),
