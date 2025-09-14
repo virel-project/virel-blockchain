@@ -8,7 +8,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
 )
 
-func (w *Wallet) decodeDatabase(data, pass []byte) error {
+func (w *Wallet) decodeDatabase(data []byte, pass string) error {
 	d := binary.NewDes(data)
 
 	salt := d.ReadFixedByteArray(16)
@@ -19,7 +19,7 @@ func (w *Wallet) decodeDatabase(data, pass []byte) error {
 		return d.Error()
 	}
 
-	p := bitcrypto.KDF(pass, salt, time, mem)
+	p := bitcrypto.KDF([]byte(pass), salt, time, mem)
 
 	cip, err := bitcrypto.NewCipher(p)
 	if err != nil {
@@ -35,7 +35,7 @@ func (w *Wallet) decodeDatabase(data, pass []byte) error {
 	return json.Unmarshal(dec, &w.dbInfo)
 }
 
-func saveDatabase(dbInfo dbInfo, pass []byte, time, mem uint32) ([]byte, error) {
+func saveDatabase(dbInfo dbInfo, pass string, time, mem uint32) ([]byte, error) {
 	s := binary.Ser{}
 
 	salt := genSalt()
@@ -44,7 +44,7 @@ func saveDatabase(dbInfo dbInfo, pass []byte, time, mem uint32) ([]byte, error) 
 	s.AddUint32(time)
 	s.AddUint32(mem)
 
-	p := bitcrypto.KDF(pass, salt[:], time, mem)
+	p := bitcrypto.KDF([]byte(pass), salt[:], time, mem)
 
 	cip, err := bitcrypto.NewCipher(p)
 	if err != nil {

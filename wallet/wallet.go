@@ -33,7 +33,7 @@ type Wallet struct {
 	totalStaked   uint64
 	totalUnstaked uint64
 
-	password []byte
+	password string
 }
 
 type dbInfo struct {
@@ -43,7 +43,7 @@ type dbInfo struct {
 	Address    address.Integrated
 }
 
-func OpenWallet(rpcAddr string, walletdb, pass []byte) (*Wallet, error) {
+func OpenWallet(rpcAddr string, walletdb []byte, pass string) (*Wallet, error) {
 	w := &Wallet{
 		rpc:      daemonrpc.NewRpcClient(rpcAddr),
 		balance:  0,
@@ -52,7 +52,7 @@ func OpenWallet(rpcAddr string, walletdb, pass []byte) (*Wallet, error) {
 
 	return w, w.decodeDatabase(walletdb, pass)
 }
-func OpenWalletFile(rpcAddr, filename string, pass []byte) (*Wallet, error) {
+func OpenWalletFile(rpcAddr, filename string, pass string) (*Wallet, error) {
 	walletdb, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func OpenWalletFile(rpcAddr, filename string, pass []byte) (*Wallet, error) {
 	return OpenWallet(rpcAddr, walletdb, pass)
 }
 
-func CreateWallet(rpcAddr string, pass []byte, fastkdf bool) (*Wallet, []byte, error) {
+func CreateWallet(rpcAddr string, pass string, fastkdf bool) (*Wallet, []byte, error) {
 	w := &Wallet{
 		rpc:      daemonrpc.NewRpcClient(rpcAddr),
 		balance:  0,
@@ -90,7 +90,7 @@ func CreateWallet(rpcAddr string, pass []byte, fastkdf bool) (*Wallet, []byte, e
 	return w, dbEnc, nil
 }
 
-func CreateWalletFile(rpcAddr, filename string, pass []byte) (*Wallet, error) {
+func CreateWalletFile(rpcAddr, filename, pass string) (*Wallet, error) {
 	_, err := os.Lstat(filename)
 	if err == nil {
 		return nil, errors.New("wallet already exists")
@@ -105,7 +105,7 @@ func CreateWalletFile(rpcAddr, filename string, pass []byte) (*Wallet, error) {
 }
 
 func CreateWalletFromMnemonic(
-	rpcAddr, mnemonic string, pass []byte, fastkdf bool,
+	rpcAddr, mnemonic, pass string, fastkdf bool,
 ) (*Wallet, []byte, error) {
 	w := &Wallet{
 		rpc:      daemonrpc.NewRpcClient(rpcAddr),
@@ -134,7 +134,7 @@ func CreateWalletFromMnemonic(
 }
 
 func CreateWalletFileFromMnemonic(
-	rpcAddr, filename, mnemonic string, pass []byte,
+	rpcAddr, filename, mnemonic, pass string,
 ) (*Wallet, error) {
 	_, err := os.Lstat(filename)
 	if err == nil {
@@ -211,7 +211,7 @@ func (w *Wallet) Rpc() *daemonrpc.RpcClient {
 	return w.rpc
 }
 
-func (w *Wallet) GetPassword() []byte {
+func (w *Wallet) GetPassword() string {
 	return w.password
 }
 func (w *Wallet) GetHeight() uint64 {

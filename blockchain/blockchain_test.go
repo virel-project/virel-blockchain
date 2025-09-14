@@ -56,7 +56,7 @@ func TestState(t *testing.T) {
 	wall, _, err := wallet.CreateWalletFromMnemonic(
 		fmt.Sprintf("127.0.0.1:%d", config.RPC_BIND_PORT),
 		"soda ladder vault wash wrestle child embark spare code plastic camera render between light deliver garment road visit",
-		[]byte{}, false)
+		"examplePassword", false)
 	if err != nil {
 		t.Fatal(err)
 	}

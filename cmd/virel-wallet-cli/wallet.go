@@ -92,7 +92,7 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 		if cmds[0] == "open" {
 			Log.Info("opening wallet")
 
-			w, err := wallet.OpenWalletFile(daemon_address, cmds[1]+".keys", []byte(password))
+			w, err := wallet.OpenWalletFile(daemon_address, cmds[1]+".keys", password)
 			if err != nil {
 				Log.Err(err)
 				continue
@@ -111,7 +111,7 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 			}
 
 			if cmd == "create" {
-				w, err := wallet.CreateWalletFile(daemon_address, cmds[1]+".keys", []byte(password))
+				w, err := wallet.CreateWalletFile(daemon_address, cmds[1]+".keys", password)
 				if err != nil {
 					Log.Err("Could not create wallet:", err)
 					continue
@@ -129,7 +129,7 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 				}
 
 				w, err := wallet.CreateWalletFileFromMnemonic(daemon_address, cmds[1]+".keys",
-					mnemonic, []byte(password))
+					mnemonic, password)
 				if err != nil {
 					Log.Err(err)
 					continue
@@ -172,7 +172,7 @@ func main() {
 			Log.Fatal("invalid wallet name")
 		}
 		var err error
-		w, err = wallet.OpenWalletFile(*daemon_address, wallname+".keys", []byte(*wallet_password))
+		w, err = wallet.OpenWalletFile(*daemon_address, wallname+".keys", *wallet_password)
 		if err != nil {
 			Log.Fatal(err)
 		}
