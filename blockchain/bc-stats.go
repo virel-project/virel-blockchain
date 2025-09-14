@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
@@ -110,6 +111,17 @@ type MempoolEntry struct {
 func (s *Mempool) Serialize() []byte {
 	var network bytes.Buffer        // Stand-in for a network connection
 	enc := gob.NewEncoder(&network) // Will write to network.
+
+	// Remove expired entries from the mempool
+	t := time.Now().Unix()
+	i := 0
+	for _, v := range s.Entries {
+		if v.Expires <= t { // keep non-expired entries
+			s.Entries[i] = v
+			i++
+		}
+	}
+	s.Entries = s.Entries[:i]
 
 	err := enc.Encode(s)
 	if err != nil {
