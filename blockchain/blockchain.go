@@ -1064,7 +1064,7 @@ func (bc *Blockchain) checkDeorphanage(tx adb.Txn, bl *block.Block, hash [32]byt
 	// no need to remove block from queue, it's removed by parent of this function
 
 	// recursively check for deorphans
-	err := bc.deorphanBlock(tx, bl, hash, stats)
+	err := bc.DeorphanBlock(tx, bl, hash, stats)
 	if err != nil {
 		Log.Err(err)
 		return err
@@ -1110,14 +1110,14 @@ func (bc *Blockchain) cleanupTips(tx adb.Txn, stats *Stats) {
 	}
 }
 
-// recursive function which finds all the orphans that are children of the given hash, and creates altchain
-// don't forget to save stats later, as this function doesn't do that
-func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]byte, stats *Stats) error {
-	Log.Debugf("deorphanBlock hash %x", prevHash)
+// recursive function which finds all the orphans that are children of the given hash, and creates altchain.
+// Don't forget to save stats later, as this function doesn't do that
+func (bc *Blockchain) DeorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]byte, stats *Stats) error {
+	Log.Debugf("DeorphanBlock hash %x", prevHash)
 
 	for i, v := range stats.Orphans {
 		if v.PrevHash == prevHash {
-			Log.Debugf("deorphanBlock: %x is deorphaning %x", prevHash, v.Hash)
+			Log.Debugf("DeorphanBlock: %x is deorphaning %x", prevHash, v.Hash)
 			bl, err := bc.GetBlock(tx, v.Hash)
 			h2 := v.Hash
 			if err != nil {
@@ -1130,7 +1130,7 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 			cdiff := prev.CumulativeDiff.Add(bl.ContributionToCumulativeDiff())
 
 			if !cdiff.Equals(bl.CumulativeDiff) {
-				Log.Devf("deorphanBlock: block cumulative difficulty updated: %s -> %s", bl.CumulativeDiff,
+				Log.Debugf("DeorphanBlock: block cumulative difficulty updated: %s -> %s", bl.CumulativeDiff,
 					cdiff)
 				bl.CumulativeDiff = cdiff
 				bc.insertBlock(tx, bl, h2)
@@ -1149,7 +1149,7 @@ func (bc *Blockchain) deorphanBlock(tx adb.Txn, prev *block.Block, prevHash [32]
 			}
 
 			// recall this function to find bl2's children
-			bc.deorphanBlock(tx, bl, h2, stats)
+			bc.DeorphanBlock(tx, bl, h2, stats)
 		}
 	}
 

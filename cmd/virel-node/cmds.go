@@ -518,6 +518,78 @@ func prompts(bc *blockchain.Blockchain) {
 				}
 			})
 		},
+	}, {
+		Names: []string{"orphans"},
+		Args:  "",
+		Action: func(args []string) {
+			err := bc.DB.Update(func(txn adb.Txn) error {
+				stats := bc.GetStats(txn)
+
+				type orphaninfo struct {
+					Orphan         *blockchain.Orphan
+					Height         uint64
+					CumulativeDiff uint64
+				}
+
+				orphans := make([]orphaninfo, 0, len(stats.Orphans))
+
+				for _, v := range stats.Orphans {
+					bl, err := bc.GetBlock(txn, v.Hash)
+					if err != nil {
+						return err
+					}
+					orphans = append(orphans, orphaninfo{
+						Orphan:         v,
+						Height:         bl.Height,
+						CumulativeDiff: bl.CumulativeDiff.Lo,
+					})
+				}
+
+				slices.SortFunc(orphans, func(a, b orphaninfo) int {
+					return cmp.Compare(a.Height, b.Height)
+				})
+
+				updated := false
+
+				for _, v := range orphans {
+					Log.Infof("orphan %d hash: %s, parent: %v", v.Height, v.Orphan.Hash, v.Orphan.PrevHash)
+					if stats.Orphans[v.Orphan.PrevHash] == nil {
+						prevbl, _ := bc.GetBlock(txn, v.Orphan.PrevHash)
+						if prevbl == nil {
+							bc.BlockQueue.Update(func(qt *blockchain.QueueTx) {
+								qt.SetBlock(blockchain.NewQueuedBlock(0, v.Orphan.Hash), true)
+								Log.Infof("Orphan block %v's parent added to queue", v.Orphan.Hash)
+							})
+						} else {
+							if prevbl.CumulativeDiff.IsZero() {
+								Log.Info("could not deorphan block: previous block cumulative difficulty is zero")
+							} else {
+								Log.Info("deorphaning block", v.Orphan.Hash)
+								err := bc.DeorphanBlock(txn, prevbl, v.Orphan.PrevHash, stats)
+								if err != nil {
+									Log.Err(err)
+									return err
+								}
+								updated = true
+							}
+						}
+					}
+				}
+
+				if updated {
+					_, err := bc.CheckReorgs(txn, stats)
+					if err != nil {
+						return err
+					}
+
+					return bc.SetStats(txn, stats)
+				}
+				return nil
+			})
+			if err != nil {
+				Log.Err(err)
+			}
+		},
 	}}...)
 
 	l, err := readline.NewEx(&readline.Config{

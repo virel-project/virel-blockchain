@@ -155,14 +155,14 @@ func (bq *BlockQueue) cleanup() {
 	}
 	bq.blocks = b2
 }
-func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) {
+func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) bool {
 	if qb.Hash == [32]byte{} {
 		for i, v := range qt.bq.blocks {
 			if v.Height == qb.Height {
 				if replace {
 					qt.bq.blocks[i] = qb
 				}
-				return
+				return true
 			}
 		}
 	} else {
@@ -171,11 +171,12 @@ func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) {
 				if replace {
 					qt.bq.blocks[i] = qb
 				}
-				return
+				return true
 			}
 		}
 	}
 	qt.bq.blocks = append(qt.bq.blocks, qb)
+	return false
 }
 
 func (bq *BlockQueue) Save() {
