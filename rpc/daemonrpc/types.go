@@ -140,9 +140,10 @@ type GetDelegateRequest struct {
 	DelegateAddress string `json:"delegate_address"`
 }
 type GetDelegateResponse struct {
-	Id      uint64                     `json:"id"`
-	Address address.Address            `json:"address"`
-	Owner   address.Address            `json:"owner"`
-	Name    string                     `json:"name"`
-	Funds   []*chaintype.DelegatedFund `json:"funds"`
+	Id          uint64                     `json:"id"`
+	Address     address.Address            `json:"address"`
+	Owner       address.Address            `json:"owner"`
+	TotalAmount uint64                     `json:"total_amount"`
+	Name        string                     `json:"name"`
+	Funds       []*chaintype.DelegatedFund `json:"funds"`
 }

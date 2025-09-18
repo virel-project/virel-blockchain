@@ -645,11 +645,12 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		}
 
 		c.SuccessResponse(daemonrpc.GetDelegateResponse{
-			Id:      params.DelegateId,
-			Address: address.NewDelegateAddress(params.DelegateId),
-			Owner:   delegate.OwnerAddress(),
-			Name:    string(delegate.Name),
-			Funds:   delegate.Funds,
+			Id:          params.DelegateId,
+			Address:     address.NewDelegateAddress(params.DelegateId),
+			Owner:       delegate.OwnerAddress(),
+			TotalAmount: delegate.TotalAmount(),
+			Name:        string(delegate.Name),
+			Funds:       delegate.Funds,
 		})
 	})
 
