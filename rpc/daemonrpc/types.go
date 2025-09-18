@@ -31,8 +31,12 @@ type GetInfoRequest struct {
 type GetInfoResponse struct {
 	Height            uint64    `json:"height"`
 	TopHash           util.Hash `json:"top_hash"`
+	TotalSupply       uint64    `json:"total_supply"`
 	CirculatingSupply uint64    `json:"circulating_supply"`
 	MaxSupply         uint64    `json:"max_supply"`
+	SupplyCap         uint64    `json:"supply_cap"`
+	Burned            uint64    `json:"burned"`
+	Stake             uint64    `json:"stake"`
 	Coin              uint64    `json:"coin"`
 	Difficulty        string    `json:"difficulty"`
 	CumulativeDiff    string    `json:"cumulative_diff"`

@@ -641,5 +641,4 @@ func prompts(bc *blockchain.Blockchain) {
 			Log.Err("unknown command, use help to see a list of commands")
 		}
 	}
-
 }

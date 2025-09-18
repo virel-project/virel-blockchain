@@ -262,10 +262,15 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 	rs.Handle("get_info", func(c *rpcserver.Context) {
 		var stats *blockchain.Stats
 		var topBl *block.Block
-		err := bc.DB.View(func(tx adb.Txn) (err error) {
-			stats = bc.GetStats(tx)
-			topBl, err = bc.GetBlock(tx, stats.TopHash)
-			return
+		var burnState *chaintype.State
+		err := bc.DB.View(func(txn adb.Txn) (err error) {
+			stats = bc.GetStats(txn)
+			topBl, err = bc.GetBlock(txn, stats.TopHash)
+			if err != nil {
+				return err
+			}
+			burnState, err = bc.GetState(txn, address.INVALID_ADDRESS)
+			return err
 		})
 		if err != nil {
 			Log.Fatal(err)
@@ -276,8 +281,11 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		c.SuccessResponse(daemonrpc.GetInfoResponse{
 			Height:            stats.TopHeight,
 			TopHash:           stats.TopHash,
-			CirculatingSupply: supply,
+			TotalSupply:       supply,
+			CirculatingSupply: supply - burnState.Balance,
+			Stake:             stats.StakedAmount,
 			MaxSupply:         config.MAX_SUPPLY,
+			SupplyCap:         config.MAX_SUPPLY - burnState.Balance,
 			Coin:              config.COIN,
 			Difficulty:        topBl.Difficulty.String(),
 			CumulativeDiff:    stats.CumulativeDiff.String(),
