@@ -150,103 +150,100 @@ func (bc *Blockchain) Synchronize() {
 		})
 
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			var reqbl *packet.PacketBlockRequest
 			r := qt.RequestableBlock()
 			if r != nil {
-				reqbl = &packet.PacketBlockRequest{
+				reqbl := &packet.PacketBlockRequest{
 					Hash: r.Hash,
 				}
-				Log.Info("requesting block", r.Hash)
-			} else {
-				func() {
-					bc.SyncMut.Lock()
-					defer bc.SyncMut.Unlock()
-
-					if bc.SyncLastRequestHeight > stats.TopHeight {
-						if n > 100 {
-							bc.SyncLastRequestHeight = stats.TopHeight
-							n = 0
-						} else {
-							n++
-							return
-						}
-					} else {
-						n = 0
-					}
-
-					bc.SyncLastRequestHeight = max(bc.SyncLastRequestHeight, stats.TopHeight)
-
-					if bc.SyncHeight > bc.SyncLastRequestHeight {
-						count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
-						Log.Info("requesting", count, "blocks from", bc.SyncLastRequestHeight+1)
-						reqbl = &packet.PacketBlockRequest{
-							Height: bc.SyncLastRequestHeight + 1,
-							Count:  uint8(count),
-						}
-						bc.SyncLastRequestHeight += count
-					}
-				}()
-			}
-			if reqbl == nil {
-				return
-			}
-			if reqbl.Height == 0 && reqbl.Hash == [32]byte{} {
-				qt.RemoveBlock(reqbl.Hash)
-				return
-			}
-
-			go func() {
-				// Find a valid peer
-				var peer *p2p.Connection
-				func() {
-					bc.P2P.RLock()
-					defer bc.P2P.RUnlock()
-
-					// fix a rare crash
-					if len(bc.P2P.Connections) == 0 {
-						return
-					}
-
-					// take a random connection as the first peer to try
-					peernum := mrand.IntN(len(bc.P2P.Connections))
-
-					keys := make([]string, 0, len(bc.P2P.Connections))
-					for k := range bc.P2P.Connections {
-						keys = append(keys, k)
-					}
-
-					for i := 0; i < len(keys); i++ {
-						n := (i + peernum) % len(keys)
-						conn := bc.P2P.Connections[keys[n]]
-
-						found := false
-						conn.PeerData(func(d *p2p.PeerData) {
-							if reqbl.Height == 0 ||
-								(d.Stats.Height >= reqbl.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
-								peer = conn
-								found = true
-							}
-						})
-						if found {
-							break
-						}
-					}
-				}()
-
-				if peer == nil {
-					Log.Debug("no peer to query blocks")
+				if reqbl.Hash == [32]byte{} {
+					qt.RemoveBlock(reqbl.Hash)
 					return
 				}
-				// Request the blocks to the selected peer
-				peer.SendPacket(&p2p.Packet{
-					Type: packet.BLOCK_REQUEST,
-					Data: reqbl.Serialize(),
-				})
+				Log.Info("requesting block", r.Hash)
+				go bc.RequestBlock(reqbl, stats)
+			}
+			func() {
+				bc.SyncMut.Lock()
+				defer bc.SyncMut.Unlock()
+
+				if bc.SyncLastRequestHeight > stats.TopHeight {
+					if n > 50 { // after 5 seconds, we can say the node will not respond to us with the blocks
+						bc.SyncLastRequestHeight = stats.TopHeight
+						n = 0
+					} else {
+						n++
+						return
+					}
+				} else {
+					n = 0
+				}
+
+				bc.SyncLastRequestHeight = max(bc.SyncLastRequestHeight, stats.TopHeight)
+
+				if bc.SyncHeight > bc.SyncLastRequestHeight {
+					count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
+					Log.Info("requesting", count, "blocks from", bc.SyncLastRequestHeight+1)
+					reqbl := &packet.PacketBlockRequest{
+						Height: bc.SyncLastRequestHeight + 1,
+						Count:  uint8(count),
+					}
+					bc.SyncLastRequestHeight += count
+					go bc.RequestBlock(reqbl, stats)
+				}
 			}()
 		})
 
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func (bc *Blockchain) RequestBlock(reqbl *packet.PacketBlockRequest, stats *Stats) {
+	// Find a valid peer
+	var peer *p2p.Connection
+	func() {
+		bc.P2P.RLock()
+		defer bc.P2P.RUnlock()
+
+		// fix a rare crash
+		if len(bc.P2P.Connections) == 0 {
+			return
+		}
+
+		// take a random connection as the first peer to try
+		peernum := mrand.IntN(len(bc.P2P.Connections))
+
+		keys := make([]string, 0, len(bc.P2P.Connections))
+		for k := range bc.P2P.Connections {
+			keys = append(keys, k)
+		}
+
+		for i := 0; i < len(keys); i++ {
+			n := (i + peernum) % len(keys)
+			conn := bc.P2P.Connections[keys[n]]
+
+			found := false
+			conn.PeerData(func(d *p2p.PeerData) {
+				if reqbl.Height == 0 ||
+					(d.Stats.Height >= reqbl.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
+					peer = conn
+					found = true
+				}
+			})
+			if found {
+				break
+			}
+		}
+	}()
+
+	if peer == nil {
+		Log.Debug("no peer to query blocks")
+		return
+	}
+	// Request the blocks to the selected peer
+	peer.SendPacket(&p2p.Packet{
+		Type: packet.BLOCK_REQUEST,
+		Data: reqbl.Serialize(),
+	})
 }
 
 type shutdownInfo struct {
@@ -499,6 +496,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 			qt.RemoveBlockByHash(hash)
 
 			qb := NewQueuedBlock(prevHash)
+			qb.Height = bl.Height - 1
 			qb.Expires = time.Now().Add(1 * time.Minute).Unix()
 			added := qt.SetBlock(qb, false)
 			Log.Infof("added orphan parent to queue: height %d hash %x: %v", bl.Height-1, prevHash, added)
@@ -530,39 +528,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	}
 
 	return nil
-}
-
-// addOrphanBlock should only be called by the addBlock method
-// use parentKnown = true if this block has a known parent which is orphaned
-// Blockchain MUST be locked before calling this
-func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte, parentKnown bool) error {
-	Log.Infof("Adding orphan block %d %x diff: %s sides: %d parent known: %v", bl.Height, hash,
-		bl.Difficulty, len(bl.SideBlocks), parentKnown)
-	stats := bc.GetStats(txn)
-
-	if stats.Orphans[hash] != nil {
-		return errors.New("Orphan already exists! This should NEVER happen")
-	}
-
-	orphan := &Orphan{
-		Hash:     hash,
-		PrevHash: bl.PrevHash(),
-	}
-
-	// add orphan prevhash to queued blocks, if it is not known already
-	if !parentKnown {
-		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.SetBlock(NewQueuedBlock(bl.PrevHash()), true)
-		})
-	}
-
-	// TODO: clean up expired orphans
-
-	// insert orphan
-	stats.Orphans[hash] = orphan
-	bc.setStatsNoBroadcast(txn, stats)
-
-	return bc.insertBlock(txn, bl, hash)
 }
 
 // addAltchainBlock should only be called by the addBlock method

@@ -13,7 +13,7 @@ import (
 const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20
 
 const downloaded_expire = 5
-const rerequest_time = 5
+const rerequest_time = 30
 
 func NewQueuedBlock(hash [32]byte) *QueuedBlock {
 	expires := time.Now().Add(20 * time.Minute).Unix()
@@ -25,7 +25,8 @@ func NewQueuedBlock(hash [32]byte) *QueuedBlock {
 }
 
 type QueuedBlock struct {
-	Hash        [32]byte
+	Hash        util.Hash
+	Height      uint64
 	Expires     int64 // expiration time (UNIX seconds)
 	LastRequest int64 // when was the block last requested (UNIX seconds)
 }
@@ -66,6 +67,7 @@ func (qt *QueueTx) RequestableBlock() *QueuedBlock {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
 		if t-v.LastRequest > rerequest_time {
+			v.LastRequest = t
 			return v
 		}
 	}
