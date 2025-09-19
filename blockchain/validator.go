@@ -161,13 +161,6 @@ func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*t
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "duplicate block") {
 			Log.Debug("could not add block to chain:", err)
-			err = v.bc.DB.Update(func(txn adb.Txn) error {
-				err = v.bc.checkDeorphanage(txn, bl, hash)
-				return err
-			})
-			if err != nil {
-				Log.Warn(err)
-			}
 		} else {
 			Log.Warn("could not add block to chain:", err)
 		}
