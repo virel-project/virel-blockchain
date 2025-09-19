@@ -339,6 +339,7 @@ func (p *P2P) handleConnection(conn *Connection, private bool) error {
 		if err != nil {
 			Log.Debugf("connection error with peer %v: %v", ipPort, err)
 		}
+		p.Kick(conn)
 	}()
 	return nil
 }
@@ -367,7 +368,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 		return err
 	})
 	if err != nil {
-		p.Kick(conn)
 		Log.Debug("failed to send handshake:", err)
 		return err
 	}
@@ -378,13 +378,11 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 	_, err = hnds.ReadFrom(conn.data.Conn)
 	if err != nil {
 		err := fmt.Errorf("error occurred while reading handshake: %s", err)
-		p.Kick(conn)
 		return err
 	}
 
 	if hnds.P2PVersion < 1 {
 		err := fmt.Errorf("outdated peer %s with version %d", ipPort, hnds.P2PVersion)
-		p.Kick(conn)
 		return err
 	}
 
@@ -426,7 +424,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 		return nil
 	}()
 	if err != nil {
-		p.Kick(conn)
 		return err
 	}
 
@@ -472,7 +469,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 		return nil
 	})
 	if err != nil {
-		p.Kick(conn)
 		return err
 	}
 
@@ -541,7 +537,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 			return nil
 		}()
 		if err != nil {
-			p.Kick(conn)
 			if err == io.EOF {
 				return nil
 			}
@@ -564,7 +559,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 			return nil
 		})
 		if err != nil {
-			p.Kick(conn)
 			return err
 		}
 
@@ -581,7 +575,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 			if kick {
 				err := fmt.Errorf("disconnecting peer because out of date: %s", ipPort)
 				Log.Warn(err)
-				p.Kick(conn)
 				return err
 			}
 		}
