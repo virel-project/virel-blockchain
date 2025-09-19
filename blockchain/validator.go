@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"strings"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v3/adb"
@@ -159,13 +158,10 @@ func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*t
 		return v.bc.AddBlock(txn, bl, hash)
 	})
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "duplicate block") {
-			Log.Debug("could not add block to chain:", err)
-		} else {
-			Log.Warn("could not add block to chain:", err)
-		}
+		Log.Debug("could not add block to chain:", err)
+		Log.Warn("could not add block to chain:", err)
 		v.bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.RemoveBlock(bl.Height, hash)
+			qt.RemoveBlock(hash)
 		})
 		return
 	} else if Log.GetLogLevel() > 1 {
@@ -178,4 +174,11 @@ func (v *Validator) executePostprocess(bl *block.Block, hash util.Hash, txs []*t
 			Log.Err(err)
 		}
 	}
+}
+
+func (v *Validator) PostprocessLength() int {
+	v.postprocessMut.RLock()
+	defer v.postprocessMut.RUnlock()
+
+	return len(v.postprocess)
 }

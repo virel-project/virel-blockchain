@@ -33,7 +33,6 @@ type AltchainTip struct {
 	CumulativeDiff uint128.Uint128
 }
 type Orphan struct {
-	Expires  int64 // expiration time (UNIX seconds)
 	Hash     util.Hash
 	PrevHash util.Hash
 }

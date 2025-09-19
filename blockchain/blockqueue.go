@@ -1,10 +1,8 @@
 package blockchain
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
-	"slices"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v3/adb"
@@ -17,21 +15,16 @@ const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20
 const downloaded_expire = 5
 const rerequest_time = 5
 
-func NewQueuedBlock(height uint64, hash [32]byte) *QueuedBlock {
-	expires := time.Now().Add(1 * time.Minute).Unix()
-	if height == 0 {
-		expires = time.Now().Add(1 * time.Hour).Unix()
-	}
+func NewQueuedBlock(hash [32]byte) *QueuedBlock {
+	expires := time.Now().Add(20 * time.Minute).Unix()
 
 	return &QueuedBlock{
-		Height:  height,
 		Hash:    hash,
 		Expires: expires,
 	}
 }
 
 type QueuedBlock struct {
-	Height      uint64
 	Hash        [32]byte
 	Expires     int64 // expiration time (UNIX seconds)
 	LastRequest int64 // when was the block last requested (UNIX seconds)
@@ -69,16 +62,10 @@ func (bq *BlockQueue) Update(fn func(qt *QueueTx)) {
 	bq.Unlock()
 }
 
-func (qt *QueueTx) Sort() {
-	slices.SortFunc(qt.bq.blocks, func(a, b *QueuedBlock) int {
-		return cmp.Compare(a.Height, b.Height)
-	})
-}
 func (qt *QueueTx) RequestableBlock() *QueuedBlock {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
 		if t-v.LastRequest > rerequest_time {
-			v.LastRequest = t
 			return v
 		}
 	}
@@ -92,25 +79,9 @@ func (qt *QueueTx) RemoveBlockByHash(hash [32]byte) {
 	}
 	qt.bq.cleanup()
 }
-func (qt *QueueTx) RemoveBlockByHeight(height uint64) {
+func (qt *QueueTx) RemoveBlock(hash [32]byte) {
 	for _, v := range qt.bq.blocks {
-		if v.Height == height {
-			v.Expires = 0
-		}
-	}
-	qt.bq.cleanup()
-}
-func (qt *QueueTx) RemoveBlock(height uint64, hash [32]byte) {
-	for _, v := range qt.bq.blocks {
-		if v.Height == height || v.Hash == hash {
-			v.Expires = 0
-		}
-	}
-	qt.bq.cleanup()
-}
-func (qt *QueueTx) PurgeHeightBlocks() {
-	for _, v := range qt.bq.blocks {
-		if v.Height != 0 {
+		if v.Hash == hash {
 			v.Expires = 0
 		}
 	}
@@ -119,28 +90,20 @@ func (qt *QueueTx) PurgeHeightBlocks() {
 
 // BlockDownloaded is used when a block has been downloaded but it's not in mainchain yet, so we cannot
 // remove it immediately, as that would eventually trigger a redownload.
-func (qt *QueueTx) BlockDownloaded(height uint64, hash [32]byte) {
+func (qt *QueueTx) BlockDownloaded(hash [32]byte) {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
-		if (height != 0 && v.Height == height) || v.Hash == hash {
+		if v.Hash == hash {
 			v.Expires = t + downloaded_expire
 			v.LastRequest = t + downloaded_expire
 		}
 	}
 }
 
-// BlockDownloaded is used when a block is in mainchain, so we can remove it immediately.
-func (qt *QueueTx) BlockAdded(height uint64) {
-	for _, v := range qt.bq.blocks {
-		if v.Height <= height && v.Height != 0 {
-			v.Expires = 0
-		}
-	}
-}
-func (qt *QueueTx) BlockRequested(height uint64) {
+func (qt *QueueTx) BlockRequested(hash util.Hash) {
 	t := time.Now().Unix()
 	for _, v := range qt.bq.blocks {
-		if v.Height == height {
+		if v.Hash == hash {
 			v.LastRequest = t
 		}
 	}
@@ -156,23 +119,13 @@ func (bq *BlockQueue) cleanup() {
 	bq.blocks = b2
 }
 func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) bool {
-	if qb.Hash == [32]byte{} {
-		for i, v := range qt.bq.blocks {
-			if v.Height == qb.Height {
-				if replace {
-					qt.bq.blocks[i] = qb
-				}
-				return true
+	Log.Err("setblock", qb.Hash)
+	for i, v := range qt.bq.blocks {
+		if v.Hash == qb.Hash {
+			if replace {
+				qt.bq.blocks[i] = qb
 			}
-		}
-	} else {
-		for i, v := range qt.bq.blocks {
-			if v.Hash == qb.Hash {
-				if replace {
-					qt.bq.blocks[i] = qb
-				}
-				return true
-			}
+			return true
 		}
 	}
 	qt.bq.blocks = append(qt.bq.blocks, qb)
@@ -187,14 +140,7 @@ func (bq *BlockQueue) Save() {
 }
 func (bq *BlockQueue) save() error {
 	bq.cleanup()
-	blocks := make([]*QueuedBlock, 0, 10)
-	for _, bl := range bq.blocks {
-		// only blocks with a known hash are saved, as blocks with height are only necessary for syncing
-		if bl.Height == 0 {
-			blocks = append(blocks, bl)
-		}
-	}
-	data, err := json.Marshal(blocks)
+	data, err := json.Marshal(bq.blocks)
 	if err != nil {
 		Log.Fatal(err)
 	}

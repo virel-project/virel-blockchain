@@ -50,9 +50,10 @@ type Blockchain struct {
 
 	BlockQueue *BlockQueue
 
-	SyncHeight uint64  // top height seen from remote nodes
-	SyncDiff   Uint128 // top cumulative diff seen from remote nodes
-	SyncMut    util.RWMutex
+	SyncHeight            uint64  // top height seen from remote nodes
+	SyncDiff              Uint128 // top cumulative diff seen from remote nodes
+	SyncLastRequestHeight uint64
+	SyncMut               util.RWMutex
 }
 type Index struct {
 	Info            adb.Index
@@ -134,9 +135,11 @@ func New(dataDir string, db adb.DB) *Blockchain {
 
 func (bc *Blockchain) Synchronize() {
 	Log.Debug("Synchronization thread started")
+	defer Log.Info("Synchronization thread stopped")
+
+	var n int = 0
 	for {
 		if bc.IsShuttingDown() {
-			Log.Info("Synchronization thread stopped")
 			return
 		}
 
@@ -147,30 +150,48 @@ func (bc *Blockchain) Synchronize() {
 		})
 
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			bc.fillQueue(qt, stats.TopHeight)
-
-			reqbls := []packet.PacketBlockRequest{}
-			for range config.PARALLEL_BLOCKS_DOWNLOAD {
-				reqbl := qt.RequestableBlock()
-				if reqbl == nil {
-					break
+			var reqbl *packet.PacketBlockRequest
+			r := qt.RequestableBlock()
+			if r != nil {
+				reqbl = &packet.PacketBlockRequest{
+					Hash: r.Hash,
 				}
-				lastIdx := len(reqbls) - 1
-				if len(reqbls) > 0 && reqbls[lastIdx].Height != 0 && reqbls[lastIdx].Height+uint64(reqbls[lastIdx].Count) == reqbl.Height-1 {
-					reqbls[0].Count++
-				} else {
-					reqbls = append(reqbls, packet.PacketBlockRequest{
-						Height: reqbl.Height,
-						Hash:   reqbl.Hash,
-						Count:  0,
-					})
-				}
-			}
-			for _, v := range reqbls {
-				Log.Debugf("requesting block height %d count %d hash %x", v.Height, v.Count, v.Hash)
-			}
+				Log.Info("hash", r.Hash)
+			} else {
+				func() {
+					bc.SyncMut.Lock()
+					defer bc.SyncMut.Unlock()
 
-			if len(reqbls) == 0 {
+					if bc.SyncLastRequestHeight > stats.TopHeight {
+						if n > 100 {
+							bc.SyncLastRequestHeight = stats.TopHeight
+							n = 0
+						} else {
+							n++
+							return
+						}
+					} else {
+						n = 0
+					}
+
+					bc.SyncLastRequestHeight = max(bc.SyncLastRequestHeight, stats.TopHeight)
+
+					if bc.SyncHeight > bc.SyncLastRequestHeight {
+						count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
+						Log.Info("requesting", count, "blocks from", bc.SyncLastRequestHeight+1)
+						reqbl = &packet.PacketBlockRequest{
+							Height: bc.SyncLastRequestHeight + 1,
+							Count:  uint8(count),
+						}
+						bc.SyncLastRequestHeight += count
+					}
+				}()
+			}
+			if reqbl == nil {
+				return
+			}
+			if reqbl.Height == 0 && reqbl.Hash == [32]byte{} {
+				qt.RemoveBlock(reqbl.Hash)
 				return
 			}
 
@@ -200,16 +221,8 @@ func (bc *Blockchain) Synchronize() {
 
 						found := false
 						conn.PeerData(func(d *p2p.PeerData) {
-							if len(reqbls) == 0 {
-								peer = conn
-								found = true
-								return
-							}
-
-							last := reqbls[len(reqbls)-1]
-
-							if last.Height == 0 ||
-								(d.Stats.Height >= last.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
+							if reqbl.Height == 0 ||
+								(d.Stats.Height >= reqbl.Height && d.Stats.CumulativeDiff.Cmp(stats.CumulativeDiff) >= 0) {
 								peer = conn
 								found = true
 							}
@@ -225,36 +238,14 @@ func (bc *Blockchain) Synchronize() {
 					return
 				}
 				// Request the blocks to the selected peer
-				for _, reqbl := range reqbls {
-					peer.SendPacket(&p2p.Packet{
-						Type: packet.BLOCK_REQUEST,
-						Data: reqbl.Serialize(),
-					})
-				}
+				peer.SendPacket(&p2p.Packet{
+					Type: packet.BLOCK_REQUEST,
+					Data: reqbl.Serialize(),
+				})
 			}()
 		})
 
-		time.Sleep(250 * time.Millisecond)
-	}
-}
-
-// Blockchain MUST be locked before calling this
-func (bc *Blockchain) fillQueue(qt *QueueTx, topHeight uint64) {
-	bc.SyncMut.RLock()
-	syncHeight := bc.SyncHeight
-	bc.SyncMut.RUnlock()
-
-	if qt.Length() < QUEUE_SIZE {
-		if syncHeight > topHeight {
-			n := qt.Length()
-			for i := topHeight + 1; i <= syncHeight; i++ {
-				if n > QUEUE_SIZE {
-					break
-				}
-				n++
-				qt.SetBlock(NewQueuedBlock(i, [32]byte{}), false)
-			}
-		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -504,24 +495,18 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is orphaned
 	prevBl, err := bc.GetBlock(tx, prevHash)
 	if err != nil {
-		Log.Debug(err)
-		err := bc.addOrphanBlock(tx, bl, hash, false)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		return nil
-	}
+		bc.BlockQueue.Update(func(qt *QueueTx) {
+			qt.RemoveBlockByHash(hash)
 
-	// check if parent block is orphaned
-	if stats.Orphans[prevHash] != nil {
-		// this block's parent is orphaned; add this block as an orphan
-		err := bc.addOrphanBlock(tx, bl, hash, true)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-		return nil
+			if bl.Height <= stats.TopHeight+1 {
+				qb := NewQueuedBlock(prevHash)
+				qb.Expires = time.Now().Add(1 * time.Minute).Unix()
+				added := qt.SetBlock(qb, false)
+				Log.Infof("added to queue orphan parent %d %x: %v", bl.Height-1, prevHash, added)
+			}
+		})
+
+		return fmt.Errorf("block %d is orphan: %w", bl.Height, err)
 	}
 
 	err = bc.checkBlock(tx, bl, prevBl, hash)
@@ -562,7 +547,6 @@ func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte
 	}
 
 	orphan := &Orphan{
-		Expires:  time.Now().Add(time.Hour).Unix(), // orphan blocks expire after 1 hour
 		Hash:     hash,
 		PrevHash: bl.PrevHash(),
 	}
@@ -570,7 +554,7 @@ func (bc *Blockchain) addOrphanBlock(txn adb.Txn, bl *block.Block, hash [32]byte
 	// add orphan prevhash to queued blocks, if it is not known already
 	if !parentKnown {
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.SetBlock(NewQueuedBlock(0, bl.PrevHash()), true)
+			qt.SetBlock(NewQueuedBlock(bl.PrevHash()), true)
 		})
 	}
 
@@ -781,10 +765,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			if err != nil {
 				return err
 			}
-
-			bc.BlockQueue.Update(func(qt *QueueTx) {
-				qt.RemoveBlockByHeight(bl.Height)
-			})
 		}
 
 		// step 4: update the stats
@@ -804,10 +784,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		stats.TopHeight = altHeight
 
 		bc.setStatsNoBroadcast(txn, stats)
-
-		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.BlockAdded(stats.TopHeight)
-		})
 
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
@@ -830,9 +806,6 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 		return err
 	}
 
-	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.BlockAdded(bl.Height)
-	})
 	Log.Infof("Adding mainchain block %d %x diff: %s sides: %d", bl.Height, hash, bl.Difficulty, len(bl.SideBlocks))
 	stats := bc.GetStats(tx)
 

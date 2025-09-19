@@ -117,7 +117,7 @@ func (bc *Blockchain) packetBlock(pack p2p.Packet) {
 	hash := bl.Hash()
 
 	bc.BlockQueue.Update(func(qt *QueueTx) {
-		qt.BlockDownloaded(bl.Height, hash)
+		qt.BlockDownloaded(hash)
 	})
 
 	err = bc.PrevalidateBlock(bl, txs)

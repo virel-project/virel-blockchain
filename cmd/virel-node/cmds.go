@@ -514,7 +514,7 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Info("block queue size:", qt.Length())
 				bls := qt.GetBlocks()
 				for _, v := range bls {
-					Log.Infof("- height %d hash %x expires %d lastreq %d", v.Height, v.Hash, v.Expires, v.LastRequest)
+					Log.Infof("- hash %x expires %d lastreq %d", v.Hash, v.Expires, v.LastRequest)
 				}
 			})
 		},
@@ -557,7 +557,7 @@ func prompts(bc *blockchain.Blockchain) {
 						prevbl, _ := bc.GetBlock(txn, v.Orphan.PrevHash)
 						if prevbl == nil {
 							bc.BlockQueue.Update(func(qt *blockchain.QueueTx) {
-								qt.SetBlock(blockchain.NewQueuedBlock(0, v.Orphan.Hash), true)
+								qt.SetBlock(blockchain.NewQueuedBlock(v.Orphan.Hash), true)
 								Log.Infof("Orphan block %v's parent added to queue", v.Orphan.Hash)
 							})
 						} else {
