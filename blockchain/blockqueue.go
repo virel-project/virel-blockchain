@@ -1,8 +1,10 @@
 package blockchain
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/virel-project/virel-blockchain/v3/adb"
@@ -130,6 +132,9 @@ func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) bool {
 		}
 	}
 	qt.bq.blocks = append(qt.bq.blocks, qb)
+	slices.SortFunc(qt.bq.blocks, func(a, b *QueuedBlock) int {
+		return cmp.Compare(a.Height, b.Height)
+	})
 	return false
 }
 

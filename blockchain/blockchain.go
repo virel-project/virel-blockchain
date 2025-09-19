@@ -153,7 +153,8 @@ func (bc *Blockchain) Synchronize() {
 			r := qt.RequestableBlock()
 			if r != nil {
 				reqbl := &packet.PacketBlockRequest{
-					Hash: r.Hash,
+					Hash:   r.Hash,
+					Height: r.Height,
 				}
 				if reqbl.Hash == [32]byte{} {
 					qt.RemoveBlock(reqbl.Hash)
@@ -238,7 +239,7 @@ func (bc *Blockchain) RequestBlock(reqbl *packet.PacketBlockRequest, stats *Stat
 		}
 	}()
 
-	if reqbl.Height == 0 {
+	if reqbl.Count == 0 {
 		Log.Infof("requesting block %x to peer %v", reqbl.Hash, peerIp)
 	} else {
 		Log.Infof("requesting %d blocks from %d to peer %v", reqbl.Count, reqbl.Height, peerIp)
@@ -509,7 +510,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 			}
 		})
 
-		return fmt.Errorf("block %d is orphan: %w", bl.Height, err)
+		return fmt.Errorf("block %d %v is orphan: %w", bl.Height, hash, err)
 	}
 
 	err = bc.checkBlock(tx, bl, prevBl, hash)

@@ -514,7 +514,7 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Info("block queue size:", qt.Length())
 				bls := qt.GetBlocks()
 				for _, v := range bls {
-					Log.Infof("- hash %x expires %d lastreq %d", v.Hash, v.Expires, v.LastRequest)
+					Log.Infof("- hash %x (height %d) expires %d lastreq %d", v.Hash, v.Height, v.Expires, v.LastRequest)
 				}
 			})
 		},
