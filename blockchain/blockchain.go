@@ -239,16 +239,17 @@ func (bc *Blockchain) RequestBlock(reqbl *packet.PacketBlockRequest, stats *Stat
 		}
 	}()
 
+	if peer == nil {
+		Log.Debugf("no peer to query block %x %d", reqbl.Hash, reqbl.Height)
+		return
+	}
+
 	if reqbl.Count == 0 {
 		Log.Infof("requesting block %x to peer %v", reqbl.Hash, peerIp)
 	} else {
 		Log.Infof("requesting %d blocks from %d to peer %v", reqbl.Count, reqbl.Height, peerIp)
 	}
 
-	if peer == nil {
-		Log.Debug("no peer to query blocks")
-		return
-	}
 	// Request the blocks to the selected peer
 	peer.SendPacket(&p2p.Packet{
 		Type: packet.BLOCK_REQUEST,
