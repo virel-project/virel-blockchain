@@ -487,12 +487,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// check if block is duplicate
 	_, err := bc.GetBlock(tx, hash)
 	if err == nil {
-		if bl.PrevHash() == stats.TopHash {
-			err = bc.checkDeorphanage(tx, bl, hash)
-			if err != nil {
-				Log.Err(err)
-			}
-		}
 		return fmt.Errorf("duplicate block %x height %d", hash, bl.Height)
 	}
 
@@ -502,13 +496,15 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	prevBl, err := bc.GetBlock(tx, prevHash)
 	if err != nil {
 		bc.BlockQueue.Update(func(qt *QueueTx) {
-			qt.RemoveBlockByHash(hash)
+			qt.BlockDownloaded(hash)
 
 			qb := NewQueuedBlock(prevHash)
 			qb.Height = bl.Height - 1
 			qb.Expires = time.Now().Add(1 * time.Minute).Unix()
-			notadded := qt.SetBlock(qb, false)
-			if !notadded {
+			notadded := qt.SetBlock(qb, true)
+			if notadded {
+				Log.Infof("replaced orphan parent to queue: height %d hash %x", qb.Height, prevHash)
+			} else {
 				Log.Infof("added orphan parent to queue: height %d hash %x", qb.Height, prevHash)
 			}
 		})
@@ -528,11 +524,6 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	} else {
 		err = bc.addAltchainBlock(tx, bl, hash)
 	}
-	if err != nil {
-		Log.Err(err)
-		return err
-	}
-	err = bc.checkDeorphanage(tx, bl, hash)
 	if err != nil {
 		Log.Err(err)
 		return err
@@ -1001,44 +992,6 @@ func (bc *Blockchain) CreateCheckpoints(tx adb.Txn, maxHeight, interval uint64) 
 		s.AddFixedByteArray(bl[:])
 	}
 	return s.Output(), nil
-}
-
-// Blockchain MUST be locked before calling this
-func (bc *Blockchain) checkDeorphanage(tx adb.Txn, bl *block.Block, hash [32]byte) error {
-	Log.Debugf("checkDeorphanage %x", hash)
-	stats := bc.GetStats(tx)
-
-	// no need to remove block from queue, it's removed by parent of this function
-
-	// recursively check for deorphans
-	err := bc.DeorphanBlock(tx, bl, hash, stats)
-	if err != nil {
-		Log.Err(err)
-		return err
-	}
-
-	// finally, save stats
-	err = bc.SetStats(tx, stats)
-	if err != nil {
-		return err
-	}
-
-	// now that blocks were deorphaned, there might be a reorg
-	reorg, err := bc.CheckReorgs(tx, stats)
-	if err != nil {
-		Log.Err(err)
-		return err
-	}
-	if reorg {
-		stats = bc.GetStats(tx)
-		bc.cleanupTips(tx, stats)
-		err = bc.SetStats(tx, stats)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // Blockchain MUST be locked before calling this
