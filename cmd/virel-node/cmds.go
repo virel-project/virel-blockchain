@@ -18,6 +18,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/p2p"
+	"github.com/virel-project/virel-blockchain/v3/p2p/packet"
 	"github.com/virel-project/virel-blockchain/v3/transaction"
 	"github.com/virel-project/virel-blockchain/v3/util"
 	"github.com/virel-project/virel-blockchain/v3/util/uint128"
@@ -135,7 +136,7 @@ func prompts(bc *blockchain.Blockchain) {
 			bc.P2P.RLock()
 			defer bc.P2P.RUnlock()
 
-			Log.Infof("%s %s %s", util.PadC("Peer ID", 17), util.PadC("IP", 15), "direction")
+			Log.Infof("%s %s %s %s", util.PadC("Peer ID", 17), util.PadC("IP", 15), "direction", util.PadC("height", 10))
 
 			cns := make([]*p2p.Connection, len(bc.P2P.Connections))
 
@@ -150,13 +151,18 @@ func prompts(bc *blockchain.Blockchain) {
 			})
 
 			for _, conn := range cns {
+				stats := packet.PacketStats{}
+				conn.PeerData(func(d *p2p.PeerData) {
+					stats = d.Stats
+				})
 				conn.View(func(c *p2p.ConnData) error {
 					direction := "inc"
 					if c.Outgoing {
 						direction = "out"
 					}
 
-					Log.Infof("%x… %s %s", c.PeerId[:8], util.PadC(c.IP(), 15), util.PadC(direction, 9))
+					Log.Infof("%x… %s %s %s", c.PeerId[:8], util.PadC(c.IP(), 15), util.PadC(direction, 9),
+						util.PadC(fmt.Sprint(stats.Height), 10))
 					return nil
 				})
 			}

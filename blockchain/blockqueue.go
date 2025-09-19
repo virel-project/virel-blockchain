@@ -15,7 +15,7 @@ import (
 const QUEUE_SIZE = config.PARALLEL_BLOCKS_DOWNLOAD * 20
 
 const downloaded_expire = 5
-const rerequest_time = 5
+const rerequest_time = 1
 
 func NewQueuedBlock(hash [32]byte) *QueuedBlock {
 	expires := time.Now().Add(20 * time.Minute).Unix()
