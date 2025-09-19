@@ -156,7 +156,7 @@ func (bc *Blockchain) Synchronize() {
 				reqbl = &packet.PacketBlockRequest{
 					Hash: r.Hash,
 				}
-				Log.Info("hash", r.Hash)
+				Log.Info("requesting block", r.Hash)
 			} else {
 				func() {
 					bc.SyncMut.Lock()
@@ -498,12 +498,10 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 		bc.BlockQueue.Update(func(qt *QueueTx) {
 			qt.RemoveBlockByHash(hash)
 
-			if bl.Height <= stats.TopHeight+1 {
-				qb := NewQueuedBlock(prevHash)
-				qb.Expires = time.Now().Add(1 * time.Minute).Unix()
-				added := qt.SetBlock(qb, false)
-				Log.Infof("added to queue orphan parent %d %x: %v", bl.Height-1, prevHash, added)
-			}
+			qb := NewQueuedBlock(prevHash)
+			qb.Expires = time.Now().Add(1 * time.Minute).Unix()
+			added := qt.SetBlock(qb, false)
+			Log.Infof("added orphan parent to queue: height %d hash %x: %v", bl.Height-1, prevHash, added)
 		})
 
 		return fmt.Errorf("block %d is orphan: %w", bl.Height, err)

@@ -119,7 +119,6 @@ func (bq *BlockQueue) cleanup() {
 	bq.blocks = b2
 }
 func (qt *QueueTx) SetBlock(qb *QueuedBlock, replace bool) bool {
-	Log.Err("setblock", qb.Hash)
 	for i, v := range qt.bq.blocks {
 		if v.Hash == qb.Hash {
 			if replace {
