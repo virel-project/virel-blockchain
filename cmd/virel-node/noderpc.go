@@ -510,7 +510,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 					Log.Warn(err)
 					return err
 				}
-				Log.Devf("new hash for list: %x", h)
 				list = append(list, h)
 			}
 
