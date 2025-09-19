@@ -507,8 +507,10 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 			qb := NewQueuedBlock(prevHash)
 			qb.Height = bl.Height - 1
 			qb.Expires = time.Now().Add(1 * time.Minute).Unix()
-			added := qt.SetBlock(qb, false)
-			Log.Infof("added orphan parent to queue: height %d hash %x: %v", bl.Height-1, prevHash, added)
+			notadded := qt.SetBlock(qb, false)
+			if !notadded {
+				Log.Infof("added orphan parent to queue: height %d hash %x", qb.Height, prevHash)
+			}
 		})
 
 		return fmt.Errorf("block %d is orphan: %w", bl.Height, err)

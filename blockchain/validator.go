@@ -40,7 +40,7 @@ func (bc *Blockchain) NewValidator(parallelism int) *Validator {
 	go func() {
 		for {
 			v.selectAndPostprocess()
-			time.Sleep(time.Second)
+			time.Sleep(10 * time.Second)
 		}
 	}()
 
