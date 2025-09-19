@@ -45,6 +45,7 @@ func main() {
 	non_interactive := flag.Bool("non-interactive", false, "if set, the node will not process the stdinput. Useful for running as a service.")
 	data_dir := flag.String("data-dir", defaultDataDir, "sets the data directory which contains blockchain and peer list")
 	add_nodes := flag.String("add-nodes", "", "comma separated list of node P2P addresses")
+	no_update_check := flag.Bool("no-update-check", false, "disables update checking")
 
 	var slavechains_stratums *string
 	var stratum_wallet *string
@@ -55,7 +56,9 @@ func main() {
 
 	flag.Parse()
 
-	go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
+	if !*no_update_check {
+		go updatechecker.RunUpdateChecker(Log, config.UPDATE_CHECK_URL, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
+	}
 
 	if *version {
 		fmt.Printf("%s-wallet-cli v%v.%v.%v", config.NAME, config.VERSION_MAJOR, config.VERSION_MINOR, config.VERSION_PATCH)
