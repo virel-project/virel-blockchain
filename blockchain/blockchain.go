@@ -159,7 +159,6 @@ func (bc *Blockchain) Synchronize() {
 					qt.RemoveBlock(reqbl.Hash)
 					return
 				}
-				Log.Info("requesting block", r.Hash)
 				go bc.RequestBlock(reqbl, stats)
 			}
 			func() {
@@ -167,7 +166,7 @@ func (bc *Blockchain) Synchronize() {
 				defer bc.SyncMut.Unlock()
 
 				if bc.SyncLastRequestHeight > stats.TopHeight {
-					if n > 50 { // after 5 seconds, we can say the node will not respond to us with the blocks
+					if n > 20 { // after 2 seconds, we can assume the node will not respond to us with the blocks
 						bc.SyncLastRequestHeight = stats.TopHeight
 						n = 0
 					} else {
@@ -182,7 +181,6 @@ func (bc *Blockchain) Synchronize() {
 
 				if bc.SyncHeight > bc.SyncLastRequestHeight {
 					count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
-					Log.Info("requesting", count, "blocks from", bc.SyncLastRequestHeight+1)
 					reqbl := &packet.PacketBlockRequest{
 						Height: bc.SyncLastRequestHeight + 1,
 						Count:  uint8(count),
@@ -200,6 +198,7 @@ func (bc *Blockchain) Synchronize() {
 func (bc *Blockchain) RequestBlock(reqbl *packet.PacketBlockRequest, stats *Stats) {
 	// Find a valid peer
 	var peer *p2p.Connection
+	var peerIp string
 	func() {
 		bc.P2P.RLock()
 		defer bc.P2P.RUnlock()
@@ -230,10 +229,20 @@ func (bc *Blockchain) RequestBlock(reqbl *packet.PacketBlockRequest, stats *Stat
 				}
 			})
 			if found {
+				conn.View(func(c *p2p.ConnData) error {
+					peerIp = c.IP()
+					return nil
+				})
 				break
 			}
 		}
 	}()
+
+	if reqbl.Height == 0 {
+		Log.Infof("requesting block %x to peer %v", reqbl.Hash, peerIp)
+	} else {
+		Log.Infof("requesting %d blocks from %d to peer %v", reqbl.Count, reqbl.Height, peerIp)
+	}
 
 	if peer == nil {
 		Log.Debug("no peer to query blocks")
