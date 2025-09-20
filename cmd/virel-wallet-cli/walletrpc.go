@@ -235,6 +235,9 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			if txlist.MaxPage <= page {
 				break
 			}
+			if params.MaxPage != 0 && page > params.MaxPage {
+				break
+			}
 		}
 
 		c.SuccessResponse(res)

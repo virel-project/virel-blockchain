@@ -75,6 +75,7 @@ type GetSubaddressRequest struct {
 	PaymentId     uint64              `json:"payment_id,omitempty"`
 	Subaddress    *address.Integrated `json:"subaddress,omitempty"`
 	Confirmations uint64              `json:"confirmations"`
+	MaxPage       uint64              `json:"max_page"`
 }
 type GetSubaddressResponse struct {
 	PaymentId            uint64             `json:"payment_id"`

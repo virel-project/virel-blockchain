@@ -27,7 +27,7 @@ type Config struct {
 
 func New(bind string, config Config) *Server {
 	if config.RateLimit == 0 {
-		config.RateLimit = 500
+		config.RateLimit = 5_000
 	}
 
 	rpcSrv := &Server{
