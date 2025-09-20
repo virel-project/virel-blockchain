@@ -270,6 +270,10 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				return err
 			}
 			burnState, err = bc.GetState(txn, address.INVALID_ADDRESS)
+			if err != nil {
+				burnState = &chaintype.State{}
+				return nil
+			}
 			return err
 		})
 		if err != nil {
