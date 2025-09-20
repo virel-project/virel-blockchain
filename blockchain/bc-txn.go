@@ -224,7 +224,10 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		}
 
 		// Update nonce for entry's signer
-		simulatedStates[entry.Signer].LastNonce++
+		signerState := simulatedStates[entry.Signer]
+		if signerState != nil {
+			signerState.LastNonce++
+		}
 
 		// Apply state changes from inputs
 		for _, inp := range entry.Inputs {
