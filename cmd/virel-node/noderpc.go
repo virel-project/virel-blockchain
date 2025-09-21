@@ -290,6 +290,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			Stake:             stats.StakedAmount,
 			MaxSupply:         config.MAX_SUPPLY,
 			SupplyCap:         config.MAX_SUPPLY - burnState.Balance,
+			Burned:            burnState.Balance,
 			Coin:              config.COIN,
 			Difficulty:        topBl.Difficulty.String(),
 			CumulativeDiff:    stats.CumulativeDiff.String(),
