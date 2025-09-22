@@ -58,6 +58,16 @@ type CreateTransactionResponse struct {
 	Fee    uint64    `json:"fee"`
 }
 
+type SetDelegateTransactionRequest struct {
+	DelegateId uint64 `json:"delegate_id"`
+}
+type StakeTransactionRequest struct {
+	Amount uint64 `json:"amount"`
+}
+type UnstakeTransactionRequest struct {
+	Amount uint64 `json:"amount"`
+}
+
 type SubmitTransactionRequest struct {
 	TxBlob enc.Hex `json:"tx_blob"`
 }

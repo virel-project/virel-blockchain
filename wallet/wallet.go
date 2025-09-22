@@ -30,6 +30,7 @@ type Wallet struct {
 	delegateId    uint64
 	delegateName  string
 	stakedBalance uint64
+	stakedUnlock  uint64
 	totalStaked   uint64
 	totalUnstaked uint64
 
@@ -186,11 +187,13 @@ func (w *Wallet) Refresh() error {
 		for _, v := range delegateRes.Funds {
 			if v.Owner == w.GetAddress().Addr {
 				w.stakedBalance = v.Amount
+				w.stakedUnlock = v.Unlock
 				break
 			}
 		}
 	} else {
 		w.stakedBalance = 0
+		w.stakedUnlock = 0
 		w.delegateName = ""
 	}
 
@@ -245,6 +248,9 @@ func (w *Wallet) GetDelegateName() string {
 }
 func (w *Wallet) GetStakedBalance() uint64 {
 	return w.stakedBalance
+}
+func (w *Wallet) GetStakedUnlock() uint64 {
+	return w.stakedUnlock
 }
 func (w *Wallet) GetTotalStaked() uint64 {
 	return w.totalStaked

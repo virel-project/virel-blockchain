@@ -32,6 +32,9 @@ func initialPrompt(daemon_address string) *wallet.Wallet {
 	}
 	defer l.Close()
 
+	Log.SetStdout(l.Stdout())
+	Log.SetStderr(l.Stderr())
+
 	Log.Info("Starting", config.NETWORK_NAME, "CLI wallet")
 	if config.NETWORK_NAME != "mainnet" {
 		Log.Warn("This is a", strings.ToUpper(config.NETWORK_NAME), "node, only for testing the blockchain.")

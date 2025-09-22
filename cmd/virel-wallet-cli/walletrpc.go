@@ -292,6 +292,108 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 		})
 	})
 
+	rs.Handle("set_delegate_transaction", func(c *rpcserver.Context) {
+		params := walletrpc.SetDelegateTransactionRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "refresh failed for transfer",
+			})
+			return
+		}
+
+		tx, err := w.SetDelegate(params.DelegateId, w.GetDelegateId())
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -2,
+				Message: "transfer failed",
+			})
+			return
+		}
+		Log.Info("Created set_delegate transaction from RPC:", tx.String())
+
+		c.SuccessResponse(walletrpc.CreateTransactionResponse{
+			TxBlob: tx.Serialize(),
+			TXID:   util.Hash(tx.Hash()),
+			Fee:    tx.Fee,
+		})
+	})
+	rs.Handle("stake_transaction", func(c *rpcserver.Context) {
+		params := walletrpc.StakeTransactionRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "refresh failed for transfer",
+			})
+			return
+		}
+
+		tx, err := w.Stake(w.GetDelegateId(), params.Amount, w.GetStakedUnlock())
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -2,
+				Message: "transfer failed",
+			})
+			return
+		}
+		Log.Info("Created stake transaction from RPC:", tx.String())
+
+		c.SuccessResponse(walletrpc.CreateTransactionResponse{
+			TxBlob: tx.Serialize(),
+			TXID:   util.Hash(tx.Hash()),
+			Fee:    tx.Fee,
+		})
+	})
+	rs.Handle("unstake_transaction", func(c *rpcserver.Context) {
+		params := walletrpc.UnstakeTransactionRequest{}
+		err := c.GetParams(&params)
+		if err != nil {
+			return
+		}
+
+		err = w.Refresh()
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "refresh failed for transfer",
+			})
+			return
+		}
+
+		tx, err := w.Unstake(w.GetDelegateId(), params.Amount)
+		if err != nil {
+			Log.Warn(err)
+			c.ErrorResponse(&rpc.Error{
+				Code:    -2,
+				Message: "transfer failed",
+			})
+			return
+		}
+		Log.Info("Created unstake transaction from RPC:", tx.String())
+
+		c.SuccessResponse(walletrpc.CreateTransactionResponse{
+			TxBlob: tx.Serialize(),
+			TXID:   util.Hash(tx.Hash()),
+			Fee:    tx.Fee,
+		})
+	})
 	rs.Handle("submit_transaction", func(c *rpcserver.Context) {
 		params := walletrpc.SubmitTransactionRequest{}
 		err := c.GetParams(&params)
