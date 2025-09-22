@@ -5,8 +5,8 @@ import "time"
 const NAME = "virel"
 
 const VERSION_MAJOR = 3
-const VERSION_MINOR = 0
-const VERSION_PATCH = 6
+const VERSION_MINOR = 1
+const VERSION_PATCH = 0
 
 const COIN = 1_000_000_000                     // 1e9
 const FEE_PER_BYTE = 500_000                   // 0.0615 coins for an 1-output tx
