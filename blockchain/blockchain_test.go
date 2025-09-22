@@ -95,6 +95,10 @@ func TestState(t *testing.T) {
 		for i, v := range staketxs {
 			hash := v.Hash()
 			staketxids[i] = hash
+			err = v.Prevalidate(stats.TopHeight + 1)
+			if err != nil {
+				return err
+			}
 			err = bc.AddTransaction(txn, v, hash, true, stats.TopHeight+1)
 			if err != nil {
 				return err
@@ -235,7 +239,7 @@ func AddBlock(txn adb.Txn, bc *blockchain.Blockchain, bl *block.Block) error {
 	return nil
 }
 
-const delegate_id = 1
+const delegate_id = 2
 
 func GetStakeTxs(txn adb.Txn, bc *blockchain.Blockchain, w *wallet.Wallet, height uint64) []*transaction.Transaction {
 	txs := make([]*transaction.Transaction, 0)

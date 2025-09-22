@@ -16,6 +16,7 @@ const DIFFICULTY_N = 20 // DAA half-life (5 minutes).
 const GENESIS_ADDRESS = "vo3yexhnu89af4aai83uou17dupb79c3gxng1q"
 const GENESIS_TIMESTAMP = 0
 const BLOCK_REWARD_FEE_PERCENT = 10
+const TEAM_STAKE_PUBKEY = "3959a30cb83649dd38389dd6717cbadab6ceb92cd9e4c4352abfcf168bbf592e"
 
 var SEED_NODES = []string{"127.0.0.1", "45.38.20.159"}
 
