@@ -7,6 +7,7 @@ import (
 
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/util"
 )
@@ -122,6 +123,8 @@ func (t *Transfer) StateOutputs(tx *Transaction, sender address.Address) []State
 
 // TransactionData: RegisterDelegate
 
+var team_stake_pubkey = bitcrypto.Pubkey(util.AssertHexDec(config.TEAM_STAKE_PUBKEY))
+
 type RegisterDelegate struct {
 	Name []byte
 	Id   uint64
@@ -148,12 +151,15 @@ func (t *RegisterDelegate) TotalAmount(_ *Transaction) (uint64, error) {
 func (t *RegisterDelegate) VSize() uint64 {
 	return 16 + uint64(len(t.Name))
 }
-func (t *RegisterDelegate) Prevalidate(_ *Transaction) error {
+func (t *RegisterDelegate) Prevalidate(txn *Transaction) error {
 	if len(t.Name) > 16 {
 		return errors.New("RegisterDelegate name is too long")
 	}
 	if t.Id == 0 {
 		return errors.New("delegate id 0 is not valid")
+	}
+	if t.Id == 1 && txn.Signer != team_stake_pubkey {
+		return errors.New("delegate id 1 is reserved")
 	}
 	return nil
 }

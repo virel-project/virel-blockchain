@@ -221,6 +221,7 @@ func (t *Transaction) String() string {
 	o += fmt.Sprintf(" Version: %d\n", t.Version)
 	o += " VSize: " + util.FormatUint(t.GetVirtualSize()) + "; physical size: " + util.FormatInt(len(t.Serialize())) + "\n"
 	o += " Signer: " + signer.String() + "\n"
+	o += " Signer pubkey: " + hex.EncodeToString(t.Signer[:]) + "\n"
 
 	o += t.Data.String()
 

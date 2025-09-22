@@ -32,7 +32,17 @@ func (w *Wallet) decodeDatabase(data []byte, pass string) error {
 		return err
 	}
 
-	return json.Unmarshal(dec, &w.dbInfo)
+	err = json.Unmarshal(dec, &w.dbInfo)
+	if err != nil {
+		return err
+	}
+
+	emptyPubKey := bitcrypto.Pubkey{}
+	if w.dbInfo.PubKey == emptyPubKey {
+		w.dbInfo.PubKey = w.dbInfo.PrivateKey.Public()
+	}
+
+	return nil
 }
 
 func saveDatabase(dbInfo dbInfo, pass string, time, mem uint32) ([]byte, error) {

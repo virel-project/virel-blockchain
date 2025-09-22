@@ -41,6 +41,7 @@ type dbInfo struct {
 	Mnemonic   string
 	PrivateKey bitcrypto.Privkey
 	Address    address.Integrated
+	PubKey     bitcrypto.Pubkey
 }
 
 func OpenWallet(rpcAddr string, walletdb []byte, pass string) (*Wallet, error) {
@@ -72,7 +73,8 @@ func CreateWallet(rpcAddr string, pass string, fastkdf bool) (*Wallet, []byte, e
 	bitcrypto.RandRead(entropy)
 	w.dbInfo.Mnemonic, w.dbInfo.PrivateKey = newMnemonic(entropy)
 
-	w.dbInfo.Address = address.FromPubKey(w.dbInfo.PrivateKey.Public()).Integrated()
+	w.dbInfo.PubKey = w.dbInfo.PrivateKey.Public()
+	w.dbInfo.Address = address.FromPubKey(w.dbInfo.PubKey).Integrated()
 
 	var kdfMemory uint32 = 6
 	var kdfIterations uint32 = 512
@@ -231,6 +233,9 @@ func (w *Wallet) GetMempoolLastNonce() uint64 {
 }
 func (w *Wallet) GetAddress() address.Integrated {
 	return w.dbInfo.Address
+}
+func (w *Wallet) GetPubKey() bitcrypto.Pubkey {
+	return w.dbInfo.PubKey
 }
 func (w *Wallet) GetDelegateId() uint64 {
 	return w.delegateId

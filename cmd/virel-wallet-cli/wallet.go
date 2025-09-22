@@ -196,7 +196,8 @@ func main() {
 		Log.Fatal("wallet has invalid address")
 	}
 
-	Log.Info("Wallet", w.GetAddress(), "has been loaded")
+	Log.Info("Wallet", addr, "has been loaded")
+	Log.Infof("Public key: %x", w.GetPubKey())
 
 	Log.Debugf("Address hex: %x", addr.Addr[:])
 
