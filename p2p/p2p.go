@@ -272,7 +272,7 @@ scanning:
 func (p *P2P) Kick(c *Connection) {
 	var ip string
 	c.View(func(c *ConnData) error {
-		ip = c.IP()
+		ip = c.Conn.RemoteAddr().String()
 		return nil
 	})
 	c.Close()
@@ -412,8 +412,7 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 			}
 			err := vconn.View(func(v *ConnData) error {
 				if v.PeerId == hnds.PeerID && v.Conn.RemoteAddr().String() != ipPort {
-					err := fmt.Errorf("disconnecting from peer %s: duplicate ID %x", ipPort, hnds.PeerID)
-					return err
+					return fmt.Errorf("duplicate ID %x", hnds.PeerID)
 				}
 				return nil
 			})
