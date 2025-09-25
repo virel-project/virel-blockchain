@@ -291,8 +291,8 @@ func prompts(bc *blockchain.Blockchain) {
 						return err
 					}
 
-					Log.Infof("address: %s balance: %s last nonce: %d", addr, util.FormatCoin(state.Balance),
-						state.LastNonce)
+					Log.Infof("%s balance: %s last nonce: %d delegate id: %d", addr, util.FormatCoin(state.Balance),
+						state.LastNonce, state.DelegateId)
 
 					sum += state.Balance
 

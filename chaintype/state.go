@@ -55,5 +55,5 @@ func (x *State) Deserialize(d []byte) error {
 }
 
 func (x *State) String() string {
-	return fmt.Sprintf("Balance: %d; LastNonce: %d; LastIncoming: %d", x.Balance, x.LastNonce, x.LastIncoming)
+	return fmt.Sprintf("Balance: %d; LastNonce: %d; LastIncoming: %d; DelegateId: %d", x.Balance, x.LastNonce, x.LastIncoming, x.DelegateId)
 }
