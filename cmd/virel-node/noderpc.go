@@ -177,6 +177,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			Log.Debug(err)
 
 			var bl *block.Block
+			var reward uint64
 			err = bc.DB.View(func(txn adb.Txn) error {
 				bl, err = bc.GetBlock(txn, params.Txid)
 				if err != nil {
@@ -189,6 +190,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				if topoHash != params.Txid {
 					return err_orphan
 				}
+
+				reward = bl.Reward()
+				for _, v := range bl.Transactions {
+					txn, _, err := bc.GetTx(txn, v, bl.Height)
+					if err != nil {
+						Log.Warn(err)
+					} else {
+						reward += txn.Fee
+					}
+				}
+
 				return nil
 			})
 			if err != nil {
@@ -205,8 +217,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 				})
 				return
 			}
-
-			reward := bl.Reward()
 
 			cout := bl.CoinbaseTransaction(reward)
 			out := make([]transaction.StateOutput, len(cout))
