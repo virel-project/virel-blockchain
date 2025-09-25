@@ -381,7 +381,7 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 		return err
 	}
 
-	if hnds.P2PVersion < 1 {
+	if hnds.P2PVersion < 2 {
 		err := fmt.Errorf("outdated peer %s with version %d", ipPort, hnds.P2PVersion)
 		return err
 	}
@@ -562,21 +562,6 @@ func (p *P2P) connectionMainHandling(conn *Connection, private bool, ipPort stri
 		}
 
 		p.onPacketReceived(pack{Type: packetType, Data: data}, conn)
-
-		// disconnect peers if they have reached the hard-fork time and they use an outdated node
-		if hnds.P2PVersion < 2 {
-			var kick bool
-			conn.PeerData(func(d *PeerData) {
-				if d.Stats.Height >= config.HARDFORK_V3_HEIGHT {
-					kick = true
-				}
-			})
-			if kick {
-				err := fmt.Errorf("disconnecting peer because out of date: %s", ipPort)
-				Log.Warn(err)
-				return err
-			}
-		}
 	}
 }
 
