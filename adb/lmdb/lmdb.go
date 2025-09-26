@@ -20,7 +20,7 @@ type DB struct {
 
 	log *logger.Log
 
-	resizeLock sync.Mutex
+	resizeLock sync.RWMutex
 }
 
 func New(dbpath string, filemode os.FileMode, log *logger.Log) (*DB, error) {
@@ -148,6 +148,9 @@ func (d *DB) Update(f func(txn adb.Txn) error) error {
 			return err
 		}
 	}
+
+	d.resizeLock.RLock()
+	defer d.resizeLock.RUnlock()
 
 	return d.env.Update(func(t *lmdb.Txn) error {
 		txn := &Txn{
