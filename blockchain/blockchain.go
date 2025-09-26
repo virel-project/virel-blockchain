@@ -691,8 +691,9 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			}
 		}
 
-		// step 3: iterate altchain blocks starting from common block to validate and apply them to the state
-		// and to the topo; if any of these blocks is invalid, delete it and undo the reorg
+		// step 3: iterate altchain blocks starting from the block after the common block to the tip, in increasing height order,
+		// and apply them to the state and to the topology.
+		// If any of these blocks is invalid, delete it and undo the reorg by returning an error.
 
 		Log.Devf("hashes: %x", hashes)
 
