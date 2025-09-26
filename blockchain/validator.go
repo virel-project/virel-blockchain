@@ -38,13 +38,6 @@ func (bc *Blockchain) NewValidator(parallelism int) *Validator {
 	v.startProcessingBlocks()
 	go v.startPostprocessor()
 
-	go func() {
-		for {
-			v.selectAndPostprocess()
-			time.Sleep(10 * time.Second)
-		}
-	}()
-
 	return v
 }
 
@@ -104,10 +97,14 @@ func (v *Validator) PostprocessBlock(bl *block.Block, hash util.Hash, txs []*tra
 
 func (v *Validator) startPostprocessor() {
 	for {
-		_, ok := <-v.postprocessChan
-		if !ok {
-			Log.Debug("closing postprocessor")
-			return
+		select {
+		case _, ok := <-v.postprocessChan:
+			if !ok {
+				Log.Debug("closing postprocessor")
+				return
+			}
+		case <-time.After(15 * time.Second): // postprocess anyway after 10 seconds of no blocks received
+			Log.Debug("running postprocessor because of timeout")
 		}
 		v.selectAndPostprocess()
 	}

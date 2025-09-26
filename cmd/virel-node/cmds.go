@@ -107,6 +107,7 @@ func prompts(bc *blockchain.Blockchain) {
 				if reorged {
 					Log.Debug("reorganize done")
 				}
+				bc.CheckSupply(tx)
 				return err
 			})
 			if err != nil {
