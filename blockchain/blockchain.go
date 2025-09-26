@@ -677,7 +677,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 					// delete this block's topo
 					err := bc.DelTopo(txn, n.Height)
 					if err != nil {
-						Log.Debug("could not delete block topo:", err)
+						return fmt.Errorf("could not delete block topo: %w", err)
 					}
 
 					// remove block from state

@@ -232,10 +232,12 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		// Apply state changes from inputs
 		for _, inp := range entry.Inputs {
 			state := simulatedStates[inp.Sender]
-			if state.Balance < inp.Amount {
-				return fmt.Errorf("insufficient balance in previous entry %x", entry.TXID)
+			if state != nil {
+				if state.Balance < inp.Amount {
+					return fmt.Errorf("insufficient balance in previous entry %x", entry.TXID)
+				}
+				state.Balance -= inp.Amount
 			}
-			state.Balance -= inp.Amount
 		}
 
 		// Apply state changes from outputs
@@ -363,6 +365,9 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 	// Validate sufficient balances for inputs
 	for _, inp := range inputs {
 		state := simulatedStates[inp.Sender]
+		if state == nil {
+			return fmt.Errorf("input sender state for %s not found in simulated states", inp.Sender)
+		}
 		if state.Balance < inp.Amount {
 			return fmt.Errorf("insufficient balance for %s: need %d, have %d",
 				inp.Sender, inp.Amount, state.Balance)
