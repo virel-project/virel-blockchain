@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/virel-project/virel-blockchain/v3/adb"
 	"github.com/virel-project/virel-blockchain/v3/adb/lmdb"
 	"github.com/virel-project/virel-blockchain/v3/blockchain"
 	"github.com/virel-project/virel-blockchain/v3/config"
@@ -125,6 +126,13 @@ func main() {
 	go bc.StartStratum(*stratum_bind_ip, uint16(*stratum_bind_port))
 	bc.StartP2P(nodes, uint16(*p2p_bind_port), *private, *exclusive)
 	go bc.NewStratumJob(true)
+
+	// check for reorgs
+	bc.DB.Update(func(txn adb.Txn) error {
+		stats := bc.GetStats(txn)
+		_, err := bc.CheckReorgs(txn, stats)
+		return err
+	})
 
 	if !*non_interactive {
 		go CheckPeers(bc)
