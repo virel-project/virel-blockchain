@@ -124,12 +124,6 @@ func New(dataDir string, db adb.DB) *Blockchain {
 
 	bc.BlockQueue = NewBlockQueue(bc)
 
-	// check for reorgs
-	bc.DB.Update(func(txn adb.Txn) error {
-		_, err := bc.CheckReorgs(txn, stats)
-		return err
-	})
-
 	return bc
 }
 
@@ -1187,6 +1181,14 @@ func (bc *Blockchain) StartP2P(peers []string, port uint16, private, exclusive b
 	go bc.newConnections()
 	go bc.Synchronize()
 	go bc.P2P.ListenServer(port, private)
+
+	// check for reorgs
+	bc.DB.Update(func(txn adb.Txn) error {
+		stats := bc.GetStats(txn)
+		_, err := bc.CheckReorgs(txn, stats)
+		return err
+	})
+
 }
 
 func (bc *Blockchain) GetSupply(tx adb.Txn) uint64 {
