@@ -604,7 +604,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		commonBlockHash := altHash
 		commonBlock, err := bc.GetBlock(txn, commonBlockHash)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not get first altchain block: %w", err)
 		}
 
 		hashes := []hashInfo{
@@ -651,7 +651,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			nHash := stats.TopHash
 			n, err := bc.GetBlock(txn, nHash)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to get top block %x: %v", nHash, err)
 			}
 
 			if n.Hash() == commonBlockHash {
@@ -669,8 +669,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 					n, err = bc.GetBlock(txn, nHash)
 					if err != nil {
-						err := fmt.Errorf("failed to get block %x: %v", nHash, err)
-						return err
+						return fmt.Errorf("failed to get block %x: %v", nHash, err)
 					}
 
 					Log.Debugf("reorg step 2: reversing changes of block %d %x", n.Height, nHash)
@@ -678,13 +677,13 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 					// delete this block's topo
 					err := bc.DelTopo(txn, n.Height)
 					if err != nil {
-						Log.Debugf("could not delete block topo: %w", err)
+						return fmt.Errorf("could not delete block topo: %w", err)
 					}
 
 					// remove block from state
 					err = bc.RemoveBlockFromState(txn, n, nHash)
 					if err != nil {
-						return err
+						return fmt.Errorf("could not remove block from state: %w", err)
 					}
 
 					nHash = n.PrevHash()
@@ -706,7 +705,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			binary.LittleEndian.PutUint64(heightBin, hashes[i].Block.Height)
 			err := txn.Put(bc.Index.Topo, heightBin, hashes[i].Hash[:])
 			if err != nil {
-				return err
+				return fmt.Errorf("could not set block topo: %w", err)
 			}
 
 			bl := hashes[i].Block
@@ -714,17 +713,17 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 			// set the block's cumulative difficulty
 			prevBl, err := bc.GetBlock(txn, bl.PrevHash())
 			if err != nil {
-				return err
+				return fmt.Errorf("could not get block: %w", err)
 			}
 
 			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash)
 			if err != nil {
-				return err
+				return fmt.Errorf("block verification failed: %w", err)
 			}
 
 			err = bc.ApplyBlockToState(txn, bl, hashes[i].Hash)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to apply block to state: %w", err)
 			}
 		}
 
