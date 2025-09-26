@@ -678,7 +678,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 					// delete this block's topo
 					err := bc.DelTopo(txn, n.Height)
 					if err != nil {
-						return err
+						Log.Debugf("could not delete block topo: %w", err)
 					}
 
 					// remove block from state
@@ -988,22 +988,6 @@ func (bc *Blockchain) CreateCheckpoints(tx adb.Txn, maxHeight, interval uint64) 
 		s.AddFixedByteArray(bl[:])
 	}
 	return s.Output(), nil
-}
-
-// Blockchain MUST be locked before calling this
-func (bc *Blockchain) cleanupTips(tx adb.Txn, stats *Stats) {
-	Log.Debug("cleaning up tips")
-	for i, tip := range stats.Tips {
-		topo, err := bc.GetTopo(tx, tip.Height)
-		if err != nil {
-			Log.Debugf("cleanupTips error is %v; this is probably fine", err)
-			continue
-		}
-		if topo == tip.Hash {
-			Log.Debugf("cleanupTips: tip %x is included in mainchain, discarding it", tip.Hash)
-			delete(stats.Tips, i)
-		}
-	}
 }
 
 // recursive function which finds all the orphans that are children of the given hash, and creates altchain.
