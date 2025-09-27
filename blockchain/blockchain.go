@@ -799,7 +799,6 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 // Validates a block, and then adds it to the state
 func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte) error {
 	stats := bc.GetStats(txn)
-	defer bc.SetStats(txn, stats)
 
 	// remove transactions from mempool
 	pool := bc.GetMempool(txn)
@@ -837,7 +836,7 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 		}
 	}
 
-	// add block reward to coinbase transaction
+	// apply coinbase transaction
 	totalReward := bl.Reward() + totalFee
 	if totalReward < bl.Reward() {
 		return errors.New("reward overflow in block")
@@ -869,13 +868,12 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 	}
 	bc.SyncMut.Unlock()
 
-	return nil
+	return bc.SetStats(txn, stats)
 }
 
 // Reverses the transaction of a block from the blockchain state
 func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
 	stats := bc.GetStats(txn)
-	defer bc.SetStats(txn, stats)
 
 	type txCache struct {
 		Hash [32]byte
@@ -929,6 +927,20 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		}
 	}
 
+	// remove transactions in reverse order
+	for i := len(txs) - 1; i >= 0; i-- {
+		tx := txs[i].Tx
+		txhash := txs[i].Hash
+
+		Log.Devf("removing transaction %x (index %d) from state", txhash, i)
+
+		err := bc.RemoveTxFromState(txn, tx, address.FromPubKey(tx.Signer), bl, blhash, stats, txhash)
+		if err != nil {
+			Log.Err(err)
+			return err
+		}
+	}
+
 	// remove coinbase transacton
 	totalReward := bl.Reward() + totalFee
 	if totalReward < bl.Reward() {
@@ -950,22 +962,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		Log.Err(err)
 		return err
 	}
-
-	// remove transactions in reverse order
-	for i := len(txs) - 1; i >= 0; i-- {
-		tx := txs[i].Tx
-		txhash := txs[i].Hash
-
-		Log.Devf("removing transaction %x (index %d) from state", txhash, i)
-
-		err := bc.RemoveTxFromState(txn, tx, address.FromPubKey(tx.Signer), bl, blhash, stats, txhash)
-		if err != nil {
-			Log.Err(err)
-			return err
-		}
-	}
-
-	return nil
+	return bc.SetStats(txn, stats)
 }
 
 func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*chaintype.State, error) {
