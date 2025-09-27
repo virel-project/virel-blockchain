@@ -264,6 +264,7 @@ scanning:
 
 		Log.Debug("connecting to peer", randPeer.IP, randPeer.Port)
 		go p.startClient(randPeer.IP, randPeer.Port, private)
+		return
 	}
 }
 

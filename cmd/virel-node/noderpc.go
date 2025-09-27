@@ -419,8 +419,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		err = bc.DB.View(func(txn adb.Txn) (err error) {
 			for _, v := range mem.Entries {
 				if slices.ContainsFunc(v.Inputs, func(e transaction.StateInput) bool { return e.Sender == addr.Addr }) || slices.ContainsFunc(v.Outputs, func(e transaction.Output) bool { return e.Recipient == addr.Addr }) {
-					Log.Devf("adding txn %x", v.TXID)
-
 					for _, inp := range v.Inputs {
 						if inp.Sender == addr.Addr {
 							result.MempoolBalance -= inp.Amount

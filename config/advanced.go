@@ -32,10 +32,10 @@ const PARALLEL_BLOCKS_DOWNLOAD = 50
 const VERSION = VERSION_MAJOR<<32 + VERSION_MINOR<<16 + VERSION_PATCH
 
 // ban duration (seconds)
-const BAN_DURATION = 60 * 15
+const BAN_DURATION = 60 * 60
 
 // black peer duration (seconds)
-const BLACK_DURATION = 60 * 60 * 24
+const BLACK_DURATION = 60 * 15
 
 // fork coins should not change this if they want to be easily merge mined
 const HD_COIN_TYPE = 6310
