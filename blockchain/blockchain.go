@@ -560,7 +560,10 @@ func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]by
 		return err
 	}
 	// broadcasting stats isn't necessary, altchain blocks don't affect our tophash
-	bc.setStatsNoBroadcast(txn, stats)
+	err = bc.setStatsNoBroadcast(txn, stats)
+	if err != nil {
+		return fmt.Errorf("failed to set stats: %w", err)
+	}
 
 	// check for reorgs
 	bc.CheckReorgs(txn, stats)
@@ -744,7 +747,10 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		stats.CumulativeDiff = altDiff
 		stats.TopHeight = altHeight
 
-		bc.setStatsNoBroadcast(txn, stats)
+		err = bc.setStatsNoBroadcast(txn, stats)
+		if err != nil {
+			return fmt.Errorf("failed to set stats: %w", err)
+		}
 
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
