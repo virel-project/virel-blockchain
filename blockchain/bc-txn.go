@@ -457,8 +457,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 			return fmt.Errorf("set delegate transaction has invalid PreviousDelegate %d, expected %d", setDelegateData.PreviousDelegate, simulatedStates[signer].DelegateId)
 		}
 
-		Log.Err("prev delegate:", setDelegateData.PreviousDelegate)
-
+		// check that the user does not have staked funds (in that case, changing delegate is not possible)
 		prevDelegate, err := bc.getOrLoadDelegate(txn, setDelegateData.PreviousDelegate, simulatedDelegates)
 		if err == nil {
 			Log.Err("prev delegate funds:", prevDelegate.Funds)
@@ -467,6 +466,12 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 					return fmt.Errorf("all funds must be unstaked before delegate can be changed")
 				}
 			}
+		}
+
+		// check that the next delegate exists
+		_, err = bc.getOrLoadDelegate(txn, setDelegateData.DelegateId, simulatedDelegates)
+		if err != nil {
+			return fmt.Errorf("transaction tries to set invalid delegate: %w", err)
 		}
 	}
 
