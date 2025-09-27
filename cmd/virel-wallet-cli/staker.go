@@ -22,7 +22,9 @@ func staker(w *wallet.Wallet, delegateAddress address.Address) {
 
 		height := w.GetHeight()
 		if lastHeight < height {
-
+			if height > 20 {
+				lastHeight = max(lastHeight, height-20)
+			}
 			Log.Debug("staker new height:", height)
 
 			for h := lastHeight + 1; h <= height; h++ {
