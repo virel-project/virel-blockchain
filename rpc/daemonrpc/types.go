@@ -86,13 +86,15 @@ type GetBlockByHeightRequest struct {
 	Height uint64 `json:"height"`
 }
 type GetBlockResponse struct {
-	Block        block.Block     `json:"block"`
-	Hash         string          `json:"hash"`
-	TotalReward  uint64          `json:"total_reward"`
-	MinerReward  uint64          `json:"miner_reward"`
-	Miner        string          `json:"miner"`
-	Delegate     address.Address `json:"delegate"`
-	NextDelegate address.Address `json:"next_delegate"`
+	Block            block.Block     `json:"block"`
+	Hash             string          `json:"hash"`
+	TotalReward      uint64          `json:"total_reward"`
+	MinerReward      uint64          `json:"miner_reward"`
+	StakerReward     uint64          `json:"staker_reward"`
+	GovernanceReward uint64          `json:"governance_reward"`
+	Miner            string          `json:"miner"`
+	Delegate         address.Address `json:"delegate"`
+	NextDelegate     address.Address `json:"next_delegate"`
 }
 
 type CalcPowRequest struct {

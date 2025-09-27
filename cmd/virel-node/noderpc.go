@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"slices"
@@ -103,12 +102,30 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
+		outputs := bl.CoinbaseTransaction(bl.Reward())
+		minerReward := uint64(0)
+		stakerReward := uint64(0)
+		governanceReward := uint64(0)
+
+		for _, v := range outputs {
+			switch v.Type {
+			case transaction.OUT_COINBASE_POW:
+				minerReward += v.Amount
+			case transaction.OUT_COINBASE_POS:
+				stakerReward += v.Amount
+			case transaction.OUT_COINBASE_DEV:
+				governanceReward += v.Amount
+			}
+		}
+
 		res := daemonrpc.GetBlockResponse{
-			Block:       *bl,
-			Hash:        hex.EncodeToString(hash[:]),
-			TotalReward: bl.Reward(),
-			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
-			Miner:       bl.Recipient.String(),
+			Block:            *bl,
+			Hash:             bl.Hash().String(),
+			TotalReward:      bl.Reward(),
+			MinerReward:      minerReward,
+			StakerReward:     stakerReward,
+			GovernanceReward: governanceReward,
+			Miner:            bl.Recipient.String(),
 		}
 		if bl.Version > 0 {
 			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
@@ -143,12 +160,30 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			return
 		}
 
+		outputs := bl.CoinbaseTransaction(bl.Reward())
+		minerReward := uint64(0)
+		stakerReward := uint64(0)
+		governanceReward := uint64(0)
+
+		for _, v := range outputs {
+			switch v.Type {
+			case transaction.OUT_COINBASE_POW:
+				minerReward += v.Amount
+			case transaction.OUT_COINBASE_POS:
+				stakerReward += v.Amount
+			case transaction.OUT_COINBASE_DEV:
+				governanceReward += v.Amount
+			}
+		}
+
 		res := daemonrpc.GetBlockResponse{
-			Block:       *bl,
-			Hash:        bl.Hash().String(),
-			TotalReward: bl.Reward(),
-			MinerReward: bl.Reward() * (100 - config.BLOCK_REWARD_FEE_PERCENT) / 100,
-			Miner:       bl.Recipient.String(),
+			Block:            *bl,
+			Hash:             bl.Hash().String(),
+			TotalReward:      bl.Reward(),
+			MinerReward:      minerReward,
+			StakerReward:     stakerReward,
+			GovernanceReward: governanceReward,
+			Miner:            bl.Recipient.String(),
 		}
 		if bl.Version > 0 {
 			res.Delegate = address.NewDelegateAddress(bl.DelegateId)
