@@ -186,6 +186,7 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		delegate.Funds = append(delegate.Funds, &chaintype.DelegatedFund{
 			Owner:  signerAddr,
 			Amount: stakeData.Amount,
+			Unlock: stats.TopHeight + config.STAKE_UNLOCK_TIME,
 		})
 	}
 
