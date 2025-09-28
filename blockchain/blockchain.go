@@ -323,10 +323,13 @@ func (bc *Blockchain) addGenesis() {
 			if err != nil {
 				return err
 			}
-			err = bc.ApplyBlockToState(tx, genesis, hash)
+			stats := bc.GetStats(tx)
+			err = bc.ApplyBlockToState(tx, genesis, hash, stats)
 			if err != nil {
 				return err
 			}
+			bc.setStatsNoBroadcast(tx, stats)
+
 		} else {
 			if bl == nil {
 				return errors.New("bl is nil")
@@ -516,23 +519,32 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 	// add block to chain
 	var isMainchain = prevHash == stats.TopHash
 	if isMainchain {
-		err = bc.addMainchainBlock(tx, bl, hash)
+		err = bc.addMainchainBlock(tx, bl, hash, stats)
 	} else {
-		err = bc.addAltchainBlock(tx, bl, hash)
+		err = bc.addAltchainBlock(tx, bl, hash, stats)
 	}
 	if err != nil {
 		Log.Err(err)
 		return err
 	}
 
+	if isMainchain {
+		err = bc.SetStats(tx, stats)
+	} else {
+		err = bc.setStatsNoBroadcast(tx, stats)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to set stats: %w", err)
+	}
+
 	return nil
 }
 
-// addAltchainBlock should only be called by the addBlock method
+// addAltchainBlock should only be called by the addBlock method.
+// It is the caller's responsibility to save stats.
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]byte) error {
+func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]byte, stats *Stats) error {
 	Log.Infof("Adding block as alternative on height: %d hash: %x diff: %s", bl.Height, hash, bl.Difficulty)
-	stats := bc.GetStats(txn)
 
 	// check if the block extends one of the tips
 	extendTip := stats.Tips[bl.PrevHash()]
@@ -559,14 +571,12 @@ func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]by
 		Log.Err(err)
 		return err
 	}
-	// broadcasting stats isn't necessary, altchain blocks don't affect our tophash
-	err = bc.setStatsNoBroadcast(txn, stats)
-	if err != nil {
-		return fmt.Errorf("failed to set stats: %w", err)
-	}
 
 	// check for reorgs
-	bc.CheckReorgs(txn, stats)
+	_, err = bc.CheckReorgs(txn, stats)
+	if err != nil {
+		return fmt.Errorf("could not check for reorgs: %w", err)
+	}
 
 	if bl.Height+config.MINIDAG_ANCESTORS >= stats.TopHeight {
 		go bc.NewStratumJob(false)
@@ -575,7 +585,8 @@ func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]by
 	return nil
 }
 
-// returns true if a reorg has happened
+// Returns true if a reorg has happened.
+// It is caller's responsibility to save stats after a reorg happens.
 func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 	type hashInfo struct {
 		Hash  [32]byte
@@ -684,7 +695,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 					}
 
 					// remove block from state
-					err = bc.RemoveBlockFromState(txn, n, nHash)
+					err = bc.RemoveBlockFromState(txn, n, nHash, stats)
 					if err != nil {
 						return fmt.Errorf("could not remove block from state: %w", err)
 					}
@@ -725,7 +736,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 				return fmt.Errorf("block verification failed: %w", err)
 			}
 
-			err = bc.ApplyBlockToState(txn, bl, hashes[i].Hash)
+			err = bc.ApplyBlockToState(txn, bl, hashes[i].Hash, stats)
 			if err != nil {
 				return fmt.Errorf("failed to apply block to state: %w", err)
 			}
@@ -747,11 +758,6 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		stats.CumulativeDiff = altDiff
 		stats.TopHeight = altHeight
 
-		err = bc.setStatsNoBroadcast(txn, stats)
-		if err != nil {
-			return fmt.Errorf("failed to set stats: %w", err)
-		}
-
 		Log.Infof("Reorganize success, new height: %d hash: %x cumulative diff: %s", stats.TopHeight,
 			stats.TopHash, stats.CumulativeDiff)
 		return nil
@@ -766,25 +772,20 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 
 // addMainchainBlock should only be called by the addBlock method
 // Blockchain MUST be locked before calling this
-func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]byte) error {
-	err := bc.ApplyBlockToState(tx, bl, hash)
+func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]byte, stats *Stats) error {
+	err := bc.ApplyBlockToState(tx, bl, hash, stats)
 	if err != nil {
 		Log.Warn("block is invalid, not adding to mainchain:", err)
 		return err
 	}
 
 	Log.Infof("Adding mainchain block %d %x diff: %s sides: %d", bl.Height, hash, bl.Difficulty, len(bl.SideBlocks))
-	stats := bc.GetStats(tx)
 
 	stats.TopHash = hash
 	stats.TopHeight = bl.Height
 	stats.CumulativeDiff = bl.CumulativeDiff
-	err = bc.SetStats(tx, stats)
-	if err != nil {
-		return err
-	}
 
-	// add block to mainchain and update stats
+	// add block to mainchain
 	err = bc.insertBlockMain(tx, bl)
 	if err != nil {
 		Log.Err(err)
@@ -796,10 +797,9 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 	return nil
 }
 
-// Validates a block, and then adds it to the state
-func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte) error {
-	stats := bc.GetStats(txn)
-
+// Validates a block, and then adds it to the state.
+// It is the caller's responsibility to save stats.
+func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte, stats *Stats) error {
 	// remove transactions from mempool
 	pool := bc.GetMempool(txn)
 	for _, t := range bl.Transactions {
@@ -868,13 +868,11 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 	}
 	bc.SyncMut.Unlock()
 
-	return bc.SetStats(txn, stats)
+	return nil
 }
 
 // Reverses the transaction of a block from the blockchain state
-func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte) error {
-	stats := bc.GetStats(txn)
-
+func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash [32]byte, stats *Stats) error {
 	type txCache struct {
 		Hash [32]byte
 		Tx   *transaction.Transaction
@@ -962,7 +960,7 @@ func (bc *Blockchain) RemoveBlockFromState(txn adb.Txn, bl *block.Block, blhash 
 		Log.Err(err)
 		return err
 	}
-	return bc.SetStats(txn, stats)
+	return nil
 }
 
 func (bc *Blockchain) GetState(tx adb.Txn, addr address.Address) (*chaintype.State, error) {

@@ -227,13 +227,15 @@ func AddBlock(txn adb.Txn, bc *blockchain.Blockchain, bl *block.Block) error {
 	}
 
 	stats := bc.GetStats(txn)
-	_, err = bc.CheckReorgs(txn, stats)
+	reorged, err := bc.CheckReorgs(txn, stats)
 	if err != nil {
 		return err
 	}
-	err = bc.SetStats(txn, stats)
-	if err != nil {
-		return err
+	if reorged {
+		err = bc.SetStats(txn, stats)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

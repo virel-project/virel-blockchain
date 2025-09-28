@@ -128,11 +128,20 @@ func main() {
 	go bc.NewStratumJob(true)
 
 	// check for reorgs
-	bc.DB.Update(func(txn adb.Txn) error {
+	err = bc.DB.Update(func(txn adb.Txn) error {
 		stats := bc.GetStats(txn)
-		_, err := bc.CheckReorgs(txn, stats)
-		return err
+		reorged, err := bc.CheckReorgs(txn, stats)
+		if err != nil {
+			return err
+		}
+		if reorged {
+			return bc.SetStats(txn, stats)
+		}
+		return nil
 	})
+	if err != nil {
+		Log.Err("failed to check for reorgs:", err)
+	}
 
 	if !*non_interactive {
 		go CheckPeers(bc)

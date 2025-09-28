@@ -102,13 +102,21 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Infof("%d. %x: fee %d, size %d", i, v.TXID, v.Fee, v.Size)
 			}
 
-			err := bc.DB.Update(func(tx adb.Txn) error {
-				reorged, err := bc.CheckReorgs(tx, bc.GetStats(tx))
+			err := bc.DB.Update(func(txn adb.Txn) error {
+				stats := bc.GetStats(txn)
+				reorged, err := bc.CheckReorgs(txn, stats)
+				if err != nil {
+					return err
+				}
 				if reorged {
 					Log.Debug("reorganize done")
+					err = bc.SetStats(txn, stats)
+					if err != nil {
+						return err
+					}
 				}
-				bc.CheckSupply(tx)
-				return err
+				bc.CheckSupply(txn)
+				return nil
 			})
 			if err != nil {
 				Log.Err(err)
