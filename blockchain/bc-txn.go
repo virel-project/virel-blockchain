@@ -460,7 +460,6 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 		// check that the user does not have staked funds (in that case, changing delegate is not possible)
 		prevDelegate, err := bc.getOrLoadDelegate(txn, setDelegateData.PreviousDelegate, simulatedDelegates)
 		if err == nil {
-			Log.Err("prev delegate funds:", prevDelegate.Funds)
 			for _, v := range prevDelegate.Funds {
 				if v.Owner == signer {
 					return fmt.Errorf("all funds must be unstaked before delegate can be changed")
