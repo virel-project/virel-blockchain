@@ -143,48 +143,55 @@ func (bc *Blockchain) Synchronize() {
 			return nil
 		})
 
-		bc.BlockQueue.Update(func(qt *QueueTx) {
-			r := qt.RequestableBlock()
-			if r != nil {
-				reqbl := &packet.PacketBlockRequest{
-					Hash:   r.Hash,
-					Height: r.Height,
-				}
-				if reqbl.Hash == [32]byte{} {
-					qt.RemoveBlock(reqbl.Hash)
-					return
-				}
-				go bc.RequestBlock(reqbl, stats)
-			}
-			func() {
-				bc.SyncMut.Lock()
-				defer bc.SyncMut.Unlock()
+		bc.SyncMut.Lock()
+		syncDiff := bc.SyncDiff
+		bc.SyncMut.Unlock()
 
-				if bc.SyncLastRequestHeight > stats.TopHeight {
-					if n > 20 { // after 2 seconds, we can assume the node will not respond to us with the blocks
-						bc.SyncLastRequestHeight = stats.TopHeight
-						n = 0
-					} else {
-						n++
+		// only request queued block if we aren't synchronized with the longest chain
+		if syncDiff.Cmp(stats.CumulativeDiff) > 0 {
+			bc.BlockQueue.Update(func(qt *QueueTx) {
+				r := qt.RequestableBlock()
+				if r != nil {
+					reqbl := &packet.PacketBlockRequest{
+						Hash:   r.Hash,
+						Height: r.Height,
+					}
+					if reqbl.Hash == [32]byte{} {
+						qt.RemoveBlock(reqbl.Hash)
 						return
 					}
-				} else {
-					n = 0
-				}
-
-				bc.SyncLastRequestHeight = max(bc.SyncLastRequestHeight, stats.TopHeight)
-
-				if bc.SyncHeight > bc.SyncLastRequestHeight {
-					count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
-					reqbl := &packet.PacketBlockRequest{
-						Height: bc.SyncLastRequestHeight + 1,
-						Count:  uint8(count),
-					}
-					bc.SyncLastRequestHeight += count
 					go bc.RequestBlock(reqbl, stats)
 				}
-			}()
-		})
+				func() {
+					bc.SyncMut.Lock()
+					defer bc.SyncMut.Unlock()
+
+					if bc.SyncLastRequestHeight > stats.TopHeight {
+						if n > 20 { // after 2 seconds, we can assume the node will not respond to us with the blocks
+							bc.SyncLastRequestHeight = stats.TopHeight
+							n = 0
+						} else {
+							n++
+							return
+						}
+					} else {
+						n = 0
+					}
+
+					bc.SyncLastRequestHeight = max(bc.SyncLastRequestHeight, stats.TopHeight)
+
+					if bc.SyncHeight > bc.SyncLastRequestHeight {
+						count := min(bc.SyncHeight-bc.SyncLastRequestHeight, config.PARALLEL_BLOCKS_DOWNLOAD)
+						reqbl := &packet.PacketBlockRequest{
+							Height: bc.SyncLastRequestHeight + 1,
+							Count:  uint8(count),
+						}
+						bc.SyncLastRequestHeight += count
+						go bc.RequestBlock(reqbl, stats)
+					}
+				}()
+			})
+		}
 
 		time.Sleep(100 * time.Millisecond)
 	}
