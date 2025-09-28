@@ -346,7 +346,7 @@ func (bc *Blockchain) addGenesis() {
 // checkBlock validates things like height, diff, etc. for a block. It doesn't validate PoW (that's done by
 // bl.Prevalidate()) or transactions.
 // Can only be used when bl is at chain tip (the state is before applying it).
-func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Hash) error {
+func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Hash, stats *Stats) error {
 	// validate difficulty
 	expectDiff, err := bc.GetNextDifficulty(tx, prevBl)
 	if err != nil {
@@ -435,17 +435,6 @@ func (bc *Blockchain) checkBlock(tx adb.Txn, bl, prevBl *block.Block, _ util.Has
 			newCumDiff)
 	}
 
-	// Verify that the block's NextDelegateId is valid.
-	stats := bc.GetStats(tx)
-	if bl.Version > 0 {
-		nextstaker, err := bc.GetStaker(tx, bl.PrevHash(), stats)
-		if err != nil {
-			return fmt.Errorf("failed to get next staker: %w", err)
-		}
-		if nextstaker.Id != bl.NextDelegateId {
-			return fmt.Errorf("block has invalid NextDelegateId %d, expected %d", bl.NextDelegateId, nextstaker.Id)
-		}
-	}
 	// Verify if the signature is valid. If it is blank, this block is not considered staked.
 	if bl.Version > 0 && bl.Height > config.MINIDAG_ANCESTORS {
 		stakedhash := bl.BlockStakedHash()
@@ -511,7 +500,7 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 		return fmt.Errorf("block %d %v is orphan: %w", bl.Height, hash, err)
 	}
 
-	err = bc.checkBlock(tx, bl, prevBl, hash)
+	err = bc.checkBlock(tx, bl, prevBl, hash, stats)
 	if err != nil {
 		return fmt.Errorf("block %d is invalid: %w", bl.Height, err)
 	}
@@ -731,7 +720,7 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 				return fmt.Errorf("could not get block: %w", err)
 			}
 
-			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash)
+			err = bc.checkBlock(txn, bl, prevBl, hashes[i].Hash, stats)
 			if err != nil {
 				return fmt.Errorf("block verification failed: %w", err)
 			}
@@ -800,6 +789,17 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 // Validates a block, and then adds it to the state.
 // It is the caller's responsibility to save stats.
 func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte, stats *Stats) error {
+	// Verify that the block's NextDelegateId is valid.
+	if bl.Version > 0 {
+		nextstaker, err := bc.GetStaker(txn, bl.PrevHash(), stats)
+		if err != nil {
+			return fmt.Errorf("failed to get next staker: %w", err)
+		}
+		if nextstaker.Id != bl.NextDelegateId {
+			return fmt.Errorf("block has invalid NextDelegateId %d, expected %d", bl.NextDelegateId, nextstaker.Id)
+		}
+	}
+
 	// remove transactions from mempool
 	pool := bc.GetMempool(txn)
 	for _, t := range bl.Transactions {
