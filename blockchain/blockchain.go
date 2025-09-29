@@ -759,6 +759,8 @@ func (bc *Blockchain) CheckReorgs(txn adb.Txn, stats *Stats) (bool, error) {
 		return nil
 	}()
 
+	go bc.NewStratumJob(true)
+
 	if err != nil {
 		Log.Err("Reorg failed:", err)
 		return false, err
