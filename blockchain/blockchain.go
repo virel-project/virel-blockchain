@@ -526,6 +526,12 @@ func (bc *Blockchain) AddBlock(tx adb.Txn, bl *block.Block, hash util.Hash) erro
 
 	if isMainchain {
 		err = bc.SetStats(tx, stats)
+
+		bc.SyncMut.RLock()
+		syncheight := bc.SyncHeight
+		bc.SyncMut.RUnlock()
+
+		go bc.NewStratumJob(bl.Height >= syncheight)
 	} else {
 		err = bc.setStatsNoBroadcast(tx, stats)
 	}
@@ -572,10 +578,6 @@ func (bc *Blockchain) addAltchainBlock(txn adb.Txn, bl *block.Block, hash [32]by
 	_, err = bc.CheckReorgs(txn, stats)
 	if err != nil {
 		return fmt.Errorf("could not check for reorgs: %w", err)
-	}
-
-	if bl.Height+config.MINIDAG_ANCESTORS >= stats.TopHeight {
-		go bc.NewStratumJob(false)
 	}
 
 	return nil
@@ -1096,10 +1098,6 @@ func (bc *Blockchain) SetMempool(tx adb.Txn, s *Mempool) error {
 // Blockchain MUST be locked before calling this
 func (bc *Blockchain) insertBlockMain(tx adb.Txn, bl *block.Block) error {
 	hash := bl.Hash()
-
-	defer func() {
-		go bc.NewStratumJob(true)
-	}()
 
 	// add block data
 	err := tx.Put(bc.Index.Block, hash[:], bl.Serialize())
