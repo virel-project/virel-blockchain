@@ -51,10 +51,10 @@ func (bc *Blockchain) RemoveTxFromState(
 	if signerState.LastNonce == 0 {
 		return fmt.Errorf("sender %s last nonce must not be zero in tx %s", signerAddr, txid)
 	}
-	signerState.LastNonce--
 	if signerState.LastNonce != tx.Nonce {
 		return fmt.Errorf("signer nonce %d does not match tx nonce %d", signerState.LastNonce, tx.Nonce)
 	}
+	signerState.LastNonce--
 
 	// NOTE: The following functions must be careful not to read/write the signer state again,
 	// as it is saved later and this could cause conflicts.
