@@ -809,14 +809,6 @@ func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash 
 		if nextstaker.Id != bl.NextDelegateId {
 			return fmt.Errorf("block has invalid NextDelegateId %d, expected %d", bl.NextDelegateId, nextstaker.Id)
 		}
-
-		// We remove the stake signature from the database (it's only used for mining, we do not need it anymore)
-		if bl.DelegateId != 0 && bl.StakeSignature != bitcrypto.BlankSignature {
-			err = bc.RemoveStakeSig(txn, bl.BlockStakedHash())
-			if err != nil {
-				Log.Debug("ApplyBlockToState could not remove stake sig:", err)
-			}
-		}
 	}
 
 	// remove transactions from mempool
