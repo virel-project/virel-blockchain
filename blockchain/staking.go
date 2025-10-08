@@ -126,6 +126,9 @@ func (bc *Blockchain) GetStakeSig(txn adb.Txn, hash util.Hash) (*packet.PacketSt
 func (bc *Blockchain) SetStakeSig(txn adb.Txn, stakesig *packet.PacketStakeSignature) error {
 	return txn.Put(bc.Index.StakeSig, stakesig.Hash[:], stakesig.Serialize())
 }
+func (bc *Blockchain) RemoveStakeSig(txn adb.Txn, blockhash util.Hash) error {
+	return txn.Del(bc.Index.StakeSig, blockhash[:])
+}
 
 func hashToCoinIndex(hash [32]byte, stakedSupply uint64) uint64 {
 	// modulo bias is negligible if we use uint128 math

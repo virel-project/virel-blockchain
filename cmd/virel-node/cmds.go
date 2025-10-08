@@ -605,6 +605,23 @@ func prompts(bc *blockchain.Blockchain) {
 				Log.Err(err)
 			}
 		},
+	}, {
+		Names: []string{"cleanup"},
+		Args:  "",
+		Action: func(args []string) {
+			count := 0
+			err := bc.DB.Update(func(txn adb.Txn) error {
+				return txn.ForEach(bc.Index.StakeSig, func(k, _ []byte) error {
+					count++
+					return txn.Del(bc.Index.StakeSig, k)
+				})
+			})
+			if err != nil {
+				Log.Err("cleanup failed:", err)
+			} else {
+				Log.Info("removed", count, "old stake signatures")
+			}
+		},
 	}}...)
 
 	l, err := readline.NewEx(&readline.Config{

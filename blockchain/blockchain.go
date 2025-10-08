@@ -800,14 +800,22 @@ func (bc *Blockchain) addMainchainBlock(tx adb.Txn, bl *block.Block, hash [32]by
 // Validates a block, and then adds it to the state.
 // It is the caller's responsibility to save stats.
 func (bc *Blockchain) ApplyBlockToState(txn adb.Txn, bl *block.Block, blockhash [32]byte, stats *Stats) error {
-	// Verify that the block's NextDelegateId is valid.
 	if bl.Version > 0 {
+		// Verify that the block's NextDelegateId is valid.
 		nextstaker, err := bc.GetStaker(txn, bl.PrevHash(), stats)
 		if err != nil {
 			return fmt.Errorf("failed to get next staker: %w", err)
 		}
 		if nextstaker.Id != bl.NextDelegateId {
 			return fmt.Errorf("block has invalid NextDelegateId %d, expected %d", bl.NextDelegateId, nextstaker.Id)
+		}
+
+		// We remove the stake signature from the database (it's only used for mining, we do not need it anymore)
+		if bl.DelegateId != 0 && bl.StakeSignature != bitcrypto.BlankSignature {
+			err = bc.RemoveStakeSig(txn, bl.BlockStakedHash())
+			if err != nil {
+				Log.Debug("ApplyBlockToState could not remove stake sig:", err)
+			}
 		}
 	}
 

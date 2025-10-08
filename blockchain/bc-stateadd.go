@@ -336,7 +336,7 @@ func (bc *Blockchain) ApplyPosReward(txn adb.Txn, blockhash util.Hash, out *tran
 	// Handle rounding error + fee, adding it to the delegate owner
 	roundingError := out.Amount - totalAdded
 	Log.Debugf("out.Amount: %s", util.FormatCoin(out.Amount))
-	Log.Debugf("rounding errors left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
+	Log.Debugf("rounding errors + fee left us with %s extra, paying it to delegate owner", util.FormatCoin(roundingError))
 	Log.Debugf("delegate totalStake: %s", util.FormatCoin(totalStake))
 	delegateAddr := delegate.OwnerAddress()
 	ownerFound := false
