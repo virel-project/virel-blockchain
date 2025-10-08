@@ -126,14 +126,14 @@ func (s *Server) SendJob(bl *block.Block, diff uint128.Uint128) {
 					return nil
 				}
 
+				rand.Read(bl.NonceExtra[:])
+
 				bl.Recipient = c.Address
 
 				blob := bl.Commitment().MiningBlob()
 				seed := blob.GetSeed()
 				jobid := strconv.FormatUint(util.RandomUint64(), 36)
 				target := util.GetTargetBytes(diff)
-
-				rand.Read(bl.NonceExtra[:])
 
 				if !config.IS_MASTERCHAIN {
 					if len(blob.Chains) != 1 {
