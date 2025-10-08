@@ -10,8 +10,8 @@ import (
 //go:embed checkpoints.bin
 var bin []byte
 
-// checkpoints generated with: create_checkpoints 235233
-const CHECKPOINTS_BLAKE3 = "0b8134ed996640b3b543815397d0473dfbbbff2b84aff9902c047c21c098b398"
+// checkpoints generated with: create_checkpoints 292867
+const CHECKPOINTS_BLAKE3 = "34b8ea64b55976b14a88b9037572f16dbd90c0c87f91c01912ea77307d75b5f5"
 
 const checkpoint_overhead = 4
 
