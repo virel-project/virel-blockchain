@@ -635,7 +635,6 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 		})
 
 		if err != nil {
-			Log.Warn(err)
 			c.SuccessResponse(daemonrpc.SubmitStakeSignatureResponse{
 				Accepted:     false,
 				ErrorMessage: err.Error(),
