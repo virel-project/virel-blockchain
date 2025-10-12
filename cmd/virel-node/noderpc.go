@@ -780,7 +780,7 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 			}
 
 			slices.SortStableFunc(resp.Richest, func(a, b daemonrpc.StateInfo) int {
-				return int(b.State.Balance) - int(a.State.Balance)
+				return int(int64(b.Total()) - int64(a.Total()))
 			})
 
 			c.SuccessResponse(resp)
