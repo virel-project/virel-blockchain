@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -710,16 +711,39 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 
 			err := bc.DB.View(func(txn adb.Txn) error {
 				return txn.ForEach(bc.Index.State, func(k, v []byte) error {
+					if len(k) != address.SIZE {
+						return errors.New("invalid address length")
+					}
+					addr := address.Address(k)
+					if addr.IsDelegate() {
+						return nil
+					}
+
 					st := &chaintype.State{}
 					err := st.Deserialize(v)
 					if err != nil {
 						return err
 					}
 
+					var staked uint64
+					if st.DelegateId != 0 {
+						deleg, err := bc.GetDelegate(txn, st.DelegateId)
+						if err != nil {
+							return err
+						}
+						for _, v := range deleg.Funds {
+							if v.Owner == addr {
+								staked = v.Amount
+								break
+							}
+						}
+					}
+
 					if len(resp.Richest) < COUNT {
 						resp.Richest = append(resp.Richest, daemonrpc.StateInfo{
-							Address: address.Address(k).String(),
+							Address: addr.String(),
 							State:   st,
+							Staked:  staked,
 						})
 						// Sort the slice when we reach the count
 						if len(resp.Richest) == COUNT {
@@ -729,16 +753,17 @@ func startRpc(bc *blockchain.Blockchain, ip string, port uint16, restricted bool
 						}
 					} else {
 						// Check if this address has a higher balance than the smallest in our list
-						if st.Balance > resp.Richest[COUNT-1].State.Balance {
+						if st.Balance+staked > resp.Richest[COUNT-1].Total() {
 							// Replace the smallest balance
 							resp.Richest[COUNT-1] = daemonrpc.StateInfo{
-								Address: address.Address(k).String(),
+								Address: addr.String(),
 								State:   st,
+								Staked:  staked,
 							}
 
 							// Re-sort the slice to maintain order
 							sort.Slice(resp.Richest, func(i, j int) bool {
-								return resp.Richest[i].State.Balance > resp.Richest[j].State.Balance
+								return resp.Richest[i].Total() > resp.Richest[j].Total()
 							})
 						}
 					}

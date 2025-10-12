@@ -119,6 +119,11 @@ type ValidateAddressResponse struct {
 type StateInfo struct {
 	Address string           `json:"address"`
 	State   *chaintype.State `json:"state"`
+	Staked  uint64           `json:"staked"`
+}
+
+func (s *StateInfo) Total() uint64 {
+	return s.State.Balance + s.Staked
 }
 
 type RichListRequest struct {
