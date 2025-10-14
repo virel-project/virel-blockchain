@@ -63,7 +63,6 @@ func (bc *Blockchain) ApplyTxToState(
 		if err != nil {
 			return fmt.Errorf("could not apply unstake: %w", err)
 		}
-		signerState.TotalUnstaked += unstakeData.Amount
 	}
 	// register delegate if the tx is a register_delegate transaction
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {

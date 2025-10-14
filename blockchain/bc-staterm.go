@@ -95,7 +95,6 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove unstake: %w", err)
 		}
-		signerState.TotalUnstaked -= unstakeData.Amount
 	}
 	// unregister delegate if the tx is a register_delegate transaction
 	if tx.Version == transaction.TX_VERSION_REGISTER_DELEGATE {
