@@ -8,12 +8,10 @@ import (
 )
 
 type State struct {
-	Balance       uint64
-	LastNonce     uint64
-	LastIncoming  uint64 // not used in consensus, but we store it to list the wallet incoming transactions
-	DelegateId    uint64
-	TotalStaked   uint64 // not used in consensus, only for display. Reset at delegate change.
-	TotalUnstaked uint64 // not used in consensus, only for display. Reset at delegate change.
+	Balance      uint64
+	LastNonce    uint64
+	LastIncoming uint64 // not used in consensus, but we store it to list the wallet incoming transactions
+	DelegateId   uint64
 }
 
 func (x *State) Serialize() []byte {
@@ -24,8 +22,6 @@ func (x *State) Serialize() []byte {
 	s.AddUvarint(x.LastIncoming)
 	s.AddUint8(1) // version
 	s.AddUvarint(x.DelegateId)
-	s.AddUvarint(x.TotalStaked)
-	s.AddUvarint(x.TotalUnstaked)
 
 	return s.Output()
 }
@@ -43,11 +39,6 @@ func (x *State) Deserialize(d []byte) error {
 			return errors.New("invalid state version")
 		}
 		x.DelegateId = s.ReadUvarint()
-		x.TotalStaked = s.ReadUvarint()
-		if s.Error() != nil {
-			return s.Error()
-		}
-		x.TotalUnstaked = s.ReadUvarint()
 		return nil
 	}
 

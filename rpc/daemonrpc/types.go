@@ -57,8 +57,6 @@ type GetAddressResponse struct {
 	MempoolNonce    uint64 `json:"mempool_last_nonce"` // unconfirmed nonce, from mempool
 	MempoolIncoming uint64 `json:"mempool_incoming"`
 	DelegateId      uint64 `json:"delegate_id"`
-	TotalStaked     uint64 `json:"total_staked"`   // The total amount staked since the last delegate change.
-	TotalUnstaked   uint64 `json:"total_unstaked"` // The total amount unstaked since the last delegate change.
 	Height          uint64 `json:"height"`
 }
 

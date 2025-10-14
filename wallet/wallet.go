@@ -31,8 +31,6 @@ type Wallet struct {
 	delegateName  string
 	stakedBalance uint64
 	stakedUnlock  uint64
-	totalStaked   uint64
-	totalUnstaked uint64
 
 	password string
 }
@@ -168,8 +166,6 @@ func (w *Wallet) Refresh() error {
 	w.mempoolBal = res.MempoolBalance
 	w.mempoolNonce = res.MempoolNonce
 	w.delegateId = res.DelegateId
-	w.totalStaked = res.TotalStaked
-	w.totalUnstaked = res.TotalUnstaked
 	w.height = res.Height
 
 	if res.DelegateId != 0 {
@@ -207,8 +203,6 @@ func (w *Wallet) ManualRefresh(state *chaintype.State, height uint64) {
 	w.mempoolBal = state.Balance
 	w.mempoolNonce = state.LastNonce
 	w.delegateId = state.DelegateId
-	w.totalStaked = state.TotalStaked
-	w.totalUnstaked = state.TotalUnstaked
 	w.height = height
 }
 
@@ -251,12 +245,6 @@ func (w *Wallet) GetStakedBalance() uint64 {
 }
 func (w *Wallet) GetStakedUnlock() uint64 {
 	return w.stakedUnlock
-}
-func (w *Wallet) GetTotalStaked() uint64 {
-	return w.totalStaked
-}
-func (w *Wallet) GetTotalUnstaked() uint64 {
-	return w.totalUnstaked
 }
 func (w *Wallet) GetTransactions(inc bool, page uint64) (*daemonrpc.GetTxListResponse, error) {
 	r := daemonrpc.GetTxListRequest{

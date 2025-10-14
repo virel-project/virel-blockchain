@@ -76,8 +76,6 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove stake: %w", err)
 		}
-		// underflow is not a big deal here, as TotalStaked/TotalUnstaked are not used in consensus (only in display)
-		signerState.TotalStaked -= stakeData.Amount
 	}
 	// undo unstake if the tx is an unstake transaction
 	if tx.Version == transaction.TX_VERSION_UNSTAKE {
@@ -116,8 +114,6 @@ func (bc *Blockchain) RemoveTxFromState(
 		if err != nil {
 			return fmt.Errorf("could not remove delegate: %w", err)
 		}
-
-		// TODO: restore TotalStaked and TotalUnstaked (not important, as they are only stats not used in consensus)
 	}
 	// revert delegate if the tx is a set_delegate transaction
 	if tx.Version == transaction.TX_VERSION_SET_DELEGATE {
