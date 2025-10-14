@@ -203,6 +203,8 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 	return nil
 }
 
+// if reverse = true, we are actually reversing a stake transaction
+// if reverse = false, we are applying a real unstake transaction, in this case prevUnlock should not be used.
 func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake, signerAddr address.Address,
 	txid transaction.TXID, stats *Stats, reverse bool, prevUnlock uint64) error {
 	delegate, err := bc.GetDelegate(txn, unstakeData.DelegateId)
@@ -228,7 +230,10 @@ func (bc *Blockchain) ApplyUnstake(txn adb.Txn, unstakeData *transaction.Unstake
 				txid, util.FormatCoin(unstakeData.Amount), util.FormatCoin(fund.Amount))
 		}
 		fund.Amount -= unstakeData.Amount
-		fund.Unlock = prevUnlock
+		// change unlock only if we are reversing a stake transaction, as unstake transactions do not change unlock
+		if reverse {
+			fund.Unlock = prevUnlock
+		}
 
 		if fund.Amount == 0 {
 			delegate.Funds = append(delegate.Funds[:i], delegate.Funds[i+1:]...)
