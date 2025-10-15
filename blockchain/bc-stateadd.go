@@ -43,7 +43,7 @@ func (bc *Blockchain) ApplyTxToState(
 			return fmt.Errorf("stake transaction delegate id %d does not match with state %d",
 				stakeData.DelegateId, signerState.DelegateId)
 		}
-		err = bc.ApplyStake(txn, stakeData, signerAddr, txid, stats)
+		err = bc.ApplyStake(txn, stakeData, signerAddr, txid, stats, false)
 		if err != nil {
 			return fmt.Errorf("could not apply stake: %w", err)
 		}
@@ -156,7 +156,7 @@ func (bc *Blockchain) ApplyTxToState(
 	return nil
 }
 
-func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, signerAddr address.Address, txid transaction.TXID, stats *Stats) error {
+func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, signerAddr address.Address, txid transaction.TXID, stats *Stats, reverse bool) error {
 	delegate, err := bc.GetDelegate(txn, stakeData.DelegateId)
 	if err != nil {
 		return err
@@ -167,10 +167,12 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		if fund.Owner != signerAddr {
 			continue
 		}
-		if fund.Unlock != stakeData.PrevUnlock {
-			return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+		if !reverse {
+			if fund.Unlock != stakeData.PrevUnlock {
+				return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+			}
+			fund.Unlock = stats.TopHeight + config.STAKE_UNLOCK_TIME
 		}
-		fund.Unlock = stats.TopHeight + config.STAKE_UNLOCK_TIME
 		fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
 		if err != nil {
 			return err
