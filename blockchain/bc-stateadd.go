@@ -169,7 +169,11 @@ func (bc *Blockchain) ApplyStake(txn adb.Txn, stakeData *transaction.Stake, sign
 		}
 		if !reverse {
 			if fund.Unlock != stakeData.PrevUnlock {
-				return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+				// allow invalid transaction 8859cfd60920afd7e6e08fa2656cd9c419572ace683cf203651e748680e22bab as a special case
+				// as it was previously allowed in chain due to bug fixed with commit 4a1f575f
+				if txid != [32]byte{0x88, 0x59, 0xcf, 0xd6, 0x09, 0x20, 0xaf, 0xd7, 0xe6, 0xe0, 0x8f, 0xa2, 0x65, 0x6c, 0xd9, 0xc4, 0x19, 0x57, 0x2a, 0xce, 0x68, 0x3c, 0xf2, 0x03, 0x65, 0x1e, 0x74, 0x86, 0x80, 0xe2, 0x2b, 0xab} {
+					return fmt.Errorf("applyStake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
+				}
 			}
 			fund.Unlock = stats.TopHeight + config.STAKE_UNLOCK_TIME
 		}
