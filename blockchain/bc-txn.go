@@ -9,6 +9,7 @@ import (
 	"github.com/virel-project/virel-blockchain/v3/adb"
 	"github.com/virel-project/virel-blockchain/v3/address"
 	"github.com/virel-project/virel-blockchain/v3/binary"
+	"github.com/virel-project/virel-blockchain/v3/bitcrypto"
 	"github.com/virel-project/virel-blockchain/v3/chaintype"
 	"github.com/virel-project/virel-blockchain/v3/config"
 	"github.com/virel-project/virel-blockchain/v3/p2p"
@@ -261,7 +262,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 
 			simulatedDelegates[registerData.Id] = &chaintype.Delegate{
 				Id:    registerData.Id,
-				Owner: tx.Signer,
+				Owner: bitcrypto.Pubkey{}, // TODO: we don't have the owner public key here. But it's ok, it should not be necessary.
 				Name:  registerData.Name,
 				Funds: []*chaintype.DelegatedFund{},
 			}
@@ -287,6 +288,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 						return fmt.Errorf("stake transaction PrevUnlock %d does not match fund unlock %d", stakeData.PrevUnlock, fund.Unlock)
 					}
 					fund.Amount, err = util.SafeAdd(fund.Amount, stakeData.Amount)
+					fund.Unlock = nextheight + config.STAKE_UNLOCK_TIME
 					if err != nil {
 						return err
 					}
@@ -298,6 +300,7 @@ func (bc *Blockchain) validateMempoolTx(txn adb.Txn, tx *transaction.Transaction
 				delegate.Funds = append(delegate.Funds, &chaintype.DelegatedFund{
 					Owner:  signer,
 					Amount: stakeData.Amount,
+					Unlock: nextheight + config.STAKE_UNLOCK_TIME,
 				})
 			}
 
