@@ -250,6 +250,21 @@ func startRpcServer(w *wallet.Wallet, ip string, port uint16, auth string) {
 			return
 		}
 
+		if len(params.Outputs) == 0 {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: "there must be at least 1 output",
+			})
+			return
+		}
+		if len(params.Outputs) > config.MAX_OUTPUTS {
+			c.ErrorResponse(&rpc.Error{
+				Code:    -1,
+				Message: fmt.Sprintf("too many outputs, max %d", config.MAX_OUTPUTS),
+			})
+			return
+		}
+
 		err = w.Refresh()
 		if err != nil {
 			Log.Warn(err)
