@@ -219,7 +219,11 @@ func main() {
 		Log.Warn("refresh failed:", err)
 	} else {
 		Log.Info("Balance:", util.FormatCoin(w.GetBalance()))
-		Log.Info("Last nonce:", w.GetLastNonce())
+		Log.Infof("Last nonce: %d", w.GetLastNonce())
+		if w.GetDelegateId() != 0 {
+			Log.Infof("Delegate: %s (%s)", w.GetDelegateName(), address.NewDelegateAddress(w.GetDelegateId()))
+			Log.Infof("Staked balance: %s", util.FormatCoin(w.GetStakedBalance()))
+		}
 	}
 
 	if !*non_interactive {
