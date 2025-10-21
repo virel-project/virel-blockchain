@@ -38,7 +38,6 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 		// validate the transaction
 		err := bc.validateMempoolTx(txn, tx, hash, mem.Entries, height)
 		if err != nil {
-			Log.Err("validateMempoolTx error:", err)
 			return err
 		}
 
@@ -53,9 +52,7 @@ func (bc *Blockchain) AddTransaction(txn adb.Txn, tx *transaction.Transaction, h
 
 	if mempool {
 		if mem.GetEntry(hash) != nil {
-			err := fmt.Errorf("transaction %x already in mempool", hash)
-			Log.Warn(err)
-			return nil
+			return fmt.Errorf("transaction %x already in mempool", hash)
 		}
 		signerAddr := address.FromPubKey(tx.Signer)
 		sout := tx.Data.StateOutputs(tx, signerAddr)

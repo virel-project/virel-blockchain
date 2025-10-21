@@ -98,7 +98,7 @@ func (bc *Blockchain) packetTx(pack p2p.Packet) {
 		return bc.AddTransaction(txn, tx, tx.Hash(), true, stats.TopHeight+1)
 	})
 	if err != nil {
-		Log.Warn(err)
+		Log.Warn("error adding transaction to mempool:", err)
 		return
 	}
 }
