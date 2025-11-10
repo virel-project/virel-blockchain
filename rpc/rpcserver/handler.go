@@ -115,6 +115,8 @@ func (s *Server) handler(res http.ResponseWriter, req *http.Request) error {
 	res.Header().Set("Content-Type", "application/json")
 	if len(s.config.Authentication) == 0 {
 		res.Header().Set("Access-Control-Allow-Origin", "*")
+		res.Header().Set("Access-Control-Allow-Headers", "content-type,user-agent")
+		res.Header().Set("Access-Control-Allow-Methods", "POST")
 	}
 
 	if jsonBody.JsonRpc != "2.0" {
