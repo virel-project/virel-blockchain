@@ -22,7 +22,7 @@ const invalidRequest = -32600
 func (s *Server) handler(res http.ResponseWriter, req *http.Request) error {
 	if req.Method == "OPTIONS" {
 		if len(s.config.Authentication) == 0 {
-			res.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
+			res.Header().Set("Access-Control-Allow-Origin", "*")
 			res.WriteHeader(204)
 			return nil
 		}
@@ -114,7 +114,7 @@ func (s *Server) handler(res http.ResponseWriter, req *http.Request) error {
 
 	res.Header().Set("Content-Type", "application/json")
 	if len(s.config.Authentication) == 0 {
-		res.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
+		res.Header().Set("Access-Control-Allow-Origin", "*")
 	}
 
 	if jsonBody.JsonRpc != "2.0" {
