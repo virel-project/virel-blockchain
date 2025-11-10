@@ -20,6 +20,14 @@ const sInvalidMethod = "Method not found"
 const invalidRequest = -32600
 
 func (s *Server) handler(res http.ResponseWriter, req *http.Request) error {
+	if req.Method == "OPTIONS" {
+		if len(s.config.Authentication) == 0 {
+			res.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
+			res.WriteHeader(204)
+			return nil
+		}
+	}
+
 	if req.Method != "POST" {
 		res.WriteHeader(405)
 		WriteJSON(res, rpc.ResponseOut{
@@ -105,7 +113,7 @@ func (s *Server) handler(res http.ResponseWriter, req *http.Request) error {
 	}
 
 	res.Header().Set("Content-Type", "application/json")
-	if !s.config.Restricted {
+	if len(s.config.Authentication) == 0 {
 		res.Header().Set("Access-Control-Allow-Origin", req.Header.Get("Origin"))
 	}
 
